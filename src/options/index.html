@@ -98,6 +98,16 @@
           <textarea id="blockedSites" placeholder="chase.com&#10;mychart"></textarea>
         </fieldset>
 
+        <fieldset>
+          <legend>Usage log (for your evaluation)</legend>
+          <p class="hint" id="metrics-summary">Loading…</p>
+          <div class="actions">
+            <button type="button" id="export-metrics">Export CSV</button>
+            <button type="button" id="clear-metrics">Clear</button>
+          </div>
+          <p class="hint">Each command's path (fast or AI), latency, and steps. Stored only in this browser.</p>
+        </fieldset>
+
         <div class="actions">
           <button type="submit" class="primary">Save</button>
           <span id="saved" role="status" aria-live="polite"></span>

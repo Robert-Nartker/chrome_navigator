@@ -80,6 +80,11 @@ describe("parseCommand fast path", () => {
     expect(parseCommand("look up airpods on amazon")).toMatchObject({ type: "search", engine: "amazon", query: "airpods" });
   });
 
+  it("searches the current site's own search box", () => {
+    expect(parseCommand("search this site for airpods")).toEqual({ type: "siteSearch", query: "airpods" });
+    expect(parseCommand("search for backpacks on this store")).toEqual({ type: "siteSearch", query: "backpacks" });
+  });
+
   it("types into the focused field or a numbered one", () => {
     expect(parseCommand("type hello world")).toEqual({ type: "type", text: "hello world", submit: false });
     expect(parseCommand("type cats and press enter")).toEqual({ type: "type", text: "cats", submit: true });

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BuckTube</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 240px); gap: 16px; }
+  .tile { cursor: pointer; }
+  .thumb { height: 120px; background: #ccd; border-radius: 8px; }
+  .title { font-weight: 600; margin-top: 6px; }
+</style></head>
+<body>
+  <div id="app"></div>
+<script>
+  const videos = [
+    { id: "v1", title: "Lofi beats to study to (3 hour mix)", channel: "Chillhop" },
+    { id: "v2", title: "How to make sourdough bread at home", channel: "Bake School" },
+    { id: "v3", title: "Ohio State vs Michigan: full highlights", channel: "Big Ten" },
+    { id: "v4", title: "Transformers explained in 10 minutes", channel: "AI Explained" },
+    { id: "v5", title: "Chrome extension tutorial for beginners", channel: "DevTips" },
+    { id: "v6", title: "Golf swing basics: fix your slice", channel: "Golf Pro" },
+  ];
+  window.__bench = { watching: null, liked: [], subscribed: [] };
+  const app = document.getElementById("app");
+  function home() {
+    app.innerHTML = "<h1>Recommended</h1><div class='grid'>" + videos.map(v =>
+      `<div class="tile" data-id="${v.id}"><div class="thumb"></div><div class="title">${v.title}</div><div>${v.channel}</div></div>`).join("") + "</div>";
+    app.querySelectorAll(".tile").forEach(t => t.addEventListener("click", () => watch(t.dataset.id)));
+  }
+  function watch(id) {
+    const v = videos.find(x => x.id === id);
+    __bench.watching = id;
+    app.innerHTML = `<div class="thumb" style="height:300px"></div><h1>${v.title}</h1>
+      <div>${v.channel} <button id="sub">Subscribe</button></div>
+      <button aria-label="Like this video" id="like">👍</button> <button aria-label="Dislike this video">👎</button> <button aria-label="Share">↗</button>
+      <p><a href="#" id="home">Back to home</a></p>`;
+    document.getElementById("like").onclick = () => __bench.liked.push(id);
+    document.getElementById("sub").onclick = () => __bench.subscribed.push(v.channel);
+    document.getElementById("home").onclick = (e) => { e.preventDefault(); home(); };
+  }
+  home();
+</script></body></html>

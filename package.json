@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tests",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
-    "check": "npm run typecheck && npm test && npm run test:e2e"
+    "check": "npm run typecheck && npm test && npm run test:e2e",
+    "bench": "npm run build && node scripts/bench.mjs",
+    "bench:mock": "npm run build && node scripts/bench.mjs --mock"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0"

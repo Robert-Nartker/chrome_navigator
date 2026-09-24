@@ -1,3 +1,4 @@
+import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { MODELS, type Settings, loadSettings, saveSettings } from "../lib/settings";
 
 const form = document.getElementById("settings") as HTMLFormElement;
@@ -67,3 +68,29 @@ form.addEventListener("submit", async (e) => {
 });
 
 void fill();
+
+const metricsSummary = document.getElementById("metrics-summary") as HTMLElement;
+
+async function showMetrics() {
+  const m = summarize(await loadMetrics());
+  metricsSummary.textContent = m.total
+    ? `${m.total} commands: ${m.fast} fast path (median ${m.fastMedianMs} ms), ${m.ai} AI (median ${(m.aiMedianMs / 1000).toFixed(1)} s, ${m.aiMedianSteps} steps), ${m.errors} errors.`
+    : "No commands logged yet.";
+}
+
+document.getElementById("export-metrics")?.addEventListener("click", async () => {
+  const blob = new Blob([toCsv(await loadMetrics())], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `navi-usage-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById("clear-metrics")?.addEventListener("click", async () => {
+  if (!confirm("Clear the usage log?")) return;
+  await clearMetrics();
+  await showMetrics();
+});
+
+void showMetrics();

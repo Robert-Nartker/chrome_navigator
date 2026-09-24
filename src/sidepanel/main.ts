@@ -1,5 +1,6 @@
 // Side panel: microphone, wake-word session, status UI, and the command log.
 
+import type { CommandMetric } from "../lib/metrics";
 import { SITES } from "../lib/sites";
 import { WakeSession } from "../lib/session";
 import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, saveSettings } from "../lib/settings";
@@ -28,6 +29,7 @@ let engine: SpeechEngine | null = null;
 let working = false;
 let micError = false;
 
+const metrics: CommandMetric[] = [];
 const session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
 const speaker = new Speaker(() => ({ rate: settings.speechRate, voiceName: settings.voiceName, lang: settings.lang }));
 
@@ -62,6 +64,7 @@ const controller = new Controller(
   {
     onSleep: () => goToSleep(),
     onActivity: () => session.touch(),
+    onMetric: (metric) => metrics.push(metric),
   },
 );
 
@@ -273,7 +276,21 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
 });
 
 // Exposed for automated tests and debugging from DevTools.
-(window as unknown as { navi: unknown }).navi = { run: (text: string) => controller.run(text), handleFinal, session };
+(window as unknown as { navi: unknown }).navi = {
+  run: (text: string) => controller.run(text),
+  handleFinal,
+  session,
+  metrics,
+  speaker,
+  resetConversation: () => controller.resetConversation(),
+  lastReply: () => {
+    const replies = ui.log.querySelectorAll("li.navi");
+    return replies[replies.length - 1]?.firstChild?.textContent ?? "";
+  },
+  get busy() {
+    return controller.isBusy;
+  },
+};
 
 async function init() {
   applySettings(await loadSettings());

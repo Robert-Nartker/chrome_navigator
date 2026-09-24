@@ -101,3 +101,17 @@ describe("WakeSession", () => {
     expect(session.handle("navi go back")).toEqual({ command: "go back", woke: false });
   });
 });
+
+describe("metrics", async () => {
+  const { summarize, toCsv } = await import("../../src/lib/metrics");
+  const rows = [
+    { t: "2026-09-24T00:00:00Z", command: "scroll down", path: "fast" as const, intent: "scroll", ms: 40 },
+    { t: "2026-09-24T00:00:01Z", command: 'open "the" video, please', path: "ai" as const, ms: 2400, steps: 2 },
+  ];
+  it("summarizes fast vs AI", () => {
+    expect(summarize(rows)).toMatchObject({ total: 2, fast: 1, ai: 1, fastMedianMs: 40, aiMedianMs: 2400, aiMedianSteps: 2 });
+  });
+  it("escapes CSV cells", () => {
+    expect(toCsv(rows).split("\n")[2]).toContain('"open ""the"" video, please"');
+  });
+});

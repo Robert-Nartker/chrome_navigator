@@ -22,6 +22,7 @@ export type Intent =
   | { type: "listTabs" }
   | { type: "open"; url: string; newTab: boolean; label: string }
   | { type: "search"; url: string; query: string; engine: string; newTab: boolean }
+  | { type: "siteSearch"; query: string }
   | { type: "clickNumber"; n: number }
   | { type: "clickText"; text: string }
   | { type: "showNumbers" }
@@ -181,6 +182,10 @@ const RULES: Rule[] = [
   [/^(?:where am i|what page (?:is this|am i on)|what(?:'s| is) this page)$/, () => ({ type: "whereAmI" })],
 
   // Search
+  [/^search (?:this|the) (?:site|page|website|store|shop) for (.+)$|^search for (.+?) on (?:this|the) (?:site|page|website|store|shop)$/, (m) => ({
+    type: "siteSearch",
+    query: (m[1] ?? m[2]).trim(),
+  })],
   [new RegExp(`^search (${ENGINE_NAMES}) for (.+)$`), (m) => search(m[2], m[1])],
   [new RegExp(`^(?:search|look up|google)(?: for)? (.+?) on (${ENGINE_NAMES})$`), (m) => search(m[1], m[2])],
   [/^(?:search|google|look up)(?: for| up)? (.+)$/, (m) => search(m[1], "google")],

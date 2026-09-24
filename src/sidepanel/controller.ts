@@ -1,6 +1,6 @@
 // Runs a command: fast path first (instant, no AI), then the Claude agent.
 
-import { NaviAgent } from "../lib/agent";
+import { type AgentResult, NaviAgent } from "../lib/agent";
 import {
   activateTab,
   cycleTab,
@@ -15,6 +15,7 @@ import {
   zoom,
 } from "../lib/browser";
 import { bestMatch } from "../lib/match";
+import { type CommandMetric, recordMetric } from "../lib/metrics";
 import { type Intent, parseCommand } from "../lib/parser";
 import type { Settings } from "../lib/settings";
 import { Speaker, earcons } from "../lib/voice-output";
@@ -44,13 +45,18 @@ export class Controller {
     private readonly getSettings: () => Settings,
     private readonly ui: ControllerUi,
     readonly speaker: Speaker,
-    private readonly hooks: { onSleep(): void; onActivity(): void },
+    private readonly hooks: { onSleep(): void; onActivity(): void; onMetric?(metric: CommandMetric): void },
   ) {
     this.agent = new NaviAgent(getSettings);
   }
 
   get isBusy() {
     return this.busy;
+  }
+
+  /** Forgets the AI conversation (e.g. between benchmark tasks). */
+  resetConversation() {
+    this.agent.reset();
   }
 
   /** Stops whatever Navi is doing or saying. */
@@ -81,6 +87,9 @@ export class Controller {
     const controller = new AbortController();
     this.current = controller;
     const started = performance.now();
+    const elapsed = () => Math.round(performance.now() - started);
+    let metric: Omit<CommandMetric, "t" | "command"> | null = null;
+    let reply: string | null = null;
     try {
       let handled = false;
       if (intent) {
@@ -97,18 +106,33 @@ export class Controller {
           "I don't know that command yet. Say what can I say for examples, or add a Claude API key in settings for anything else.",
         );
       }
-      if (!handled) await this.runAgent(command, controller.signal);
-      else this.ui.log("step", `Fast path · ${Math.round(performance.now() - started)} ms`);
+      if (!handled) {
+        const result = await this.runAgent(command, controller.signal);
+        metric = { path: "ai", ms: result.totalMs, modelMs: result.modelMs, steps: result.steps, model: this.getSettings().model };
+        reply = result.reply;
+      } else {
+        metric = { path: "fast", intent: intent?.type, ms: elapsed() };
+        this.ui.log("step", `Fast path · ${metric.ms} ms`);
+      }
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+        metric = { path: "cancelled", ms: elapsed() };
         this.ui.log("info", "Cancelled.");
       } else {
         const message = err instanceof Error ? err.message : String(err);
+        metric = { path: "error", intent: intent?.type, ms: elapsed(), error: message };
         this.ui.log("error", message);
         earcons.error();
-        await this.say(message);
+        reply = message;
       }
     } finally {
+      if (metric) {
+        const row: CommandMetric = { t: new Date().toISOString(), command, ...metric };
+        this.hooks.onMetric?.(row);
+        void recordMetric(row).catch(() => undefined);
+      }
+      // Speak after timing, so latency numbers measure the action, not the voice.
+      if (reply) await this.say(reply).catch(() => undefined);
       this.busy = false;
       this.current = null;
       this.ui.setWorking(false);
@@ -118,7 +142,7 @@ export class Controller {
     }
   }
 
-  private async runAgent(command: string, signal: AbortSignal) {
+  private async runAgent(command: string, signal: AbortSignal): Promise<AgentResult> {
     const result = await this.agent.run(command, {
       signal,
       onStep: (step) => {
@@ -129,7 +153,7 @@ export class Controller {
     });
     const seconds = (result.totalMs / 1000).toFixed(1);
     this.ui.log("navi", result.reply, `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s`);
-    await this.speaker.say(result.reply);
+    return result;
   }
 
   /** Always spoken: answers and errors. */
@@ -140,7 +164,7 @@ export class Controller {
   /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
   private async confirm(text: string) {
     this.ui.log("navi", text);
-    if (this.getSettings().feedback === "spoken") await this.speaker.say(text);
+    if (this.getSettings().feedback === "spoken") void this.speaker.say(text);
     else earcons.done();
   }
 
@@ -243,6 +267,16 @@ export class Controller {
         await navigate(intent.url, intent.newTab);
         await this.confirm(`Searching ${intent.engine === "google" ? "" : `${intent.engine} `}for ${intent.query}`);
         return;
+      case "siteSearch": {
+        const snap = await snapshot(tab);
+        const box =
+          snap.elements.find((e) => e.role === "searchbox") ??
+          snap.elements.find((e) => e.role === "textbox" && /search/i.test(e.name));
+        if (!box) throw new Unhandled("I couldn't find a search box on this page.");
+        await pageRequest(tab, { kind: "type", id: box.id, gen: snap.gen, text: intent.query, submit: true, clear: true });
+        await this.confirm(`Searching this site for ${intent.query}`);
+        return;
+      }
       case "clickNumber": {
         const res = await pageRequest(tab, { kind: "click", id: intent.n });
         await this.confirm(res.detail ?? `Clicked ${intent.n}`);

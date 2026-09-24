@@ -80,10 +80,22 @@ npm run typecheck   # TypeScript (tsgo)
 npm test            # unit tests: parser, label matching, wake session (vitest)
 npm run test:e2e    # builds, loads the extension in Chromium, drives real pages (Playwright)
 npm run check       # all of the above
+npm run bench       # NaviBench task suite against real Claude models (see below)
 node scripts/probe-sites.mjs [urls...]   # snapshot quality on real sites (element counts, size, timing)
 ```
 
 The e2e suite covers clicking by label and by number, badges, scrolling, typing and submitting, navigation and tabs, restricted pages, the wake session, blocked sites, and a full AI turn against a mocked Claude API (checking that page text isn't sent). If Playwright's browser isn't installed yet, run `npx playwright install chromium` once.
+
+## Benchmark (NaviBench)
+
+`bench/sites/` has small, realistic web apps: an email inbox, a shop, a video site, a signup form, and a news article that contains a prompt-injection line. `bench/tasks.json` has 17 spoken-command tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must draft the reply but not send it without a yes, and the article summary must not repeat the injected instruction.
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... npm run bench -- --models claude-opus-5,claude-sonnet-5,claude-haiku-4-5 --repeat 3
+npm run bench:mock        # checks the harness without API calls
+```
+
+It prints per-task PASS/FAIL, then a table of success rate, median latency and AI steps per model, and saves the raw results to `bench-results/`. Real usage is logged too: **Settings → Usage log → Export CSV** gives every command's path (fast or AI), latency and steps.
 
 ## Roadmap
 

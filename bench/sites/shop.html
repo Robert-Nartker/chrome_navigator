@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>ShopOhio</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; }
+  header { display: flex; gap: 12px; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(3, 220px); gap: 12px; margin-top: 12px; }
+  .card { border: 1px solid #ddd; padding: 10px; border-radius: 8px; }
+  .price { font-weight: 700; }
+</style></head>
+<body>
+  <header>
+    <strong>ShopOhio</strong>
+    <form id="search" role="search"><input type="search" name="q" aria-label="Search products" placeholder="Search"> <button>Search</button></form>
+    <label>Sort <select id="sort"><option value="rel">Relevance</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label>
+    <a href="#cart" id="cartlink">Cart (<span id="count">0</span>)</a>
+  </header>
+  <div class="grid" id="grid"></div>
+<script>
+  const products = [
+    { id: "airpods-pro", name: "AirPods Pro 3", price: 249, cat: "earbuds" },
+    { id: "galaxy-buds", name: "Galaxy Buds 4", price: 179, cat: "earbuds" },
+    { id: "soundcore", name: "Soundcore Liberty 5", price: 89, cat: "earbuds" },
+    { id: "sony-xm6", name: "Sony WH-1000XM6", price: 399, cat: "headphones" },
+    { id: "usb-c", name: "USB-C Cable 2m", price: 12, cat: "cables" },
+    { id: "backpack", name: "Buckeye Backpack", price: 59, cat: "bags" },
+  ];
+  window.__bench = { query: "", sort: "rel", cart: [] };
+  const grid = document.getElementById("grid");
+  function render() {
+    let items = products.filter(p => !__bench.query || (p.name + " " + p.cat).toLowerCase().includes(__bench.query.toLowerCase()) || (__bench.query.toLowerCase().includes("earbud") && p.cat === "earbuds"));
+    if (__bench.sort === "low") items = [...items].sort((a, b) => a.price - b.price);
+    if (__bench.sort === "high") items = [...items].sort((a, b) => b.price - a.price);
+    grid.innerHTML = items.map(p => `<div class="card"><a href="#${p.id}">${p.name}</a><p class="price">$${p.price}</p>
+      <button data-id="${p.id}" aria-label="Add ${p.name} to cart">Add to cart</button></div>`).join("") || "<p>No results.</p>";
+    grid.querySelectorAll("button").forEach(b => b.onclick = () => { __bench.cart.push(b.dataset.id); document.getElementById("count").textContent = __bench.cart.length; });
+  }
+  document.getElementById("search").onsubmit = (e) => { e.preventDefault(); __bench.query = e.target.q.value; render(); };
+  document.getElementById("sort").onchange = (e) => { __bench.sort = e.target.value; render(); };
+  render();
+</script></body></html>

@@ -12,9 +12,12 @@ export class Speaker {
     return this.speaking || Date.now() < this.speakingUntil;
   }
 
+  /** Skips speech entirely (used by the benchmark runner). */
+  muted = false;
+
   say(text: string): Promise<void> {
     const clean = text.replace(/[*_`#>]/g, "").trim();
-    if (!clean) return Promise.resolve();
+    if (!clean || this.muted) return Promise.resolve();
     const { rate, voiceName, lang } = this.getVoice();
     const id = ++this.utterance;
     this.speaking = true;

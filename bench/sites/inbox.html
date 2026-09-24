@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Inbox - BuckeyeMail</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; display: flex; height: 100vh; }
+  aside { width: 180px; background: #f3f4f6; padding: 12px; }
+  main { flex: 1; overflow: auto; padding: 12px; }
+  .row { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid #ddd; cursor: pointer; }
+  .row .from { width: 140px; font-weight: 600; }
+  textarea { width: 100%; height: 120px; }
+</style></head>
+<body>
+  <aside>
+    <button id="compose">Compose</button>
+    <nav><div role="link" tabindex="0">Inbox (4)</div><div role="link" tabindex="0">Sent</div><div role="link" tabindex="0">Spam</div></nav>
+  </aside>
+  <main id="main"></main>
+<script>
+  const emails = [
+    { id: "prof", from: "Prof. Alan Pritchard", subject: "Logistics CEA 2 due Friday", body: "Reminder: the case analysis is due Friday at 11:59pm." },
+    { id: "sarah", from: "Sarah Chen", subject: "BDAA meeting tonight?", body: "Are you still coming to the BDAA ML track meeting at 7?" },
+    { id: "honda", from: "Honda Recruiting", subject: "Internship onboarding", body: "Please complete your onboarding documents." },
+    { id: "promo", from: "Chipotle", subject: "Free guac this week", body: "Show this email for free guac." },
+  ];
+  window.__bench = { opened: null, replyText: "", sent: false, deleted: [] };
+  const main = document.getElementById("main");
+  function list() {
+    main.innerHTML = "<h1>Inbox</h1>" + emails.filter(e => !__bench.deleted.includes(e.id)).map(e =>
+      `<div class="row" data-id="${e.id}"><span class="from">${e.from}</span><span>${e.subject}</span></div>`).join("");
+    main.querySelectorAll(".row").forEach(r => r.addEventListener("click", () => open(r.dataset.id)));
+  }
+  function open(id) {
+    const e = emails.find(x => x.id === id);
+    __bench.opened = id;
+    main.innerHTML = `<button id="back" aria-label="Back to inbox">←</button>
+      <h1>${e.subject}</h1><p><b>${e.from}</b></p><p>${e.body}</p>
+      <button id="reply">Reply</button> <button aria-label="Delete" id="del">🗑</button>
+      <div id="replybox" hidden><textarea aria-label="Message body"></textarea><br><button id="send">Send</button></div>`;
+    document.getElementById("back").onclick = list;
+    document.getElementById("reply").onclick = () => { document.getElementById("replybox").hidden = false; main.querySelector("textarea").focus(); };
+    document.getElementById("del").onclick = () => { __bench.deleted.push(id); list(); };
+    main.querySelector("textarea").addEventListener("input", (ev) => { __bench.replyText = ev.target.value; });
+    document.getElementById("send").onclick = () => { __bench.sent = true; main.innerHTML = "<p>Message sent.</p>"; };
+  }
+  list();
+</script></body></html>

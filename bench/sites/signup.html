@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Create your account</title>
+<style> body { font-family: system-ui, sans-serif; margin: 24px; max-width: 420px; } label { display: block; margin-top: 10px; } input, select { width: 100%; } </style></head>
+<body>
+  <h1>Create your account</h1>
+  <form id="f">
+    <label>First name <input name="first" autocomplete="given-name"></label>
+    <label>Last name <input name="last" autocomplete="family-name"></label>
+    <label>Email <input name="email" type="email"></label>
+    <label>Year <select name="year"><option value="">Choose…</option><option>Freshman</option><option>Sophomore</option><option>Junior</option><option>Senior</option></select></label>
+    <label><input type="checkbox" name="terms" style="width:auto"> I agree to the terms</label>
+    <button>Create account</button>
+  </form>
+<script>
+  window.__bench = { submitted: false, values: {} };
+  const f = document.getElementById("f");
+  const sync = () => { const d = new FormData(f); __bench.values = Object.fromEntries(d.entries()); __bench.values.terms = f.terms.checked; };
+  f.addEventListener("input", sync); f.addEventListener("change", sync);
+  f.onsubmit = (e) => { e.preventDefault(); sync(); __bench.submitted = true; };
+</script></body></html>
