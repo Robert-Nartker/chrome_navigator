@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Navi Test Page</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; }
+  .card { cursor: pointer; padding: 10px; border: 1px solid #ccc; width: 200px; }
+  .spacer { height: 3000px; }
+</style></head>
+<body>
+  <h1>Navi Test Page</h1>
+  <nav><a href="#home">Home</a> <a href="about.html">About</a></nav>
+  <p id="result">idle</p>
+  <button id="signin" onclick="document.getElementById('result').textContent = 'signed in'">Sign in</button>
+  <button id="subscribe">Subscribe</button> <span id="subs">0</span>
+  <button aria-label="Open settings menu"><svg width="16" height="16"><circle cx="8" cy="8" r="6"/></svg></button>
+  <div class="card" id="card">Open card</div>
+  <form action="search.html" method="get">
+    <label for="q">Search the site</label>
+    <input id="q" name="q" type="text" placeholder="Search">
+    <button type="submit">Go</button>
+  </form>
+  <p>Mirror: <span id="mirror"></span></p>
+  <label for="size">Size</label>
+  <select id="size"><option>Small</option><option>Medium</option><option>Large</option></select>
+  <input type="password" id="pw" value="hunter2" aria-label="Password">
+  <div class="spacer"></div>
+  <p>Article text at the bottom of the page.</p>
+  <button id="bottom" onclick="document.getElementById('result').textContent = 'bottom clicked'">Bottom button</button>
+  <script>
+    let subs = 0;
+    document.getElementById('subscribe').addEventListener('click', () => {
+      document.getElementById('subs').textContent = String(++subs);
+    });
+    document.getElementById('card').addEventListener('click', () => {
+      document.getElementById('result').textContent = 'card opened';
+    });
+    document.getElementById('q').addEventListener('input', (e) => {
+      document.getElementById('mirror').textContent = e.target.value;
+    });
+  </script>
+</body>
+</html>

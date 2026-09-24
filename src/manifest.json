@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Navi: Voice Browser Agent",
+  "short_name": "Navi",
+  "version": "0.1.0",
+  "description": "Navigate Chrome hands-free with your voice.",
+  "minimum_chrome_version": "120",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open Navi",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_page": "options.html",
+  "permissions": ["sidePanel", "tabs", "scripting", "storage", "tts", "sessions"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "open-navi": {
+      "suggested_key": { "default": "Alt+Shift+N" },
+      "description": "Open the Navi side panel"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

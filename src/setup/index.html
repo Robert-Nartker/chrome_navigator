@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up Navi</title>
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      main { max-width: 620px; margin: 48px auto; padding: 0 16px; }
+      h1 { font-size: 28px; margin-bottom: 4px; }
+      .lead { color: var(--muted); margin-top: 0; }
+      .step { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin: 16px 0; }
+      .step h2 { font-size: 16px; margin: 0 0 6px; }
+      .step p { margin: 6px 0; }
+      .meter { height: 10px; border-radius: 5px; background: var(--surface); overflow: hidden; margin-top: 12px; }
+      .meter div { height: 100%; width: 0; background: var(--good); transition: width 0.08s; }
+      .ok { color: var(--good); font-weight: 600; }
+      .err { color: var(--bad); font-weight: 600; }
+      kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Set up Navi</h1>
+      <p class="lead">Navigate Chrome with your voice. This takes about a minute.</p>
+
+      <section class="step">
+        <h2>1. Allow the microphone</h2>
+        <p>Chrome only lets extensions ask for the microphone from a normal tab like this one, so Navi asks once here.</p>
+        <button id="grant" class="primary">Allow microphone</button>
+        <p id="mic-result" role="status" aria-live="polite"></p>
+        <div class="meter" aria-hidden="true"><div id="level"></div></div>
+      </section>
+
+      <section class="step">
+        <h2>2. Open Navi</h2>
+        <p>Click the Navi icon in the toolbar (pin it from the puzzle-piece menu), or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>. Navi opens in the side panel.</p>
+      </section>
+
+      <section class="step">
+        <h2>3. Say “Hey Navi”</h2>
+        <p>Navi wakes up and stays awake while you keep giving commands, so you only say its name once. It goes back to sleep after two quiet minutes, or when you say “go to sleep”.</p>
+        <p>Basic commands (scrolling, tabs, opening sites, “click 5”) work right away. For everything else, add a Claude API key in <a href="options.html">settings</a>.</p>
+      </section>
+    </main>
+    <script src="setup.js"></script>
+  </body>
+</html>

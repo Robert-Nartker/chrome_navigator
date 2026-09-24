@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Navi</title>
+    <link rel="stylesheet" href="shared.css" />
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <img src="icons/icon32.png" alt="" width="22" height="22" />
+        <h1>Navi</h1>
+      </div>
+      <div id="status" class="status" data-state="off" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span><span id="status-text">Mic off</span>
+      </div>
+    </header>
+
+    <div id="mic-banner" class="banner" hidden>
+      <p>Navi needs microphone access once.</p>
+      <button id="open-setup" class="primary">Set up microphone</button>
+    </div>
+    <div id="key-banner" class="banner subtle" hidden>
+      <p>Basic commands work now. Add a Claude API key in <a href="#" id="open-settings-inline">settings</a> for smart commands.</p>
+    </div>
+
+    <section class="controls">
+      <button id="mic" class="mic" aria-pressed="false" aria-label="Start listening">
+        <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">
+          <path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/>
+        </svg>
+      </button>
+      <div class="mode">
+        <label><input type="radio" name="mode" value="handsfree" /> Hands-free <small>(say “Hey <span class="wake-name">Navi</span>”)</small></label>
+        <label><input type="radio" name="mode" value="push" /> Click to talk</label>
+      </div>
+    </section>
+
+    <p id="interim" class="interim" aria-hidden="true"></p>
+    <div id="session-bar" class="session-bar" hidden><div></div></div>
+
+    <ol id="log" class="log" aria-live="polite"></ol>
+
+    <form id="command-form" class="command-form">
+      <input id="command-input" type="text" placeholder="Or type a command…" autocomplete="off" aria-label="Command" />
+      <button type="submit">Go</button>
+    </form>
+
+    <footer class="bottom">
+      <button id="toggle-numbers" class="link">Show numbers</button>
+      <button id="help" class="link">What can I say?</button>
+      <button id="open-settings" class="link">Settings</button>
+    </footer>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Search results</title></head>
+<body><h1 id="q"></h1><script>
+  document.getElementById('q').textContent = 'Results for ' + new URLSearchParams(location.search).get('q');
+</script></body></html>
