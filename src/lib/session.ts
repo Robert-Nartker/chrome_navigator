@@ -2,7 +2,7 @@
 // everything you say as a command until you've been quiet for the timeout, or
 // you say "go to sleep". No need to repeat the name for every command.
 
-import { stripWakePhrase, wakeAliases } from "./parser";
+import { type WakeWords, stripWakePhrase, wakeAliases } from "./parser";
 import type { ListenMode } from "./settings";
 
 export type SessionState = "sleeping" | "awake";
@@ -23,7 +23,7 @@ export interface SessionDecision {
 export class WakeSession {
   private state: SessionState = "sleeping";
   private lastActivity = 0;
-  private aliases: string[];
+  private aliases: WakeWords;
 
   constructor(private options: SessionOptions, private readonly now: () => number = Date.now) {
     this.aliases = wakeAliases(options.wakeName);

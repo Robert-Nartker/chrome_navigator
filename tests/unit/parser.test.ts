@@ -118,6 +118,9 @@ describe("wake phrase", () => {
   it("ignores speech without the wake phrase", () => {
     expect(stripWakePhrase("scroll down", aliases).woke).toBe(false);
     expect(stripWakePhrase("the navy seals", aliases).woke).toBe(false);
+    // Misheard spellings are real words, so they only count after "hey"/"ok".
+    expect(stripWakePhrase("navy blue shirts", aliases).woke).toBe(false);
+    expect(stripWakePhrase("Navi, go back", aliases)).toEqual({ woke: true, rest: "go back" });
   });
   it("supports custom names", () => {
     expect(stripWakePhrase("hey jarvis close tab", wakeAliases("Jarvis"))).toEqual({ woke: true, rest: "close tab" });

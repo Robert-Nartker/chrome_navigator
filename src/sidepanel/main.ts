@@ -159,7 +159,7 @@ function handleInterim(text: string) {
 function buildEngine(): SpeechEngine {
   const phrases = [settings.wakeName, `Hey ${settings.wakeName}`, ...Object.keys(SITES).slice(0, 40)];
   return new WebSpeechEngine(
-    { lang: settings.lang, preferOnDevice: true, phrases },
+    { lang: settings.lang, preferOnDevice: true, allowCloud: settings.allowCloudSpeech, phrases },
     {
       onInterim: handleInterim,
       onFinal: handleFinal,
@@ -215,7 +215,9 @@ async function checkMicPermission(): Promise<boolean> {
 }
 
 function applySettings(next: Settings) {
-  const restart = engine?.running && (next.lang !== settings.lang || next.wakeName !== settings.wakeName);
+  const restart =
+    engine?.running &&
+    (next.lang !== settings.lang || next.wakeName !== settings.wakeName || next.allowCloudSpeech !== settings.allowCloudSpeech);
   settings = next;
   session.configure({ mode: next.listenMode, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
   document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((r) => (r.checked = r.value === next.listenMode));

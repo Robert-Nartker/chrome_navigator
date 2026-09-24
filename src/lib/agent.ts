@@ -145,7 +145,12 @@ export class NaviAgent {
     if (!settings.apiKey) {
       throw new Error("I need a Claude API key for that. Add one in Navi's settings.");
     }
-    const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
+    const client = new Anthropic({
+      apiKey: settings.apiKey,
+      dangerouslyAllowBrowser: true,
+      maxRetries: 1,
+      timeout: 60_000,
+    });
     const started = performance.now();
     let modelMs = 0;
 

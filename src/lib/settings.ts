@@ -16,6 +16,8 @@ export interface Settings {
   speechRate: number;
   voiceName: string;
   lang: string;
+  /** Fall back to Google's cloud speech service when on-device recognition isn't available. */
+  allowCloudSpeech: boolean;
   /** Whether the AI may read page text when asked to read/summarize/answer questions. */
   allowPageText: boolean;
   /** Hostname fragments where Navi never sends anything to the AI. */
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speechRate: 1.1,
   voiceName: "",
   lang: "en-US",
+  allowCloudSpeech: true,
   allowPageText: true,
   blockedSites: [],
   maxAgentSteps: 12,

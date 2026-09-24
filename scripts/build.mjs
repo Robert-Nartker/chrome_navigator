@@ -39,6 +39,7 @@ const options = {
   format: "iife",
   target: "chrome120",
   sourcemap: "linked",
+  minify: !watch,
   logLevel: "info",
   plugins: [{ name: "copy-static", setup: (b) => b.onEnd(copyStatic) }],
 };

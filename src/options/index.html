@@ -67,7 +67,8 @@
           <input id="sessionTimeoutSec" type="number" min="10" max="1800" />
           <label for="lang">Language</label>
           <input id="lang" type="text" placeholder="en-US" />
-          <p class="hint">Speech uses Chrome's recognizer and runs on-device when Chrome supports it (Chrome 139+); otherwise audio is sent to Google's speech service while the mic is on.</p>
+          <label class="check"><input id="allowCloudSpeech" type="checkbox" /> Use Google's cloud speech service when on-device speech isn't available</label>
+          <p class="hint">Navi uses Chrome's speech recognizer on-device when possible (Chrome 139+; download it on the <a href="setup.html">setup page</a>). With this off, Navi never sends audio anywhere.</p>
         </fieldset>
 
         <fieldset>

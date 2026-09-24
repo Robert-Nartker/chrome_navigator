@@ -30,12 +30,13 @@ export interface ControllerUi {
 export const HELP_TEXT =
   "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, show numbers, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. Say go to sleep when you're done.";
 
+/** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
 
 export class Controller {
   private readonly agent: NaviAgent;
   private current: AbortController | null = null;
-  private queued: string | null = null;
+  private queue: string[] = [];
   private busy = false;
   private numbers = false;
 
@@ -54,7 +55,7 @@ export class Controller {
 
   /** Stops whatever Navi is doing or saying. */
   cancel() {
-    this.queued = null;
+    this.queue = [];
     this.current?.abort();
     this.speaker.stop();
   }
@@ -69,8 +70,9 @@ export class Controller {
       return;
     }
     if (this.busy) {
-      this.queued = command;
-      this.ui.log("info", `Queued: “${command}”`);
+      // Commands spoken while Navi is working run in order afterwards.
+      if (this.queue.length < 5) this.queue.push(command);
+      this.ui.log("info", `Next: “${command}”`);
       return;
     }
     this.ui.log("user", command);
@@ -87,7 +89,13 @@ export class Controller {
           handled = true;
         } catch (err) {
           if (!(err instanceof Unhandled)) throw err;
+          if (!this.getSettings().apiKey && err.message) throw new Error(err.message);
         }
+      }
+      if (!handled && !this.getSettings().apiKey) {
+        throw new Error(
+          "I don't know that command yet. Say what can I say for examples, or add a Claude API key in settings for anything else.",
+        );
       }
       if (!handled) await this.runAgent(command, controller.signal);
       else this.ui.log("step", `Fast path · ${Math.round(performance.now() - started)} ms`);
@@ -105,8 +113,7 @@ export class Controller {
       this.current = null;
       this.ui.setWorking(false);
       this.hooks.onActivity();
-      const next = this.queued;
-      this.queued = null;
+      const next = this.queue.shift();
       if (next) void this.run(next);
     }
   }
@@ -166,7 +173,11 @@ export class Controller {
         return;
       case "scroll":
         await pageRequest(tab, { kind: "scroll", direction: intent.direction, amount: intent.amount });
-        await this.confirm(`Scrolling ${intent.direction}`);
+        await this.confirm(
+          intent.direction === "top" || intent.direction === "bottom"
+            ? `Scrolled to the ${intent.direction}`
+            : `Scrolling ${intent.direction}`,
+        );
         return;
       case "back":
         await chrome.tabs.goBack(tab.id!).catch(() => {
@@ -208,7 +219,7 @@ export class Controller {
           intent.index !== undefined ? tabs[intent.index - 1] : intent.query ? await findTab(intent.query) : undefined;
         if (!found) {
           if (intent.index !== undefined) throw new Error(`There's no tab ${intent.index}.`);
-          throw new Unhandled();
+          throw new Unhandled(`No open tab matches ${intent.query}.`);
         }
         await activateTab(found);
         await this.announcePage(found, "");
@@ -240,7 +251,7 @@ export class Controller {
       case "clickText": {
         const snap = await snapshot(tab);
         const match = bestMatch(intent.text, snap.elements);
-        if (!match) throw new Unhandled();
+        if (!match) throw new Unhandled(`I couldn't find ${intent.text}. Say show numbers, then click a number.`);
         const res = await pageRequest(tab, { kind: "click", id: match.element.id, gen: snap.gen });
         await this.confirm(res.detail ?? `Clicked ${match.element.name}`);
         return;
@@ -264,7 +275,7 @@ export class Controller {
           await this.confirm(res.detail === "typed" ? `Typed ${intent.text}` : `Typed ${intent.text} and submitted`);
         } catch (err) {
           // No field focused: let the AI find the right box.
-          if (intent.target === undefined) throw new Unhandled();
+          if (intent.target === undefined) throw new Unhandled(err instanceof Error ? err.message : String(err));
           throw err;
         }
         return;

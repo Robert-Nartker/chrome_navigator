@@ -227,8 +227,9 @@ export function takeSnapshot(): PageSnapshot {
     return true;
   });
 
-  const byPosition = (a: Entry, b: Entry) =>
-    Math.round(a.rect.top / 12) - Math.round(b.rect.top / 12) || a.rect.left - b.rect.left;
+  // Reading order: rows by vertical center (so a small icon beside a button shares its row), then left to right.
+  const row = (e: Entry) => Math.round((e.rect.top + e.rect.bottom) / 2 / 16);
+  const byPosition = (a: Entry, b: Entry) => row(a) - row(b) || a.rect.left - b.rect.left;
   const inView = deduped.filter((e) => e.inViewport).sort(byPosition).slice(0, MAX_IN_VIEW);
   const belowFold = deduped.filter((e) => !e.inViewport).sort(byPosition).slice(0, MAX_BELOW);
   const ordered = [...inView, ...belowFold];

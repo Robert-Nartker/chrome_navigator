@@ -54,27 +54,32 @@ export function normalize(text: string): string {
   return t;
 }
 
+export interface WakeWords {
+  /** The name itself: "Navi, scroll down" works without "hey". */
+  exact: string[];
+  /** Likely mishearings ("navy"): only count after "hey"/"ok", since they're real words. */
+  misheard: string[];
+}
+
 /** Strips the wake phrase ("hey navi", "navi,") from the start of an utterance. */
-export function stripWakePhrase(text: string, aliases: string[]): { woke: boolean; rest: string } {
+export function stripWakePhrase(text: string, words: WakeWords): { woke: boolean; rest: string } {
   const lower = text.toLowerCase().trim();
-  for (const alias of aliases) {
-    const re = new RegExp(`^(?:(?:hey|hi|ok(?:ay)?|yo)\\s+)?${escapeRegExp(alias)}\\b[\\s,.!?]*`, "i");
-    const m = lower.match(re);
+  const patterns = [
+    ...words.exact.map((w) => `^(?:(?:hey|hi|ok(?:ay)?|yo)\\s+)?${escapeRegExp(w)}\\b`),
+    ...words.misheard.map((w) => `^(?:hey|hi|ok(?:ay)?|yo)\\s+${escapeRegExp(w)}\\b`),
+  ];
+  for (const pattern of patterns) {
+    const m = lower.match(new RegExp(`${pattern}[\\s,.!?]*`, "i"));
     if (m) return { woke: true, rest: text.trim().slice(m[0].length).trim() };
   }
   return { woke: false, rest: text.trim() };
 }
 
 /** Spellings speech engines produce for a wake name ("Navi" -> "navy", "navie"...). */
-export function wakeAliases(name: string): string[] {
+export function wakeAliases(name: string): WakeWords {
   const n = name.trim().toLowerCase();
-  const aliases = new Set([n]);
-  if (n === "navi") {
-    ["navy", "navie", "navvy", "nabi", "nav e", "navi's", "nave", "knavey", "novi", "nobby"].forEach((a) =>
-      aliases.add(a),
-    );
-  }
-  return [...aliases].sort((a, b) => b.length - a.length);
+  const misheard = n === "navi" ? ["navy", "navie", "navvy", "nabi", "nav e", "nave", "novi", "nobby", "knavey"] : [];
+  return { exact: [n], misheard: misheard.sort((a, b) => b.length - a.length) };
 }
 
 function escapeRegExp(s: string) {

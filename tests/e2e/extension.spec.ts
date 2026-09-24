@@ -3,14 +3,17 @@
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
 import { createServer, type Server } from "node:http";
-import { readFile } from "node:fs/promises";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 const DIST = path.resolve("dist");
 const FIXTURES = path.resolve("tests/fixtures");
-const CHROMIUM = process.env.NAVI_CHROMIUM ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+// Uses Playwright's own Chromium unless NAVI_CHROMIUM (or the sandbox build) is present.
+const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 
 type Fixtures = { context: BrowserContext; extensionId: string; baseUrl: string; site: Page; panel: Page };
 
@@ -244,4 +247,15 @@ test("privacy: blocked sites never reach the AI", async ({ panel, context }) => 
   await run(panel, "what is this page about");
   await expect(panel.locator("#log li.error").last()).toContainText("turned off Navi's AI on this site");
   expect(calls).toBe(0);
+});
+
+test("commands spoken while Navi is busy run in order", async ({ panel, site }) => {
+  await panel.evaluate(() => {
+    const navi = (window as unknown as { navi: { run(t: string): Promise<void> } }).navi;
+    void navi.run("click subscribe");
+    void navi.run("click subscribe");
+    void navi.run("click sign in");
+  });
+  await expect(site.locator("#subs")).toHaveText("2");
+  await expect(site.locator("#result")).toHaveText("signed in");
 });

@@ -3,6 +3,7 @@
 export class Speaker {
   private speakingUntil = 0;
   private speaking = false;
+  private utterance = 0;
 
   constructor(private readonly getVoice: () => { rate: number; voiceName: string; lang: string }) {}
 
@@ -15,11 +16,18 @@ export class Speaker {
     const clean = text.replace(/[*_`#>]/g, "").trim();
     if (!clean) return Promise.resolve();
     const { rate, voiceName, lang } = this.getVoice();
+    const id = ++this.utterance;
     this.speaking = true;
     return new Promise((resolve) => {
+      let finished = false;
       const done = () => {
-        this.speaking = false;
-        this.speakingUntil = Date.now() + 700;
+        if (finished) return;
+        finished = true;
+        // A newer utterance may have started; only the latest one controls the flag.
+        if (id === this.utterance) {
+          this.speaking = false;
+          this.speakingUntil = Date.now() + 700;
+        }
         resolve();
       };
       chrome.tts.speak(clean, {

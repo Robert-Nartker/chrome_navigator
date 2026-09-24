@@ -32,6 +32,7 @@ async function fill() {
   voice.value = s.voiceName;
   field<HTMLInputElement>("speechRate").value = String(s.speechRate);
   field<HTMLInputElement>("allowPageText").checked = s.allowPageText;
+  field<HTMLInputElement>("allowCloudSpeech").checked = s.allowCloudSpeech;
   field<HTMLTextAreaElement>("blockedSites").value = s.blockedSites.join("\n");
 }
 
@@ -55,6 +56,7 @@ form.addEventListener("submit", async (e) => {
     voiceName: field<HTMLSelectElement>("voiceName").value,
     speechRate: clamp(field<HTMLInputElement>("speechRate").value, 0.5, 3, 1.1),
     allowPageText: field<HTMLInputElement>("allowPageText").checked,
+    allowCloudSpeech: field<HTMLInputElement>("allowCloudSpeech").checked,
     blockedSites: field<HTMLTextAreaElement>("blockedSites")
       .value.split("\n")
       .map((s) => s.trim())

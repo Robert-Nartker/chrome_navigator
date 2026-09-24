@@ -58,6 +58,26 @@ function recognitionCtor(): RecognitionCtor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
+export type OnDeviceStatus = "available" | "downloadable" | "downloading" | "unavailable" | "unsupported";
+
+/** Whether Chrome can recognize speech on this computer (Chrome 139+). */
+export async function onDeviceStatus(lang: string): Promise<OnDeviceStatus> {
+  const Ctor = recognitionCtor();
+  if (!Ctor || typeof Ctor.available !== "function") return "unsupported";
+  try {
+    return (await Ctor.available({ langs: [lang], processLocally: true })) as OnDeviceStatus;
+  } catch {
+    return "unsupported";
+  }
+}
+
+/** Downloads the on-device model. Must be called from a click. */
+export async function installOnDevice(lang: string): Promise<boolean> {
+  const Ctor = recognitionCtor();
+  if (!Ctor || typeof Ctor.install !== "function") return false;
+  return Ctor.install({ langs: [lang], processLocally: true });
+}
+
 export function speechSupported(): boolean {
   return !!recognitionCtor();
 }
@@ -66,6 +86,8 @@ export interface WebSpeechOptions {
   lang: string;
   /** Keep audio on this computer when Chrome supports on-device recognition. */
   preferOnDevice: boolean;
+  /** If on-device isn't available, may audio go to Google's speech service? */
+  allowCloud: boolean;
   /** Words to bias recognition toward (site names, the wake name). */
   phrases: string[];
 }
@@ -99,6 +121,14 @@ export class WebSpeechEngine implements SpeechEngine {
     }
     this.wanted = true;
     this.onDevice = this.options.preferOnDevice && (await this.prepareOnDevice(Ctor));
+    if (!this.onDevice && !this.options.allowCloud) {
+      this.wanted = false;
+      this.callbacks.onError(
+        "On-device speech isn't ready. Download it on Navi's setup page, or allow cloud speech in settings.",
+        true,
+      );
+      return;
+    }
     this.callbacks.onInfo?.(`Speech: ${this.label}`);
     this.launch(Ctor);
   }
@@ -121,10 +151,9 @@ export class WebSpeechEngine implements SpeechEngine {
     try {
       const status = await Ctor.available(request);
       if (status === "available") return true;
-      if ((status === "downloadable" || status === "downloading") && typeof Ctor.install === "function") {
-        this.callbacks.onInfo?.("Downloading Chrome's on-device speech model…");
-        const installed = await Ctor.install(request);
-        return installed && (await Ctor.available(request)) === "available";
+      if (status === "downloadable" || status === "downloading") {
+        // Downloading needs a click, so it happens on the setup page.
+        this.callbacks.onInfo?.("On-device speech can be downloaded on Navi's setup page. Using cloud speech for now.");
       }
     } catch {
       // Fall through to cloud recognition.
@@ -172,6 +201,8 @@ export class WebSpeechEngine implements SpeechEngine {
           this.wanted = false;
           this.callbacks.onError("Microphone access is blocked. Open Navi setup to allow it.", true);
           return;
+        case "phrases-not-supported":
+          return;
         case "language-not-supported":
           if (this.onDevice) {
             this.onDevice = false;
@@ -210,7 +241,8 @@ export class WebSpeechEngine implements SpeechEngine {
   private applyPhrases(rec: Recognition) {
     const Phrase = (window as unknown as { SpeechRecognitionPhrase?: new (phrase: string, boost: number) => unknown })
       .SpeechRecognitionPhrase;
-    if (!Phrase || !("phrases" in rec) || this.options.phrases.length === 0) return;
+    // Chrome only supports phrase boosting on-device; setting it otherwise is an error.
+    if (!this.onDevice || !Phrase || !("phrases" in rec) || this.options.phrases.length === 0) return;
     try {
       rec.phrases = this.options.phrases.map((p) => new Phrase(p, 5));
     } catch {

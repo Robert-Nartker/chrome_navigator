@@ -1,3 +1,6 @@
+import { installOnDevice, onDeviceStatus } from "../lib/speech";
+import { loadSettings } from "../lib/settings";
+
 // One-time microphone permission. Extension side panels can't show Chrome's
 // permission prompt, so it is granted here in a normal tab.
 
@@ -60,3 +63,37 @@ void navigator.permissions
     }
   })
   .catch(() => undefined);
+
+const onDeviceButton = document.getElementById("ondevice") as HTMLButtonElement;
+const onDeviceResult = document.getElementById("ondevice-result") as HTMLElement;
+
+async function showOnDevice() {
+  const { lang } = await loadSettings();
+  const status = await onDeviceStatus(lang);
+  onDeviceResult.className = status === "available" ? "ok" : "";
+  onDeviceButton.disabled = status !== "downloadable";
+  onDeviceResult.textContent = {
+    available: "On-device speech is ready. Audio stays on this computer.",
+    downloadable: "Available for your language. Click to download (a one-time download).",
+    downloading: "Downloading…",
+    unavailable: `On-device speech isn't available for ${lang} on this computer. Navi will use Google's speech service.`,
+    unsupported: "This version of Chrome doesn't support on-device speech (needs Chrome 139+). Navi will use Google's speech service.",
+  }[status];
+  if (status === "downloading") window.setTimeout(() => void showOnDevice(), 3000);
+}
+
+onDeviceButton.addEventListener("click", async () => {
+  const { lang } = await loadSettings();
+  onDeviceButton.disabled = true;
+  onDeviceResult.textContent = "Downloading…";
+  try {
+    await installOnDevice(lang);
+  } catch (err) {
+    onDeviceResult.className = "err";
+    onDeviceResult.textContent = `Download failed: ${String(err)}`;
+    return;
+  }
+  await showOnDevice();
+});
+
+void showOnDevice();
