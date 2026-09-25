@@ -15,7 +15,7 @@ describe("scribeUrl", () => {
       }),
     );
 
-  it("asks for realtime Scribe with zero retention and background filtering", () => {
+  it("asks for realtime Scribe with background filtering", () => {
     const u = url();
     expect(u.origin + u.pathname).toBe("wss://api.elevenlabs.io/v1/speech-to-text/realtime");
     const p = u.searchParams;
@@ -24,7 +24,8 @@ describe("scribeUrl", () => {
     expect(p.get("audio_format")).toBe("pcm_16000");
     expect(p.get("commit_strategy")).toBe("vad");
     expect(p.get("language_code")).toBe("en");
-    expect(p.get("enable_logging")).toBe("false");
+    // Zero retention is Enterprise-only; sending it on other plans isn't allowed.
+    expect(p.has("enable_logging")).toBe(false);
     expect(p.get("filter_background_audio")).toBe("true");
     expect(p.getAll("keyterms")).toEqual(["Navi", "Hey Navi"]);
   });

@@ -64,8 +64,7 @@ export function scribeUrl(o: ScribeOptions): string {
     // Drop "um"s and false starts; commands come through cleaner.
     no_verbatim: "true",
     filter_background_audio: String(o.filterBackgroundAudio),
-    // Zero-retention mode: ElevenLabs doesn't keep the audio or transcript.
-    enable_logging: "false",
+    // Zero-retention mode (enable_logging=false) is Enterprise-only, so it isn't requested.
   });
   // Max 50 keyterms, 20 characters each.
   for (const term of o.keyterms.filter((t) => t.length <= 20).slice(0, 50)) params.append("keyterms", term);
@@ -86,7 +85,7 @@ export async function speechStream(
   voice: VoiceSettings,
   signal: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
-  const query = new URLSearchParams({ output_format: "pcm_24000", enable_logging: "false" });
+  const query = new URLSearchParams({ output_format: "pcm_24000" });
   const res = await check(
     await fetch(`${API}/v1/text-to-speech/${encodeURIComponent(voice.voiceId)}/stream?${query}`, {
       method: "POST",

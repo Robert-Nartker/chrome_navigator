@@ -608,7 +608,6 @@ test.describe("ElevenLabs speech", () => {
     expect(url.searchParams.get("model_id")).toBe("scribe_v2_realtime");
     expect(url.searchParams.get("token")).toBe("single-use-test-token");
     expect(url.searchParams.get("filter_background_audio")).toBe("true");
-    expect(url.searchParams.get("enable_logging")).toBe("false");
     expect(url.searchParams.get("audio_format")).toBe("pcm_16000");
     expect(url.searchParams.getAll("keyterms")).toContain("Navi");
     // The key only goes in the token request header, never in the socket URL.
@@ -620,7 +619,6 @@ test.describe("ElevenLabs speech", () => {
     await expect.poll(() => tts.length).toBe(1);
     expect(tts[0].url).toContain("/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL/stream");
     expect(tts[0].url).toContain("output_format=pcm_24000");
-    expect(tts[0].url).toContain("enable_logging=false");
     expect(tts[0].body.model_id).toBe("eleven_flash_v2_5");
     expect(String(tts[0].body.text)).toMatch(/It's \d/);
     expect(tts[0].key).toBe("el-test-key");
