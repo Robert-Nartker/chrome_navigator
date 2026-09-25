@@ -36,12 +36,12 @@ export class WakeSession {
 
   get current(): SessionState {
     this.expireIfIdle();
-    return this.options.mode === "push" ? "awake" : this.state;
+    return this.options.mode === "open" ? "awake" : this.state;
   }
 
   /** Milliseconds until the session falls asleep (0 when asleep). */
   get remainingMs(): number {
-    if (this.current !== "awake" || this.options.mode === "push") return 0;
+    if (this.current !== "awake" || this.options.mode === "open") return 0;
     return Math.max(0, this.lastActivity + this.options.timeoutSec * 1000 - this.now());
   }
 
@@ -55,7 +55,7 @@ export class WakeSession {
     this.expireIfIdle();
     // While asleep, stray words before the name are tolerated; once awake, only a leading name is removed.
     const { woke, rest } = stripWakePhrase(utterance, this.aliases, this.options.mode === "handsfree" && this.state === "sleeping");
-    if (this.options.mode === "push") {
+    if (this.options.mode === "open") {
       return { command: rest || null, woke: false };
     }
     if (this.state === "sleeping") {

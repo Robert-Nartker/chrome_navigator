@@ -3,7 +3,8 @@
 import { DEFAULT_VOICE_ID } from "./elevenlabs";
 import { type Effort, modelInfo } from "./models";
 
-export type ListenMode = "handsfree" | "push";
+/** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
+export type ListenMode = "handsfree" | "open";
 export type Feedback = "minimal" | "spoken";
 
 export interface Settings {
@@ -96,9 +97,17 @@ export function usesElevenOutput(s: Settings): boolean {
   return !!s.elevenLabsKey && s.speechOutput === "elevenlabs";
 }
 
+/** Defaults for anything missing, and renames from older versions. */
+function normalize(raw: Partial<Settings> | undefined): Settings {
+  const s = { ...DEFAULT_SETTINGS, ...raw };
+  // "Click to talk" ("push") became "Open mic".
+  if ((s.listenMode as string) === "push") s.listenMode = "open";
+  return s;
+}
+
 export async function loadSettings(): Promise<Settings> {
   const stored = await chrome.storage.local.get("settings");
-  return { ...DEFAULT_SETTINGS, ...(stored.settings as Partial<Settings> | undefined) };
+  return normalize(stored.settings as Partial<Settings> | undefined);
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
@@ -110,7 +119,7 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
 export function onSettingsChanged(callback: (settings: Settings) => void) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.settings) {
-      callback({ ...DEFAULT_SETTINGS, ...(changes.settings.newValue as Partial<Settings>) });
+      callback(normalize(changes.settings.newValue as Partial<Settings>));
     }
   });
 }

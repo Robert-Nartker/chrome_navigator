@@ -145,9 +145,9 @@ function renderStatus(detail?: string) {
     state = "working";
     text = detail ?? "Working…";
   } else if (engine?.running) {
-    if (settings.listenMode === "push") {
+    if (settings.listenMode === "open") {
       state = "awake";
-      text = "Listening…";
+      text = "Open mic: just say a command";
     } else if (session.current === "awake") {
       state = "awake";
       text = "Awake: just say a command";
@@ -190,7 +190,8 @@ window.setInterval(() => {
 }, 1000);
 
 function goToSleep() {
-  if (settings.listenMode === "push") {
+  // In open-mic mode, "go to sleep" turns the mic off.
+  if (settings.listenMode === "open") {
     stopListening();
   } else {
     session.sleep();
@@ -217,7 +218,6 @@ function handleFinal(transcript: string, confidence = 0) {
   }
   if (decision.command) {
     void controller.run(decision.command, { source: "voice", confidence });
-    if (settings.listenMode === "push") stopListening();
   }
   renderStatus();
 }
@@ -242,6 +242,8 @@ function handleInterim(text: string) {
   ui.interim.textContent = shown.length > 120 ? `…${shown.slice(-120)}` : shown;
 }
 
+let lastSpeechInfo = "";
+
 function buildEngine(): SpeechEngine {
   // No word boosting: it made Chrome "hear" boosted words in background noise ("testing" came out as
   // "hey navi wikipedia tiktok"). Misheard wake names ("navy", "nobby"...) are matched in the parser instead.
@@ -262,7 +264,11 @@ function buildEngine(): SpeechEngine {
         }
         renderStatus();
       },
-      onInfo: (message) => log("info", message),
+      onInfo: (message) => {
+        // Restarts (e.g. after a settings change) repeat the same notes; show each once.
+        if (message !== lastSpeechInfo) log("info", message);
+        lastSpeechInfo = message;
+      },
     },
   );
 }
@@ -331,8 +337,8 @@ async function startListening() {
     next.stop();
     return;
   }
-  if (settings.listenMode === "push") session.wake();
-  if (settings.listenMode === "push" || session.current === "awake") startScribe();
+  if (settings.listenMode === "open") session.wake();
+  if (settings.listenMode === "open" || session.current === "awake") startScribe();
   renderStatus();
 }
 
@@ -345,18 +351,22 @@ function stopListening() {
   renderStatus();
 }
 
+let micGranted = false;
+
 async function checkMicPermission(): Promise<boolean> {
   try {
     const status = await navigator.permissions.query({ name: "microphone" as PermissionName });
-    const granted = status.state === "granted";
-    ui.micBanner.hidden = granted;
+    micGranted = status.state === "granted";
+    ui.micBanner.hidden = micGranted;
     status.onchange = () => {
-      ui.micBanner.hidden = status.state === "granted";
-      if (status.state === "granted") micError = false;
+      micGranted = status.state === "granted";
+      ui.micBanner.hidden = micGranted;
+      if (micGranted) micError = false;
       renderStatus();
     };
-    return granted;
+    return micGranted;
   } catch {
+    micGranted = true;
     return true;
   }
 }
@@ -373,6 +383,8 @@ function applySettings(next: Settings) {
       next.wakeName !== settings.wakeName ||
       next.allowCloudSpeech !== settings.allowCloudSpeech ||
       next.listenMode !== settings.listenMode);
+  // Choosing "Hey Navi" means Navi should be listening for its name, so turn the mic on.
+  const startHandsFree = !engine?.running && micGranted && next.listenMode === "handsfree" && settings.listenMode !== "handsfree";
   if (speechChanged) scribeDisabled = false;
   if (next.elevenLabsKey !== settings.elevenLabsKey || next.elevenVoiceId !== settings.elevenVoiceId) lastVoiceError = "";
   settings = next;
@@ -381,7 +393,7 @@ function applySettings(next: Settings) {
   document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((r) => (r.checked = r.value === next.listenMode));
   document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));
   ui.keyBanner.hidden = !!keyFor(next, next.model);
-  if (restart) void startListening();
+  if (restart || startHandsFree) void startListening();
   renderStatus();
 }
 
@@ -435,6 +447,12 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
   run: (text: string) => controller.run(text),
   handleFinal,
   chromeFinal: handleChromeFinal,
+  /** Feeds ElevenLabs a tone at the given level for n x 100 ms, as if someone were talking. */
+  feedScribe(level: number, chunks: number) {
+    for (let i = 0; i < chunks; i++) {
+      scribe?.feed(Float32Array.from({ length: 1600 }, (_, j) => level * Math.sin((2 * Math.PI * 220 * j) / 16000)));
+    }
+  },
   // For the router benchmark: one routing call with the current settings, timed.
   async route(text: string) {
     const t0 = performance.now();

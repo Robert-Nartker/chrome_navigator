@@ -107,6 +107,9 @@ export interface WebSpeechOptions {
   allowCloud: boolean;
 }
 
+/** How long a partial transcript may sit unchanged before Chrome is told to finish the phrase. */
+const STALL_MS = 1400;
+
 export class WebSpeechEngine implements SpeechEngine {
   private recognition: Recognition | null = null;
   private wanted = false;
@@ -118,6 +121,8 @@ export class WebSpeechEngine implements SpeechEngine {
   private stream: MediaStream | null = null;
   private trackSupported = true;
   private restartTimer: number | undefined;
+  /** Fires when the partial transcript stops changing but Chrome hasn't finished the phrase. */
+  private stallTimer: number | undefined;
 
   constructor(
     private readonly options: WebSpeechOptions,
@@ -172,6 +177,7 @@ export class WebSpeechEngine implements SpeechEngine {
   stop() {
     this.wanted = false;
     window.clearTimeout(this.restartTimer);
+    window.clearTimeout(this.stallTimer);
     this.recognition?.abort();
     this.recognition = null;
     this.closeMic();
@@ -228,6 +234,10 @@ export class WebSpeechEngine implements SpeechEngine {
         }
       }
       this.callbacks.onInterim(interim.trim());
+      // Background noise can keep Chrome waiting for the end of a phrase that's already over, leaving
+      // the words on screen without running them. If they stop changing, make Chrome finish the phrase.
+      window.clearTimeout(this.stallTimer);
+      if (interim.trim()) this.stallTimer = window.setTimeout(() => rec.stop(), STALL_MS);
     };
     rec.onerror = (event) => {
       // Back off on every real error so a broken mic isn't reopened several times a second.
@@ -269,6 +279,9 @@ export class WebSpeechEngine implements SpeechEngine {
       }
     };
     rec.onend = () => {
+      window.clearTimeout(this.stallTimer);
+      // Anything still shown as "hearing" was never finished; don't leave it on screen.
+      this.callbacks.onInterim("");
       // Chrome ends continuous recognition periodically; restart while we still want it.
       if (this.wanted) {
         this.restartTimer = window.setTimeout(async () => {

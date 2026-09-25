@@ -144,7 +144,7 @@ await panel.evaluate(() => (window.navi.speaker.muted = true));
 const catalog = await panel.evaluate(() => window.navi.models);
 const priceOf = (model) => catalog.find((m) => m.id === model)?.price;
 
-const baseSettings = { apiKey: keys.anthropic, openaiKey: keys.openai, listenMode: "push", feedback: "minimal", maxAgentSteps: 12 };
+const baseSettings = { apiKey: keys.anthropic, openaiKey: keys.openai, listenMode: "open", feedback: "minimal", maxAgentSteps: 12 };
 async function applySettings(extra) {
   await panel.evaluate((s) => chrome.storage.local.set({ settings: s }), { ...baseSettings, ...extra });
   await panel.waitForTimeout(150);

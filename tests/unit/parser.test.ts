@@ -264,3 +264,18 @@ describe("wake phrase with stray words", () => {
     expect(stripWakePhrase("open navi settings", words)).toEqual({ woke: false, rest: "open navi settings" });
   });
 });
+
+describe("fuzzy wake word", () => {
+  const words = wakeAliases("Navi");
+  it("wakes on close-sounding names after a greeting", () => {
+    expect(stripWakePhrase("hey navvy open youtube", words)).toEqual({ woke: true, rest: "open youtube" });
+    expect(stripWakePhrase("Hey Nabi, scroll down", words)).toEqual({ woke: true, rest: "scroll down" });
+    expect(stripWakePhrase("heynavi open gmail", words)).toEqual({ woke: true, rest: "open gmail" });
+    expect(stripWakePhrase("so um hey novi go back", words, true)).toEqual({ woke: true, rest: "go back" });
+  });
+  it("ignores unrelated names and words", () => {
+    expect(stripWakePhrase("hey nancy how are you", words).woke).toBe(false);
+    expect(stripWakePhrase("hey maybe later", words).woke).toBe(false);
+    expect(stripWakePhrase("the navy ship", words, true).woke).toBe(false);
+  });
+});

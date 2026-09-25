@@ -90,10 +90,10 @@ export interface WakeWords {
   misheard: string[];
 }
 
-/** Strips the wake phrase ("hey navi", "navi,") from the start of an utterance. */
 /**
- * Finds the wake name at the start of an utterance. `lenient` (used while asleep) also accepts
- * up to three stray words before it, which speech engines often add ("uh tiktok Navi open…").
+ * Finds the wake name at the start of an utterance and strips it ("hey navi, scroll down").
+ * `lenient` (used while asleep) also accepts up to three stray words before it, which speech
+ * engines often add ("uh tiktok Navi open…").
  */
 export function stripWakePhrase(text: string, words: WakeWords, lenient = false): { woke: boolean; rest: string } {
   const lower = text.toLowerCase().trim();
@@ -105,6 +105,26 @@ export function stripWakePhrase(text: string, words: WakeWords, lenient = false)
   for (const pattern of patterns) {
     const m = lower.match(new RegExp(`${pattern}[\\s,.!?]*`, "i"));
     if (m) return { woke: true, rest: text.trim().slice(m[0].length).trim() };
+  }
+  return fuzzyWake(text, words.exact[0] ?? "", lenient ? 3 : 0);
+}
+
+const GREETINGS = new Set(["hey", "hi", "ok", "okay", "yo", "hay", "a"]);
+
+/**
+ * "Hey" followed by a word that sounds close to the name ("hey navvy", "hey novy", "hey nabi"),
+ * or the two run together ("heynavi"). Requiring the greeting keeps ordinary words from waking Navi.
+ */
+function fuzzyWake(text: string, name: string, maxLead: number): { woke: boolean; rest: string } {
+  const words = text.trim().split(/\s+/);
+  const bare = (w: string) => w.toLowerCase().replace(/[^a-z']/g, "");
+  for (let i = 0; i <= maxLead && i < words.length; i++) {
+    const word = bare(words[i]);
+    const merged = /^(?:hey|hay|hi|a)(.+)$/.exec(word);
+    if (merged && similarity(merged[1], name) >= 0.75) return { woke: true, rest: words.slice(i + 1).join(" ") };
+    if (GREETINGS.has(word) && i + 1 < words.length && similarity(bare(words[i + 1]), name) >= 0.6) {
+      return { woke: true, rest: words.slice(i + 2).join(" ").replace(/^[,.!?\s]+/, "") };
+    }
   }
   return { woke: false, rest: text.trim() };
 }

@@ -706,6 +706,7 @@ test.describe("ElevenLabs speech", () => {
     navi: {
       handleFinal(t: string): void;
       chromeFinal(t: string, c: number): void;
+      feedScribe(level: number, chunks: number): void;
       startListening(): Promise<void>;
       stopListening(): void;
       scribeLive: boolean;
@@ -768,6 +769,11 @@ test.describe("ElevenLabs speech", () => {
     expect(sockets).toHaveLength(0);
 
     await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
+    // Awake but quiet: no connection, so nothing is billed.
+    await panel.waitForTimeout(600);
+    expect(sockets).toHaveLength(0);
+    // Speaking opens the connection and sends the speech, including the moment before it was detected.
+    await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
     await expect.poll(() => sockets.length).toBe(1);
     const url = new URL(sockets[0]);
     expect(url.pathname).toBe("/v1/speech-to-text/realtime");
@@ -813,6 +819,7 @@ test.describe("ElevenLabs speech", () => {
     await panel.evaluate(() => chrome.storage.local.set({ settings: { elevenLabsKey: "bad-key" } }));
     await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
     await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
+    await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
     await expect(panel.locator("#log li.error").filter({ hasText: "Using Chrome's speech recognition" })).toHaveCount(1);
     expect(await panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
 

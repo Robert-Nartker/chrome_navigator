@@ -58,7 +58,7 @@ describe("sites", () => {
 });
 
 describe("WakeSession", () => {
-  function make(mode: "handsfree" | "push" = "handsfree") {
+  function make(mode: "handsfree" | "open" = "handsfree") {
     let t = 0;
     const session = new WakeSession({ mode, wakeName: "Navi", timeoutSec: 60 }, () => t);
     return { session, advance: (ms: number) => (t += ms) };
@@ -96,7 +96,7 @@ describe("WakeSession", () => {
   });
 
   it("treats everything as a command in click-to-talk mode", () => {
-    const { session } = make("push");
+    const { session } = make("open");
     expect(session.handle("go back")).toEqual({ command: "go back", woke: false });
     expect(session.handle("navi go back")).toEqual({ command: "go back", woke: false });
   });
