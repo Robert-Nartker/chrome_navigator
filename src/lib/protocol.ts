@@ -38,6 +38,10 @@ export type MediaAction =
 
 export type EditAction = "selectAll" | "undo" | "clear" | "newline";
 
+/** How the mouse grid presses the mouse at the chosen spot. */
+export type GridClick = "click" | "doubleClick" | "rightClick";
+export type GridAction = "show" | "zoom" | "back" | "hide" | GridClick;
+
 export type ContentRequest =
   | { kind: "ping" }
   | { kind: "snapshot" }
@@ -50,7 +54,9 @@ export type ContentRequest =
   | { kind: "pressKey"; key: Key }
   | { kind: "readPage"; maxChars: number }
   | { kind: "media"; action: MediaAction; seconds?: number }
-  | { kind: "grid"; action: "show" | "zoom" | "back" | "hide" | "click"; cell?: number }
+  // Cells are keypad numbers 1-9, one per grid level: [5, 3] is block 3 inside block 5.
+  // `image` (on show) is a picture of the tab taken before the grid covers it, to magnify small blocks.
+  | { kind: "grid"; action: GridAction; cells?: number[]; image?: string }
   | { kind: "clickAt"; x: number; y: number }
   | { kind: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
   | { kind: "find"; text?: string }

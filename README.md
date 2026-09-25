@@ -56,7 +56,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Search | "search for pizza near me", "search YouTube for lofi", "look up AirPods on Amazon" |
 | Tabs | "new tab", "close tab", "next tab", "tab 3", "switch to YouTube", "reopen closed tab", "what tabs are open" |
 | Click | "flags", then "12" (or "click 12"); or "click sign in" |
-| Mouse grid | "show grid", then say a block number (1–9, laid out like a phone keypad) to zoom in, repeat, then "click". "back" zooms out, "hide grid" closes it |
+| Mouse grid | "grid", then a block number (1–9, laid out like a phone keypad) to zoom in, or several at once ("5 3"). "click", "click 7", "click 5 3", "double click", "right click". "back" zooms out, "grid off" closes it |
 | Type | "type hello world", "type cats into 5 and press enter", "press enter", "escape" |
 | Media | "pause", "play", "skip ahead 30 seconds", "mute" |
 | Reading | "read this page", "where am I", "zoom in" |
@@ -70,7 +70,7 @@ You can also type commands in the side panel.
 
 Three ways to click something you don't know the name of, or that appears several times:
 1. **Flags:** "flags" puts a numbered flag on every clickable element; then say "14" (or "click 14"). "Hide flags" removes them.
-2. **Mouse grid:** "show grid" splits the screen into 9 blocks. Each number you say zooms into that block, and "click" clicks its center. Three or four numbers reach any spot, including icons, maps and canvas apps that have no real buttons.
+2. **Mouse grid:** "grid" splits the screen into 9 numbered blocks, each with a faint preview of the 9 blocks inside it. Say a number to zoom in, or several at once ("5 3"), then "click". Up to four levels reach any spot, including icons, maps and canvas apps that have no real buttons. When blocks get small, a magnifier shows the area enlarged.
 3. **The AI can look:** when button names aren't enough ("click the red one", "the second picture"), the AI takes a screenshot with the number tags drawn on it. It clicks a tag, or an exact spot for things without one. This is on-demand only, and you can turn it off in Settings → Privacy.
 
 ## Personal voice commands

@@ -154,15 +154,15 @@ describe("mouse grid commands", () => {
     expect(parseCommand("hide the grid")).toEqual({ type: "hideGrid" });
   });
   it("treats numbers as blocks while the grid is up", () => {
-    expect(parseGridCommand("5")).toEqual({ type: "zoom", cell: 5 });
-    expect(parseGridCommand("seven")).toEqual({ type: "zoom", cell: 7 });
-    expect(parseGridCommand("zoom into 3")).toEqual({ type: "zoom", cell: 3 });
+    expect(parseGridCommand("5")).toEqual({ type: "zoom", cells: [5] });
+    expect(parseGridCommand("seven")).toEqual({ type: "zoom", cells: [7] });
+    expect(parseGridCommand("zoom into 3")).toEqual({ type: "zoom", cells: [3] });
     expect(parseGridCommand("click")).toEqual({ type: "click" });
-    expect(parseGridCommand("click 9")).toEqual({ type: "click", cell: 9 });
+    expect(parseGridCommand("click 9")).toEqual({ type: "click", cells: [9] });
     expect(parseGridCommand("click here")).toEqual({ type: "click" });
     expect(parseGridCommand("go back")).toEqual({ type: "back" });
     expect(parseGridCommand("cancel")).toEqual({ type: "hide" });
-    expect(parseGridCommand("12")).toBeNull();
+    expect(parseGridCommand("10")).toBeNull();
     expect(parseGridCommand("scroll down")).toBeNull();
   });
 });
@@ -298,5 +298,77 @@ describe("closing tabs by name", () => {
     expect(parseCommand("close it")).toBeNull();
     expect(parseCommand("close tap")).toEqual({ type: "closeTab" });
     expect(parseCommand("close the popup")).not.toMatchObject({ type: "closeNamedTab" });
+  });
+});
+
+describe("mouse grid: sequences, clicks and closing", () => {
+  it.each([
+    ["5 3", [5, 3]],
+    ["five three", [5, 3]],
+    ["5, 3, 7", [5, 3, 7]],
+    ["five three seven", [5, 3, 7]],
+    ["5 and then 3", [5, 3]],
+    ["five-three", [5, 3]],
+    // Speech engines merge digits said in a row.
+    ["53", [5, 3]],
+    ["537", [5, 3, 7]],
+    ["12", [1, 2]],
+    ["number 5 3", [5, 3]],
+    ["go to 9", [9]],
+    ["zoom in on four", [4]],
+    // Homophones said on their own.
+    ["to", [2]],
+    ["for", [4]],
+  ])("zooms: %s", (text, cells) => {
+    expect(parseGridCommand(text)).toEqual({ type: "zoom", cells });
+  });
+
+  it("only takes cells 1-9, at most four levels' worth", () => {
+    for (const text of ["10", "0", "twelve", "fifty three", "5 3 7 2 1", "53721", "5 potato"]) {
+      expect(parseGridCommand(text), text).toBeNull();
+    }
+  });
+
+  it("clicks the current block, a block inside it, or a path of blocks", () => {
+    expect(parseGridCommand("click")).toEqual({ type: "click" });
+    expect(parseGridCommand("click it")).toEqual({ type: "click" });
+    expect(parseGridCommand("tap the middle")).toEqual({ type: "click" });
+    expect(parseGridCommand("click 7")).toEqual({ type: "click", cells: [7] });
+    expect(parseGridCommand("click on seven")).toEqual({ type: "click", cells: [7] });
+    expect(parseGridCommand("click 5 3")).toEqual({ type: "click", cells: [5, 3] });
+    expect(parseGridCommand("click five three")).toEqual({ type: "click", cells: [5, 3] });
+    expect(parseGridCommand("click 53")).toEqual({ type: "click", cells: [5, 3] });
+    expect(parseGridCommand("left click 2")).toEqual({ type: "click", cells: [2] });
+  });
+
+  it("double and right clicks", () => {
+    expect(parseGridCommand("double click")).toEqual({ type: "doubleClick" });
+    expect(parseGridCommand("double-click 4")).toEqual({ type: "doubleClick", cells: [4] });
+    expect(parseGridCommand("doubleclick five three")).toEqual({ type: "doubleClick", cells: [5, 3] });
+    expect(parseGridCommand("right click")).toEqual({ type: "rightClick" });
+    expect(parseGridCommand("right-click 2 6")).toEqual({ type: "rightClick", cells: [2, 6] });
+  });
+
+  it("leaves other clicks and commands to the normal parser", () => {
+    for (const text of ["click sign in", "press enter", "select all", "zoom in", "scroll down", "open youtube"]) {
+      expect(parseGridCommand(text), text).toBeNull();
+    }
+  });
+
+  it("zooms out, starts over and closes", () => {
+    for (const text of ["back", "out", "zoom out", "go back", "back up"]) expect(parseGridCommand(text), text).toEqual({ type: "back" });
+    for (const text of ["show grid", "grid", "grid on", "reset the grid", "start over"]) {
+      expect(parseGridCommand(text), text).toEqual({ type: "show" });
+    }
+    for (const text of ["hide grid", "grid off", "close grid", "close the grid", "cancel", "never mind", "turn off the grid"]) {
+      expect(parseGridCommand(text), text).toEqual({ type: "hide" });
+    }
+  });
+
+  it("turns the grid on and off from anywhere", () => {
+    for (const text of ["grid on", "show the mouse grid", "turn on the grid"]) expect(parseCommand(text), text).toEqual({ type: "showGrid" });
+    for (const text of ["grid off", "close grid", "turn off the grid", "hide the mouse grid"]) {
+      expect(parseCommand(text), text).toEqual({ type: "hideGrid" });
+    }
   });
 });
