@@ -282,7 +282,9 @@ test("fast commands and unrecognized ones stay compact; notes sit between cards"
   await expect(fast.locator("li.navi")).toContainText("Scrolling down");
   await expect(fast.locator("li.step")).toHaveCount(1);
   await expect(fast.locator("li.step")).toContainText("Fast path");
-  await expect(fast.locator(".trace-label")).toHaveText("1 step");
+  // Quick commands are just what you said and the result: no steps row.
+  await expect(fast).toHaveAttribute("data-kind", "quick");
+  await expect(fast.locator(".trace")).toBeHidden();
 
   // No AI key and no match: the outcome is the step itself, so it shows without opening the row.
   await run(panel, "flibbertigibbet the wobbly thing");
@@ -290,6 +292,8 @@ test("fast commands and unrecognized ones stay compact; notes sit between cards"
   await expect(unknown.locator("li.navi")).toHaveCount(0);
   await expect(unknown.locator(".trace-label")).toBeVisible();
   await expect(unknown.locator(".trace-label")).toContainText("Didn't catch that");
+  // Not understood: one faint line rather than a card.
+  await expect(unknown).toHaveAttribute("data-kind", "quiet");
 });
 
 test("reopening the panel rebuilds the same cards", async ({ panel, site, context }) => {
@@ -314,6 +318,9 @@ test("reopening the panel rebuilds the same cards", async ({ panel, site, contex
   const routed = cards.nth(1);
   await expect(routed.locator("li.user")).toContainText("yo smash that sub thingy");
   await expect(routed.locator("li.step").first()).toContainText("Understood as “click subscribe”");
+  // A routed command shows what the router made of the speech, and no steps row.
+  await expect(routed.locator("li.heard")).toHaveText("heard as “click subscribe”");
+  await expect(routed.locator(".trace")).toBeHidden();
   const ai = cards.nth(2);
   await expect(ai.locator("li.user")).toContainText("hit the subscribe thing for me");
   await expect(ai.locator("li.step")).toHaveCount(3);

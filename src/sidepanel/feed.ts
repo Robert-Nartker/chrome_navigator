@@ -1,6 +1,9 @@
 // The side panel's activity feed. The controller logs flat entries (user, step, navi, info, error); the feed
-// groups them into one card per command: what you said, one collapsible row holding the steps Navi took, and
-// the result. Every entry is still an `li.<kind>` inside #log, so tests and the log restore keep working.
+// groups them into one card per command, kept minimal:
+// - quick commands (no AI): what you said and the result; routed ones add a small "heard as …" note
+// - AI tasks: one collapsible row holding the steps (the live step also shows in the voice card)
+// - ignored or not understood: a single faint line
+// Every entry is still an `li.<kind>` inside #log, so tests and the log restore keep working.
 
 import type { LogKind } from "./controller";
 
@@ -28,6 +31,11 @@ interface Turn {
     list: HTMLOListElement;
   };
   state: TurnState;
+  /** The AI worked on this command (it gets the steps row). */
+  ai: boolean;
+  /** What the router turned loose speech into, if it did. */
+  heard: string;
+  heardEl: HTMLLIElement;
   start?: number;
   end?: number;
   steps: number;
@@ -175,6 +183,16 @@ export class Feed {
       else if (entry.kind !== "info") turnId = this.legacyTurn;
     }
     if (!turnId) {
+      // The same error again (e.g. a button pressed twice on a Chrome page): count it instead of repeating it.
+      const prev = this.list.lastElementChild as HTMLElement | null;
+      if (entry.kind === "error" && prev?.matches("li.solo.error") && prev.querySelector(".text")?.textContent === entry.text) {
+        const count = Number(prev.dataset.count ?? "1") + 1;
+        prev.dataset.count = String(count);
+        let badge = prev.querySelector(".count");
+        if (!badge) prev.append((badge = el("span", "count")));
+        badge.textContent = `×${count}`;
+        return;
+      }
       const li = this.entryItem(entry);
       li.classList.add("solo");
       this.list.append(li);
@@ -185,13 +203,19 @@ export class Feed {
     if (!turn) turn = this.createTurn(turnId);
     const t = entry.t;
     switch (entry.kind) {
-      case "user":
-        turn.items.prepend(this.entryItem(entry));
+      case "user": {
+        const li = this.entryItem(entry);
+        turn.items.prepend(li);
+        li.after(turn.heardEl);
         if (t !== undefined) turn.start = t;
         break;
+      }
       case "step": {
         const li = this.entryItem(entry);
         li.dataset.type = stepType(entry.text);
+        if (li.dataset.type === "think") turn.ai = true;
+        const heard = /^Understood as “(.+?)”/.exec(entry.text);
+        if (heard) turn.heard = heard[1];
         turn.trace.list.append(li);
         turn.steps++;
         turn.activity = entry.text;
@@ -200,6 +224,7 @@ export class Feed {
       }
       case "navi":
       case "error":
+        if (entry.meta?.startsWith("AI")) turn.ai = true;
         turn.items.append(this.entryItem(entry));
         // The latest result decides: a passing hiccup (e.g. the speech service) doesn't fail a command that then worked.
         turn.result = entry.kind === "error" ? "error" : "ok";
@@ -234,7 +259,9 @@ export class Feed {
     });
     traceLi.append(details);
     traceLi.hidden = true;
-    items.append(traceLi);
+    const heardEl = el("li", "heard");
+    heardEl.hidden = true;
+    items.append(heardEl, traceLi);
     li.append(items);
     this.list.append(li);
     const turn: Turn = {
@@ -243,6 +270,9 @@ export class Feed {
       items,
       trace: { li: traceLi, details, label, time, list },
       state: "idle",
+      ai: false,
+      heard: "",
+      heardEl,
       steps: 0,
       activity: "",
       result: "none",
@@ -266,7 +296,13 @@ export class Feed {
     const { trace } = turn;
     const working = turn.state === "working";
     turn.el.dataset.state = working ? "working" : "done";
-    trace.li.hidden = !working && turn.steps === 0;
+    // Finished quick commands need no steps row; ignored ones keep it as their one-line outcome.
+    const quiet = !working && !turn.ai && turn.result === "none";
+    turn.el.dataset.kind = turn.ai ? "ai" : quiet ? "quiet" : "quick";
+    trace.li.hidden = !working && (turn.steps === 0 || (!turn.ai && !quiet));
+    turn.heardEl.hidden = working || turn.ai || quiet || !turn.heard;
+    const heardText = turn.heard ? `heard as “${turn.heard}”` : "";
+    if (turn.heardEl.textContent !== heardText) turn.heardEl.textContent = heardText;
     trace.li.dataset.state = working ? "working" : turn.result === "none" ? "plain" : turn.result;
     let label: string;
     let time: string;

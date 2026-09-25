@@ -37,7 +37,17 @@ const ui = {
   sessionBar: $("session-bar"),
   numbersButton: $<HTMLButtonElement>("toggle-numbers"),
   gridButton: $<HTMLButtonElement>("toggle-grid"),
+  engine: $("engine"),
 };
+
+// Which speech recognizer is listening, shown as a small label rather than notes in the feed.
+let chromeSpeechLabel = "";
+function renderEngine() {
+  const eleven = scribe?.live ? `ElevenLabs${settings.filterBackgroundAudio ? " · ignores background voices" : ""}` : "";
+  const label = eleven || chromeSpeechLabel;
+  ui.engine.hidden = !label || !engine?.running;
+  ui.engine.textContent = label ? `Speech: ${label}` : "";
+}
 
 let settings: Settings = DEFAULT_SETTINGS;
 /** Chrome's recognizer: always on while listening (wake word, "stop" during replies, fallback). */
@@ -46,7 +56,6 @@ let engine: SpeechEngine | null = null;
 let scribe: ScribeEngine | null = null;
 /** ElevenLabs failed for good (bad key, quota); stay on Chrome's recognizer until settings change. */
 let scribeDisabled = false;
-let announcedScribe = false;
 let working = false;
 let micError = false;
 
@@ -116,6 +125,7 @@ const controller = new Controller(
 );
 
 function renderStatus(detail?: string) {
+  renderEngine();
   let state = "off";
   let text = "Mic off";
   if (micError) {
@@ -190,9 +200,9 @@ window.setInterval(() => {
   // Detect the session timing out on its own.
   const awake = session.current === "awake";
   if (wasAwake && !awake && settings.listenMode === "handsfree" && engine?.running) {
+    // The status pill and a sound say this; no note in the feed.
     earcons.sleep();
     stopScribe();
-    log("info", "Went to sleep. Say “Hey " + settings.wakeName + "” to wake me.");
   }
   wasAwake = awake;
   if (working) session.touch();
@@ -224,7 +234,6 @@ function handleFinal(transcript: string, confidence = 0) {
     earcons.wake();
     wasAwake = true;
     startScribe();
-    if (!decision.command) log("info", "I'm listening.");
   }
   if (decision.command) {
     void controller.run(decision.command, { source: "voice", confidence });
@@ -276,6 +285,11 @@ function buildEngine(): SpeechEngine {
         renderStatus();
       },
       onInfo: (message) => {
+        if (message.startsWith("Speech: ")) {
+          chromeSpeechLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
+          renderEngine();
+          return;
+        }
         // Restarts (e.g. after a settings change) repeat the same notes; show each once.
         if (message !== lastSpeechInfo) log("info", message);
         lastSpeechInfo = message;
@@ -301,11 +315,8 @@ function startScribe() {
     {
       onInterim: handleInterim,
       onFinal: handleFinal,
-      onRunningChange(running) {
-        if (running && !announcedScribe) {
-          announcedScribe = true;
-          log("info", `Speech while awake: ElevenLabs${settings.filterBackgroundAudio ? ", ignoring background voices" : ""}.`);
-        }
+      onRunningChange() {
+        renderEngine();
         renderStatus();
       },
       onError(message, fatal) {
@@ -327,6 +338,7 @@ function startScribe() {
 function stopScribe() {
   scribe?.stop();
   scribe = null;
+  renderEngine();
 }
 
 let listenGeneration = 0;
