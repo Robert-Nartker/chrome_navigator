@@ -1,5 +1,7 @@
 // User settings, stored locally in this browser profile (chrome.storage.local).
 
+import { DEFAULT_VOICE_ID } from "./elevenlabs";
+
 export type ListenMode = "handsfree" | "push";
 export type Feedback = "minimal" | "spoken";
 
@@ -31,7 +33,19 @@ export interface Settings {
   /** Hostname fragments where Navi never sends anything to the AI. */
   blockedSites: string[];
   maxAgentSteps: number;
+  /** ElevenLabs key: higher-quality speech-to-text and Navi's voice. Optional. */
+  elevenLabsKey: string;
+  /** Who transcribes commands while Navi is awake. ElevenLabs is used only when a key is set. */
+  speechInput: SpeechProvider;
+  /** Who speaks Navi's replies. ElevenLabs is used only when a key is set. */
+  speechOutput: SpeechProvider;
+  elevenVoiceId: string;
+  elevenModel: string;
+  /** Ignore nearby conversations and background audio (ElevenLabs speech-to-text). */
+  filterBackgroundAudio: boolean;
 }
+
+export type SpeechProvider = "elevenlabs" | "chrome";
 
 export const MODELS = [
   { id: "claude-opus-5-5", label: "Claude Opus 5.5 (recommended)" },
@@ -59,7 +73,23 @@ export const DEFAULT_SETTINGS: Settings = {
   allowScreenshots: true,
   blockedSites: [],
   maxAgentSteps: 12,
+  elevenLabsKey: "",
+  speechInput: "elevenlabs",
+  speechOutput: "elevenlabs",
+  elevenVoiceId: DEFAULT_VOICE_ID,
+  elevenModel: "eleven_flash_v2_5",
+  filterBackgroundAudio: true,
 };
+
+/** True when commands should be transcribed by ElevenLabs. */
+export function usesElevenInput(s: Settings): boolean {
+  return !!s.elevenLabsKey && s.speechInput === "elevenlabs";
+}
+
+/** True when Navi should speak with ElevenLabs. */
+export function usesElevenOutput(s: Settings): boolean {
+  return !!s.elevenLabsKey && s.speechOutput === "elevenlabs";
+}
 
 export async function loadSettings(): Promise<Settings> {
   const stored = await chrome.storage.local.get("settings");

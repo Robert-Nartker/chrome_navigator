@@ -4,7 +4,16 @@ import { startDevReload } from "../lib/dev-reload";
 import type { CommandMetric } from "../lib/metrics";
 import { SITES } from "../lib/sites";
 import { WakeSession } from "../lib/session";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, saveSettings } from "../lib/settings";
+import { ScribeEngine } from "../lib/scribe";
+import {
+  DEFAULT_SETTINGS,
+  type Settings,
+  loadSettings,
+  onSettingsChanged,
+  saveSettings,
+  usesElevenInput,
+  usesElevenOutput,
+} from "../lib/settings";
 import { type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import { Controller, HELP_TEXT, type LogKind } from "./controller";
@@ -27,18 +36,34 @@ const ui = {
 };
 
 let settings: Settings = DEFAULT_SETTINGS;
+/** Chrome's recognizer: always on while listening (wake word, "stop" during replies, fallback). */
 let engine: SpeechEngine | null = null;
+/** ElevenLabs Scribe: transcribes commands while Navi is awake, when a key is set. */
+let scribe: ScribeEngine | null = null;
+/** ElevenLabs failed for good (bad key, quota); stay on Chrome's recognizer until settings change. */
+let scribeDisabled = false;
+let announcedScribe = false;
 let working = false;
 let micError = false;
 
 const metrics: CommandMetric[] = [];
 const session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
-const speaker = new Speaker(() => ({
-  rate: settings.speechRate,
-  voiceName: settings.voiceName,
-  lang: settings.lang,
-  volume: settings.volume,
-}));
+let lastVoiceError = "";
+const speaker = new Speaker(
+  () => ({
+    rate: settings.speechRate,
+    voiceName: settings.voiceName,
+    lang: settings.lang,
+    volume: settings.volume,
+    eleven: usesElevenOutput(settings)
+      ? { apiKey: settings.elevenLabsKey, voiceId: settings.elevenVoiceId, model: settings.elevenModel }
+      : undefined,
+  }),
+  (message) => {
+    if (message !== lastVoiceError) log("error", `Voice: ${message} Using Chrome's voice.`);
+    lastVoiceError = message;
+  },
+);
 
 function log(kind: LogKind, text: string, meta?: string) {
   const li = document.createElement("li");
@@ -124,6 +149,7 @@ window.setInterval(() => {
   const awake = session.current === "awake";
   if (wasAwake && !awake && settings.listenMode === "handsfree" && engine?.running) {
     earcons.sleep();
+    stopScribe();
     log("info", "Went to sleep. Say “Hey " + settings.wakeName + "” to wake me.");
   }
   wasAwake = awake;
@@ -137,6 +163,7 @@ function goToSleep() {
   } else {
     session.sleep();
     wasAwake = false;
+    stopScribe();
     earcons.sleep();
   }
   renderStatus();
@@ -153,6 +180,7 @@ function handleFinal(transcript: string, confidence = 0) {
   if (decision.woke) {
     earcons.wake();
     wasAwake = true;
+    startScribe();
     if (!decision.command) log("info", "I'm listening.");
   }
   if (decision.command) {
@@ -160,6 +188,17 @@ function handleFinal(transcript: string, confidence = 0) {
     if (settings.listenMode === "push") stopListening();
   }
   renderStatus();
+}
+
+/** True while ElevenLabs is the one transcribing commands. */
+function scribeActive(): boolean {
+  return !!scribe?.live;
+}
+
+/** Chrome's recognizer defers to ElevenLabs while it's active, except to hear "stop" during a reply. */
+function handleChromeFinal(transcript: string, confidence: number) {
+  if (!scribeActive()) return handleFinal(transcript, confidence);
+  if (speaker.busy && /\b(stop|cancel|quiet)\b/i.test(transcript)) controller.cancel();
 }
 
 function handleInterim(text: string) {
@@ -174,8 +213,10 @@ function buildEngine(): SpeechEngine {
   return new WebSpeechEngine(
     { lang: settings.lang, preferOnDevice: true, allowCloud: settings.allowCloudSpeech, phrases },
     {
-      onInterim: handleInterim,
-      onFinal: handleFinal,
+      onInterim: (text) => {
+        if (!scribeActive()) handleInterim(text);
+      },
+      onFinal: handleChromeFinal,
       onRunningChange: () => renderStatus(),
       onError(message, fatal) {
         log("error", message);
@@ -191,20 +232,67 @@ function buildEngine(): SpeechEngine {
   );
 }
 
+/** Starts ElevenLabs transcription for an awake session (no-op without a key). */
+function startScribe() {
+  if (scribe || scribeDisabled || !usesElevenInput(settings) || !engine?.running) return;
+  const keyterms = [settings.wakeName, `Hey ${settings.wakeName}`, ...Object.keys(SITES).slice(0, 40)];
+  let lastError = "";
+  const current = new ScribeEngine(
+    {
+      apiKey: settings.elevenLabsKey,
+      lang: settings.lang,
+      keyterms,
+      filterBackgroundAudio: settings.filterBackgroundAudio,
+      isMuted: () => speaker.busy,
+    },
+    {
+      onInterim: handleInterim,
+      onFinal: handleFinal,
+      onRunningChange(running) {
+        if (running && !announcedScribe) {
+          announcedScribe = true;
+          log("info", `Speech while awake: ElevenLabs${settings.filterBackgroundAudio ? ", ignoring background voices" : ""}.`);
+        }
+        renderStatus();
+      },
+      onError(message, fatal) {
+        if (message !== lastError) log("error", fatal ? `${message} Using Chrome's speech recognition.` : message);
+        lastError = message;
+        if (fatal) {
+          scribeDisabled = true;
+          if (scribe === current) scribe = null;
+          current.stop();
+        }
+        renderStatus();
+      },
+    },
+  );
+  scribe = current;
+  void current.start();
+}
+
+function stopScribe() {
+  scribe?.stop();
+  scribe = null;
+}
+
 async function startListening() {
   if (!speechSupported()) {
     log("error", "Speech recognition isn't available in this browser.");
     return;
   }
   micError = false;
+  stopScribe();
   engine?.stop();
   engine = buildEngine();
   await engine.start();
   if (settings.listenMode === "push") session.wake();
+  if (settings.listenMode === "push" || session.current === "awake") startScribe();
   renderStatus();
 }
 
 function stopListening() {
+  stopScribe();
   engine?.stop();
   engine = null;
   ui.interim.textContent = "";
@@ -228,9 +316,19 @@ async function checkMicPermission(): Promise<boolean> {
 }
 
 function applySettings(next: Settings) {
+  const speechChanged =
+    next.elevenLabsKey !== settings.elevenLabsKey ||
+    next.speechInput !== settings.speechInput ||
+    next.filterBackgroundAudio !== settings.filterBackgroundAudio;
   const restart =
     engine?.running &&
-    (next.lang !== settings.lang || next.wakeName !== settings.wakeName || next.allowCloudSpeech !== settings.allowCloudSpeech);
+    (speechChanged ||
+      next.lang !== settings.lang ||
+      next.wakeName !== settings.wakeName ||
+      next.allowCloudSpeech !== settings.allowCloudSpeech ||
+      next.listenMode !== settings.listenMode);
+  if (speechChanged) scribeDisabled = false;
+  if (next.elevenLabsKey !== settings.elevenLabsKey || next.elevenVoiceId !== settings.elevenVoiceId) lastVoiceError = "";
   settings = next;
   setSoundVolume(next.volume);
   session.configure({ mode: next.listenMode, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
@@ -293,6 +391,12 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
 (window as unknown as { navi: unknown }).navi = {
   run: (text: string) => controller.run(text),
   handleFinal,
+  chromeFinal: handleChromeFinal,
+  startListening,
+  stopListening,
+  get scribeLive() {
+    return scribeActive();
+  },
   session,
   metrics,
   speaker,

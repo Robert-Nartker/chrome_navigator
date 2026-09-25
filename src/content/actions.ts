@@ -10,6 +10,7 @@ function center(el: Element) {
 }
 
 function ensureInView(el: Element) {
+  cancelAnimationFrame(pendingJump);
   const r = el.getBoundingClientRect();
   if (r.top < 0 || r.bottom > innerHeight || r.left < 0 || r.right > innerWidth) {
     el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
@@ -184,10 +185,28 @@ function scrollTarget(): Element {
 
 /** Smooth scrolling for the visible tab; instant in background tabs, where animations are throttled. */
 function scrollBehavior(): ScrollBehavior {
-  return document.visibilityState === "visible" ? "smooth" : "instant";
+  if (document.visibilityState !== "visible") return "instant";
+  smoothUntil = performance.now() + 1500;
+  return "smooth";
+}
+
+/** When the last smooth scroll we started may still be animating. */
+let smoothUntil = 0;
+let pendingJump = 0;
+
+/**
+ * Jumps straight to a position. Chrome keeps playing a smooth scroll that's still running
+ * (e.g. "scroll down" said just before) after an instant jump, landing short of the target.
+ * Retargeting that animation first, then jumping on the next frame, lands exactly.
+ */
+function jumpTo(scroller: Element | Window, top: number) {
+  if (performance.now() > smoothUntil) return scroller.scrollTo({ top, behavior: "instant" });
+  scroller.scrollTo({ top, behavior: "smooth" });
+  pendingJump = requestAnimationFrame(() => scroller.scrollTo({ top, behavior: "instant" }));
 }
 
 export function scroll(direction: ScrollDirection, amount: ScrollAmount): string {
+  cancelAnimationFrame(pendingJump);
   const target = scrollTarget();
   const isDoc = target === document.scrollingElement || target === document.documentElement;
   const viewport = isDoc ? innerHeight : target.clientHeight;
@@ -197,10 +216,10 @@ export function scroll(direction: ScrollDirection, amount: ScrollAmount): string
   switch (direction) {
     // Long jumps are instant (like Home/End); page-by-page scrolling stays smooth so you can follow along.
     case "top":
-      scroller.scrollTo({ top: 0, behavior: "instant" });
+      jumpTo(scroller, 0);
       break;
     case "bottom":
-      scroller.scrollTo({ top: target.scrollHeight, behavior: "instant" });
+      jumpTo(scroller, target.scrollHeight);
       break;
     case "up":
       scroller.scrollBy({ top: -delta, behavior: scrollBehavior() });
@@ -356,6 +375,7 @@ export function findOnPage(text?: string): string {
   const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
   const el = range?.startContainer.parentElement;
   if (el) {
+    cancelAnimationFrame(pendingJump);
     el.scrollIntoView({ block: "center", behavior: "instant" });
     flash(el);
   }

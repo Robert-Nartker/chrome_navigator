@@ -1,4 +1,6 @@
-// Spoken replies (chrome.tts) and short sounds ("earcons") for wake/sleep/error.
+// Spoken replies (ElevenLabs streaming, or chrome.tts) and short sounds ("earcons") for wake/sleep/error.
+
+import { pcm16ToFloat, speechStream } from "./elevenlabs";
 
 /**
  * One voice everywhere: Chrome's built-in "Google US English" is the same voice on
@@ -28,14 +30,22 @@ export interface VoiceSettings {
   voiceName: string;
   lang: string;
   volume: number;
+  /** When set, Navi speaks with this ElevenLabs voice (Chrome's voice is the fallback). */
+  eleven?: { apiKey: string; voiceId: string; model: string };
 }
 
 export class Speaker {
   private speakingUntil = 0;
   private speaking = false;
   private utterance = 0;
+  private abort: AbortController | null = null;
+  private sources: AudioBufferSourceNode[] = [];
 
-  constructor(private readonly getVoice: () => VoiceSettings) {}
+  constructor(
+    private readonly getVoice: () => VoiceSettings,
+    /** Told when ElevenLabs fails and Chrome's voice is used instead. */
+    private readonly onFallback?: (message: string) => void,
+  ) {}
 
   /** True while speaking and briefly after, so the mic doesn't hear Navi's own voice as a command. */
   get busy(): boolean {
@@ -48,27 +58,108 @@ export class Speaker {
   async say(text: string): Promise<void> {
     const clean = text.replace(/[*_`#>]/g, "").trim();
     if (!clean || this.muted) return;
-    const { rate, lang, volume } = this.getVoice();
+    this.stopPlayback();
     const id = ++this.utterance;
     this.speaking = true;
-    const voiceName = this.getVoice().voiceName || (await pickVoice(lang));
+    const voice = this.getVoice();
+    try {
+      if (voice.eleven) {
+        const played = await this.sayEleven(clean, voice, voice.eleven, id).catch((err: unknown) => {
+          if (id === this.utterance && !(err instanceof DOMException && err.name === "AbortError")) {
+            this.onFallback?.(err instanceof Error ? err.message : String(err));
+          }
+          return false;
+        });
+        // Fall back to Chrome's voice only if nothing was heard yet.
+        if (played || id !== this.utterance) return;
+      }
+      await this.sayChrome(clean, voice, id);
+    } finally {
+      // A newer utterance may have started; only the latest one controls the flag.
+      if (id === this.utterance) {
+        this.speaking = false;
+        this.speakingUntil = Date.now() + 700;
+      }
+    }
+  }
+
+  /** Streams ElevenLabs audio and plays it as it arrives. Resolves true once playback ends. */
+  private async sayEleven(
+    text: string,
+    voice: VoiceSettings,
+    eleven: NonNullable<VoiceSettings["eleven"]>,
+    id: number,
+  ): Promise<boolean> {
+    const ctx = await runningAudio();
+    const abort = new AbortController();
+    this.abort = abort;
+    const stream = await speechStream(
+      eleven.apiKey,
+      text,
+      { voiceId: eleven.voiceId, model: eleven.model, speed: voice.rate },
+      abort.signal,
+    );
+    const gain = ctx.createGain();
+    gain.gain.value = voice.volume;
+    gain.connect(ctx.destination);
+    const reader = stream.getReader();
+    let playhead = 0;
+    let leftover = new Uint8Array(0);
+    let played = false;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done || id !== this.utterance) break;
+        const bytes = leftover.length ? concat(leftover, value) : value;
+        const usable = bytes.length - (bytes.length % 2);
+        leftover = bytes.slice(usable);
+        const samples = pcm16ToFloat(bytes.subarray(0, usable));
+        if (!samples.length) continue;
+        const buffer = ctx.createBuffer(1, samples.length, 24000);
+        buffer.copyToChannel(samples, 0);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(gain);
+        // A small head start absorbs network jitter between chunks.
+        playhead = Math.max(playhead, ctx.currentTime + 0.05);
+        source.start(playhead);
+        playhead += buffer.duration;
+        this.sources.push(source);
+        played = true;
+      }
+    } catch (err) {
+      // Once audio is playing, let what arrived finish rather than repeating it in another voice.
+      if (!played) throw err;
+    } finally {
+      reader.releaseLock();
+    }
+    if (!played) return false;
+    // Wait for the scheduled audio to finish (or for stop()).
+    await new Promise<void>((resolve) => {
+      if (abort.signal.aborted) return resolve();
+      const timer = window.setTimeout(resolve, Math.max(0, (playhead - ctx.currentTime) * 1000));
+      abort.signal.addEventListener("abort", () => {
+        window.clearTimeout(timer);
+        resolve();
+      });
+    });
+    return true;
+  }
+
+  private async sayChrome(text: string, voice: VoiceSettings, id: number): Promise<void> {
+    const voiceName = voice.voiceName || (await pickVoice(voice.lang));
     if (id !== this.utterance) return;
     return new Promise((resolve) => {
       let finished = false;
       const done = () => {
         if (finished) return;
         finished = true;
-        // A newer utterance may have started; only the latest one controls the flag.
-        if (id === this.utterance) {
-          this.speaking = false;
-          this.speakingUntil = Date.now() + 700;
-        }
         resolve();
       };
-      chrome.tts.speak(clean, {
-        rate,
-        lang,
-        volume,
+      chrome.tts.speak(text, {
+        rate: voice.rate,
+        lang: voice.lang,
+        volume: voice.volume,
         voiceName: voiceName || undefined,
         enqueue: false,
         onEvent: (event) => {
@@ -76,14 +167,47 @@ export class Speaker {
         },
       });
       // Safety net in case no end event arrives.
-      window.setTimeout(done, 1000 + clean.length * 120);
+      window.setTimeout(done, 1000 + text.length * 120);
     });
   }
 
+  private stopPlayback() {
+    this.abort?.abort();
+    this.abort = null;
+    for (const source of this.sources) {
+      try {
+        source.stop();
+      } catch {
+        // Already stopped.
+      }
+    }
+    this.sources = [];
+  }
+
   stop() {
+    this.utterance++;
+    this.stopPlayback();
     chrome.tts.stop();
     this.speaking = false;
   }
+}
+
+function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a);
+  out.set(b, a.length);
+  return out;
+}
+
+/** The shared audio output, resumed if the browser suspended it. */
+async function runningAudio(): Promise<AudioContext> {
+  audio ??= new AudioContext();
+  if (audio.state !== "running") {
+    await Promise.race([audio.resume(), new Promise((r) => window.setTimeout(r, 300))]);
+    // resume() may have changed the state since the check above.
+    if ((audio.state as AudioContextState) !== "running") throw new Error("Chrome blocked audio playback; using Chrome's voice.");
+  }
+  return audio;
 }
 
 let audio: AudioContext | null = null;

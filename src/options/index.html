@@ -70,6 +70,18 @@
         </fieldset>
 
         <fieldset>
+          <legend>ElevenLabs (better hearing and a natural voice)</legend>
+          <label for="elevenLabsKey">ElevenLabs API key (optional)</label>
+          <input id="elevenLabsKey" type="password" autocomplete="off" placeholder="sk_…" />
+          <p class="hint">
+            Adds speech recognition that ignores nearby conversations and background audio, plus a natural voice for
+            Navi. Runs in zero-retention mode: ElevenLabs doesn't keep your audio or text. Get a key at elevenlabs.io
+            (Developers → API keys) with Speech to Text, Text to Speech, and Voices (read) access. Stored only in this
+            browser profile.
+          </p>
+        </fieldset>
+
+        <fieldset>
           <legend>Listening</legend>
           <label for="wakeName">Wake name</label>
           <input id="wakeName" type="text" />
@@ -81,6 +93,14 @@
           </select>
           <label for="sessionTimeoutSec">Stay awake for (seconds of silence)</label>
           <input id="sessionTimeoutSec" type="number" min="10" max="1800" />
+          <label for="speechInput">Speech recognition while awake</label>
+          <select id="speechInput">
+            <option value="elevenlabs">ElevenLabs Scribe (best in noisy places; needs the key above)</option>
+            <option value="chrome">Chrome's built-in recognizer only</option>
+          </select>
+          <p class="hint">While asleep, Navi only listens for its name, using Chrome's recognizer on this computer. ElevenLabs hears you only while Navi is awake, so it costs about $0.39 per hour awake.</p>
+          <label class="check"><input id="filterBackgroundAudio" type="checkbox" /> Ignore other people talking nearby and background audio (cafés, TV, a podcast in the room)</label>
+          <p class="hint">Sound your computer plays itself, such as a video or podcast, is also cancelled out of the mic when Chrome supports it.</p>
           <label for="lang">Language</label>
           <input id="lang" type="text" placeholder="en-US" />
           <label class="check"><input id="allowCloudSpeech" type="checkbox" /> Use Google's cloud speech service when on-device speech isn't available</label>
@@ -94,14 +114,30 @@
             <option value="minimal">Minimal: speak answers and errors only</option>
             <option value="spoken">Spoken: also say every action and page (screen-free use)</option>
           </select>
+          <label for="speechOutput">Navi's voice comes from</label>
+          <select id="speechOutput">
+            <option value="elevenlabs">ElevenLabs (natural; needs the key above)</option>
+            <option value="chrome">Chrome's built-in voices</option>
+          </select>
           <div class="row">
             <div>
-              <label for="voiceName">Voice</label>
+              <label for="elevenVoiceId">ElevenLabs voice</label>
+              <select id="elevenVoiceId"><option value="EXAVITQu4vr4xnSDxMaL">Sarah (calm, warm)</option></select>
+            </div>
+            <div>
+              <label for="elevenModel">ElevenLabs model</label>
+              <select id="elevenModel"></select>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="voiceName">Chrome voice (used without ElevenLabs)</label>
               <select id="voiceName"><option value="">Navi voice (Google US English)</option></select>
             </div>
             <div>
               <label for="speechRate">Speed</label>
               <input id="speechRate" type="number" min="0.5" max="3" step="0.1" />
+              <p class="hint">ElevenLabs uses 0.7 to 1.2.</p>
             </div>
           </div>
           <div class="row">

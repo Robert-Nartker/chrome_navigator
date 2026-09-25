@@ -15,7 +15,15 @@ const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 // Uses Playwright's own Chromium unless NAVI_CHROMIUM (or the sandbox build) is present.
 const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 
-type Fixtures = { context: BrowserContext; extensionId: string; baseUrl: string; site: Page; panel: Page };
+type Fixtures = {
+  context: BrowserContext;
+  extensionId: string;
+  baseUrl: string;
+  site: Page;
+  panel: Page;
+  /** Give Chromium a fake microphone (a test tone) that's allowed without a prompt. */
+  fakeMic: boolean;
+};
 
 function startServer(): Promise<{ server: Server; baseUrl: string }> {
   return new Promise((resolve) => {
@@ -38,17 +46,19 @@ function startServer(): Promise<{ server: Server; baseUrl: string }> {
 }
 
 const test = base.extend<Fixtures>({
+  fakeMic: [false, { option: true }],
   baseUrl: async ({}, use) => {
     const { server, baseUrl } = await startServer();
     await use(baseUrl);
     server.close();
   },
-  context: async ({}, use) => {
+  context: async ({ fakeMic }, use) => {
     const userDataDir = await mkdtemp(path.join(tmpdir(), "navi-e2e-"));
+    const media = fakeMic ? ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] : [];
     const context = await chromium.launchPersistentContext(userDataDir, {
       executablePath: CHROMIUM,
       headless: true,
-      args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+      args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...media],
     });
     await use(context);
     await context.close();
@@ -521,4 +531,130 @@ test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch
   await expect
     .poll(() => panel.evaluate(async () => (await chrome.tabs.query({ active: true, url: "http://*/*" })).map((t) => t.title)))
     .toContain("Navi Test Page");
+});
+
+test.describe("ElevenLabs speech", () => {
+  test.use({ fakeMic: true });
+
+  type Hooks = {
+    navi: {
+      handleFinal(t: string): void;
+      chromeFinal(t: string, c: number): void;
+      startListening(): Promise<void>;
+      stopListening(): void;
+      scribeLive: boolean;
+      speaker: { busy: boolean };
+      session: { current: string };
+    };
+  };
+
+  /** 0.4 s of a quiet 440 Hz tone as 24 kHz 16-bit PCM, like ElevenLabs' pcm_24000 stream. */
+  function tonePcm(): Buffer {
+    const samples = 24000 * 0.4;
+    const buf = Buffer.alloc(samples * 2);
+    for (let i = 0; i < samples; i++) buf.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / 24000) * 3000), i * 2);
+    return buf;
+  }
+
+  test("awake commands are transcribed by Scribe; replies stream from ElevenLabs", async ({ panel: firstPanel, context }) => {
+    const sockets: string[] = [];
+    const tts: { url: string; body: Record<string, unknown>; key?: string }[] = [];
+    let chunks = 0;
+    let tokenKey = "";
+    await context.route("https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", (route) => {
+      tokenKey = route.request().headers()["xi-api-key"] ?? "";
+      return route.fulfill({ json: { token: "single-use-test-token" } });
+    });
+    await context.route("https://api.elevenlabs.io/v1/text-to-speech/**", (route) => {
+      tts.push({
+        url: route.request().url(),
+        body: route.request().postDataJSON() as Record<string, unknown>,
+        key: route.request().headers()["xi-api-key"],
+      });
+      return route.fulfill({ status: 200, contentType: "application/octet-stream", body: tonePcm() });
+    });
+    await context.routeWebSocket(/api\.elevenlabs\.io/, (ws) => {
+      sockets.push(ws.url());
+      let answered = false;
+      ws.onMessage((message) => {
+        const data = JSON.parse(String(message)) as { message_type: string; audio_base_64?: string };
+        if (data.message_type !== "input_audio_chunk") return;
+        chunks++;
+        // 100 ms of 16 kHz 16-bit mono per chunk.
+        expect(Buffer.from(data.audio_base_64 ?? "", "base64").length).toBe(3200);
+        if (answered) return;
+        answered = true;
+        ws.send(JSON.stringify({ message_type: "partial_transcript", text: "what time" }));
+        ws.send(JSON.stringify({ message_type: "committed_transcript", text: "what time is it" }));
+      });
+    });
+
+    await firstPanel.evaluate(() => chrome.storage.local.set({ settings: { elevenLabsKey: "el-test-key" } }));
+    // WebSocket routes only apply to pages opened after they're registered, so use a fresh panel.
+    await firstPanel.evaluate(() => (window as unknown as Hooks).navi.stopListening());
+    const panel = await context.newPage();
+    await panel.goto(firstPanel.url());
+    await firstPanel.close();
+    await panel.waitForFunction(() => "navi" in window);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    // Asleep: Chrome's on-device recognizer listens for the name; nothing goes to ElevenLabs.
+    await panel.waitForTimeout(300);
+    expect(sockets).toHaveLength(0);
+
+    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
+    await expect.poll(() => sockets.length).toBe(1);
+    const url = new URL(sockets[0]);
+    expect(url.pathname).toBe("/v1/speech-to-text/realtime");
+    expect(url.searchParams.get("model_id")).toBe("scribe_v2_realtime");
+    expect(url.searchParams.get("token")).toBe("single-use-test-token");
+    expect(url.searchParams.get("filter_background_audio")).toBe("true");
+    expect(url.searchParams.get("enable_logging")).toBe("false");
+    expect(url.searchParams.get("audio_format")).toBe("pcm_16000");
+    expect(url.searchParams.getAll("keyterms")).toContain("Navi");
+    // The key only goes in the token request header, never in the socket URL.
+    expect(tokenKey).toBe("el-test-key");
+    expect(sockets[0]).not.toContain("el-test-key");
+
+    // Scribe's transcript runs as a command, and the answer is spoken with ElevenLabs.
+    await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
+    await expect.poll(() => tts.length).toBe(1);
+    expect(tts[0].url).toContain("/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL/stream");
+    expect(tts[0].url).toContain("output_format=pcm_24000");
+    expect(tts[0].url).toContain("enable_logging=false");
+    expect(tts[0].body.model_id).toBe("eleven_flash_v2_5");
+    expect(String(tts[0].body.text)).toMatch(/It's \d/);
+    expect(tts[0].key).toBe("el-test-key");
+    expect(chunks).toBeGreaterThan(0);
+    // No ElevenLabs errors or fallbacks. (Chrome's own recognizer can't reach Google in CI.)
+    await expect(panel.locator("#log li.error").filter({ hasNotText: "Speech service unreachable" })).toHaveCount(0);
+
+    // The streamed reply plays to the end, then Navi listens again.
+    await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.speaker.busy)).toBe(false);
+
+    // While ElevenLabs is transcribing, Chrome's copy of the same speech is ignored.
+    const before = await panel.locator("#log li").count();
+    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("what time is it", 0.9));
+    await panel.waitForTimeout(300);
+    expect(await panel.locator("#log li").count()).toBe(before);
+
+    // Sleeping closes the ElevenLabs connection.
+    await panel.evaluate(() => (window as unknown as Hooks).navi.handleFinal("go to sleep"));
+    await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
+  });
+
+  test("a rejected key falls back to Chrome's recognizer and voice", async ({ panel, context }) => {
+    await context.route("https://api.elevenlabs.io/**", (route) =>
+      route.fulfill({ status: 401, json: { detail: { status: "invalid_api_key" } } }),
+    );
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { elevenLabsKey: "bad-key" } }));
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
+    await expect(panel.locator("#log li.error").filter({ hasText: "Using Chrome's speech recognition" })).toHaveCount(1);
+    expect(await panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
+
+    // Chrome's recognizer now handles commands, and replies use Chrome's voice.
+    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("what time is it", 0.9));
+    await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
+    await expect(panel.locator("#log li.error").filter({ hasText: "Using Chrome's voice" })).toHaveCount(1);
+  });
 });

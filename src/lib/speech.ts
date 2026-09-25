@@ -1,5 +1,5 @@
 // Speech-to-text behind one interface, so providers can be swapped and compared.
-// Currently: Chrome's built-in Web Speech API, on-device when the browser supports it.
+// Chrome's built-in Web Speech API (on-device when supported) here; ElevenLabs Scribe in scribe.ts.
 
 export interface SpeechCallbacks {
   onInterim(text: string): void;
@@ -80,6 +80,21 @@ export async function installOnDevice(lang: string): Promise<boolean> {
   return Ctor.install({ langs: [lang], processLocally: true });
 }
 
+/**
+ * Asks for the strongest echo cancellation available: "all" (Chrome 141+) also removes
+ * audio the computer itself is playing, such as a podcast or video.
+ */
+export async function openCleanMic(): Promise<MediaStream> {
+  const base = { noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: { ...base, echoCancellation: "all" as unknown as boolean },
+    });
+  } catch {
+    return navigator.mediaDevices.getUserMedia({ audio: { ...base, echoCancellation: true } });
+  }
+}
+
 export function speechSupported(): boolean {
   return !!recognitionCtor();
 }
@@ -144,9 +159,7 @@ export class WebSpeechEngine implements SpeechEngine {
   private async openMic() {
     if (!this.trackSupported || this.stream?.getAudioTracks()[0]?.readyState === "live") return;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
-      });
+      this.stream = await openCleanMic();
     } catch {
       this.stream = null;
     }

@@ -7,6 +7,7 @@ export const entryPoints = {
   sidepanel: "src/sidepanel/main.ts",
   setup: "src/setup/main.ts",
   options: "src/options/main.ts",
+  "pcm-worklet": "src/audio/pcm-worklet.ts",
 };
 
 const staticFiles = [
