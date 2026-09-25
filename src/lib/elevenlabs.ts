@@ -25,6 +25,16 @@ export class ElevenLabsError extends Error {
   }
 }
 
+/** fetch, with a plain message when ElevenLabs can't be reached (instead of "Failed to fetch"). */
+async function send(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw err;
+    throw new ElevenLabsError("Couldn't reach ElevenLabs. Check your internet connection.");
+  }
+}
+
 async function check(res: Response, what: string): Promise<Response> {
   if (res.ok) return res;
   if (res.status === 401) throw new ElevenLabsError("ElevenLabs rejected the API key. Check it in Navi's settings.", 401);
@@ -35,7 +45,7 @@ async function check(res: Response, what: string): Promise<Response> {
 /** A single-use token so the realtime socket never carries the API key. */
 export async function realtimeToken(apiKey: string): Promise<string> {
   const res = await check(
-    await fetch(`${API}/v1/single-use-token/realtime_scribe`, { method: "POST", headers: { "xi-api-key": apiKey } }),
+    await send(`${API}/v1/single-use-token/realtime_scribe`, { method: "POST", headers: { "xi-api-key": apiKey } }),
     "token request",
   );
   const body = (await res.json()) as { token?: string };
@@ -87,7 +97,7 @@ export async function speechStream(
 ): Promise<ReadableStream<Uint8Array>> {
   const query = new URLSearchParams({ output_format: "pcm_24000" });
   const res = await check(
-    await fetch(`${API}/v1/text-to-speech/${encodeURIComponent(voice.voiceId)}/stream?${query}`, {
+    await send(`${API}/v1/text-to-speech/${encodeURIComponent(voice.voiceId)}/stream?${query}`, {
       method: "POST",
       signal,
       headers: { "xi-api-key": apiKey, "content-type": "application/json" },
@@ -110,7 +120,7 @@ export interface VoiceInfo {
 }
 
 export async function listVoices(apiKey: string): Promise<VoiceInfo[]> {
-  const res = await check(await fetch(`${API}/v1/voices`, { headers: { "xi-api-key": apiKey } }), "voice list");
+  const res = await check(await send(`${API}/v1/voices`, { headers: { "xi-api-key": apiKey } }), "voice list");
   return ((await res.json()) as { voices?: VoiceInfo[] }).voices ?? [];
 }
 

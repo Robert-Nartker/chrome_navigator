@@ -203,7 +203,7 @@ export function takeSnapshot(): PageSnapshot {
   const kept = new Set<Element>();
 
   for (const el of candidates) {
-    if (el.closest("navi-overlay, navi-grid")) continue;
+    if (el.closest("navi-overlay, navi-grid, navi-pill")) continue;
     const rect = el.getBoundingClientRect();
     if (!isRendered(el, rect) || isDisabled(el)) continue;
     const inViewport =

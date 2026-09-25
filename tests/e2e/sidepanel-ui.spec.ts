@@ -137,9 +137,15 @@ async function run(panel: Page, command: string) {
   await panel.evaluate((text) => (window as unknown as Hooks).navi.run(text), command);
 }
 
+/** Navi's background page (offscreen document), where the mic and recognizer run. */
+async function earsPage(panel: Page): Promise<Page> {
+  const isEars = (p: Page) => p.url().endsWith("/offscreen.html");
+  return panel.context().pages().find(isEars) ?? (await panel.context().waitForEvent("page", { predicate: isEars }));
+}
+
 /** Speech from the fake recognizer: interim words, or a final phrase. */
 async function hear(panel: Page, transcript: string, isFinal = false) {
-  await panel.evaluate(
+  await (await earsPage(panel)).evaluate(
     ([text, final]) => (window as unknown as { __hear(t: string, f: boolean): void }).__hear(text, final),
     [transcript, isFinal] as const,
   );
@@ -299,7 +305,8 @@ test("fast commands and unrecognized ones stay compact; notes sit between cards"
 test("reopening the panel rebuilds the same cards", async ({ panel, site, context }) => {
   await mockClaude(context, { routed: { "smash that sub": "click subscribe" } });
   await useClaude(panel, "claude-sonnet-5");
-  await run(panel, "scroll down");
+  // (Not a scroll: a smooth scroll still moving could carry Subscribe off screen before the AI looks.)
+  await run(panel, "what time is it");
   await run(panel, "yo smash that sub thingy");
   await run(panel, "hit the subscribe thing for me");
   await expect(site.locator("#subs")).toHaveText("2");
@@ -340,7 +347,8 @@ test("reopening the panel rebuilds the same cards", async ({ panel, site, contex
   await expect(cards.last().locator("li.navi")).toContainText("Scrolling up");
 });
 
-test("a log saved before cards existed is grouped by order", async ({ panel, context }) => {
+test("a log saved before cards existed is grouped by order, and survives the worker restarting", async ({ panel, context }) => {
+  await panel.waitForTimeout(500); // let the greeting's save go first
   await panel.evaluate(() =>
     chrome.storage.session.set({
       panelLog: [
@@ -353,6 +361,10 @@ test("a log saved before cards existed is grouped by order", async ({ panel, con
       ],
     }),
   );
+  // Chrome stops idle workers; the next one loads the saved log.
+  const cdp = await context.newCDPSession(panel);
+  await cdp.send("ServiceWorker.enable");
+  await cdp.send("ServiceWorker.stopAllWorkers");
   const reopened = await context.newPage();
   await reopened.goto(panel.url());
   await panel.close();
@@ -431,6 +443,48 @@ test.describe("live caption", () => {
     );
     expect(moving).toBe(0);
   });
+
+  test("with the panel closed, Navi still listens, and a pill on the page shows what it hears and says", async ({
+    panel,
+    site,
+    context,
+    extensionId,
+  }) => {
+    // With the mic allowed, opening the panel starts listening for the name; then close it.
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    const ears = await earsPage(panel);
+    await panel.close();
+    await site.bringToFront();
+    const pill = site.locator("navi-pill .pill");
+    const text = site.locator("navi-pill .text");
+    const badge = () =>
+      context.serviceWorkers().find((w) => w.url().includes(extensionId))!.evaluate(() => chrome.action.getBadgeText({}));
+
+    // Asleep: nothing on the page; the toolbar badge says it's waiting.
+    await expect.poll(badge).toBe("zz");
+    await expect(pill).toHaveCount(0);
+    const hear = (words: string, final = false) =>
+      ears.evaluate(([t, f]) => (window as unknown as { __hear(t: string, f: boolean): void }).__hear(t, f), [words, final] as const);
+
+    await hear("hey navi", true);
+    await expect(pill).toHaveAttribute("data-shown", "true");
+    await expect(text).toHaveText("Listening…");
+    await expect.poll(badge).toBe("ON");
+
+    await hear("what time");
+    await expect(text).toHaveText("what time");
+    await hear("what time is it", true);
+    await expect(pill).toHaveAttribute("data-kind", "reply");
+    await expect(text).toHaveText(/It's \d/);
+    // The pill never takes clicks, and the AI never sees it.
+    expect(await pill.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+
+    // Reopening the panel shows the same command.
+    const reopened = await context.newPage();
+    await reopened.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+    await expect(reopened.locator("#log > li.turn").last().locator("li.user")).toContainText("what time is it");
+    await expect(reopened.locator("#voice")).toHaveAttribute("data-state", "awake");
+  });
 });
 
 test.describe("screenshots", () => {
@@ -446,7 +500,7 @@ test.describe("screenshots", () => {
       const hold = new Promise<void>((resolve) => (release = resolve));
       await mockClaude(context, { routed: { "smash that sub": "click subscribe" }, reply: "Subscribed to Navi Test Page.", hold });
       await useClaude(panel, "claude-sonnet-5");
-      // With the mic allowed, the panel starts listening for the wake word by itself.
+      // With the mic allowed, opening the panel starts listening for the wake word.
       await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
       await hear(panel, "hey navi", true);
 

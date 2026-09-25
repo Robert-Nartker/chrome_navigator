@@ -25,7 +25,7 @@
     "default_path": "sidepanel.html"
   },
   "options_page": "options.html",
-  "permissions": ["sidePanel", "tabs", "scripting", "storage", "tts", "sessions"],
+  "permissions": ["sidePanel", "tabs", "scripting", "storage", "tts", "sessions", "offscreen"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {

@@ -1,4 +1,6 @@
-// Spoken replies (ElevenLabs streaming, or chrome.tts) and short sounds ("earcons") for wake/sleep/error.
+// Spoken replies (ElevenLabs streaming, or the system voices) and short sounds ("earcons") for wake/sleep/error.
+// System voices go through chrome.tts where it exists, and through speechSynthesis in Navi's background
+// page, which has no chrome.tts (they're the same voices).
 
 import { pcm16ToFloat, speechStream } from "./elevenlabs";
 
@@ -10,8 +12,25 @@ const PREFERRED_VOICES = [/^Google US English$/i, /Aria.*Natural/i, /^Samantha/i
 
 let voicesPromise: Promise<chrome.tts.TtsVoice[]> | null = null;
 
+const hasChromeTts = () => typeof chrome !== "undefined" && !!chrome.tts;
+
+/** speechSynthesis loads its voices asynchronously. */
+function synthesisVoices(): Promise<SpeechSynthesisVoice[]> {
+  const now = speechSynthesis.getVoices();
+  if (now.length) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const done = () => resolve(speechSynthesis.getVoices());
+    speechSynthesis.addEventListener("voiceschanged", done, { once: true });
+    setTimeout(done, 1000);
+  });
+}
+
 export function listVoices(): Promise<chrome.tts.TtsVoice[]> {
-  voicesPromise ??= new Promise((resolve) => chrome.tts.getVoices((voices) => resolve(voices ?? [])));
+  voicesPromise ??= hasChromeTts()
+    ? new Promise((resolve) => chrome.tts.getVoices((voices) => resolve(voices ?? [])))
+    : synthesisVoices().then((voices) =>
+        voices.map((v) => ({ voiceName: v.name, lang: v.lang, remote: !v.localService }) as chrome.tts.TtsVoice),
+      );
   return voicesPromise;
 }
 
@@ -25,6 +44,15 @@ export async function pickVoice(lang: string): Promise<string | undefined> {
   return voices.find((v) => v.gender === "female")?.voiceName ?? voices[0]?.voiceName;
 }
 
+export type EarconName = "wake" | "sleep" | "error" | "unknown" | "done" | "thinking";
+
+/** What the command controller needs to talk: it may run where there's no audio (the background worker). */
+export interface Voice {
+  say(text: string): Promise<void>;
+  stop(): void;
+  sound(name: EarconName): void;
+}
+
 export interface VoiceSettings {
   rate: number;
   voiceName: string;
@@ -34,7 +62,7 @@ export interface VoiceSettings {
   eleven?: { apiKey: string; voiceId: string; model: string };
 }
 
-export class Speaker {
+export class Speaker implements Voice {
   private speakingUntil = 0;
   private speaking = false;
   private utterance = 0;
@@ -153,6 +181,7 @@ export class Speaker {
   private async sayChrome(text: string, voice: VoiceSettings, id: number): Promise<void> {
     const voiceName = voice.voiceName || (await pickVoice(voice.lang));
     if (id !== this.utterance) return;
+    if (!hasChromeTts()) return this.saySynthesis(text, voice, voiceName);
     return new Promise((resolve) => {
       let finished = false;
       const done = () => {
@@ -176,6 +205,28 @@ export class Speaker {
     });
   }
 
+  private async saySynthesis(text: string, voice: VoiceSettings, voiceName: string | undefined): Promise<void> {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = voice.rate;
+    utterance.volume = voice.volume;
+    utterance.lang = voice.lang;
+    const match = (await synthesisVoices()).find((v) => v.name === voiceName);
+    if (match) utterance.voice = match;
+    return new Promise((resolve) => {
+      let finished = false;
+      const done = () => {
+        if (!finished) resolve();
+        finished = true;
+      };
+      utterance.onstart = () => this.onAudioStart?.();
+      utterance.onend = done;
+      utterance.onerror = done;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+      setTimeout(done, 1000 + text.length * 120);
+    });
+  }
+
   private stopPlayback() {
     this.abort?.abort();
     this.abort = null;
@@ -189,10 +240,15 @@ export class Speaker {
     this.sources = [];
   }
 
+  sound(name: EarconName) {
+    earcons[name]();
+  }
+
   stop() {
     this.utterance++;
     this.stopPlayback();
-    chrome.tts.stop();
+    if (hasChromeTts()) chrome.tts.stop();
+    else if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
     this.speaking = false;
   }
 }

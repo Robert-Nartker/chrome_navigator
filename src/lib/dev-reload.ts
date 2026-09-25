@@ -29,7 +29,8 @@ export async function reinjectContentScripts() {
   );
 }
 
-export async function startDevReload(onStatus: (text: string) => void) {
+/** `background`: in Navi's background page, which can't re-inject content scripts (the panel or worker does). */
+export async function startDevReload(onStatus: (text: string) => void, { background = false } = {}) {
   const mine = await loadedDevBuild();
   // What the background worker loaded; it only changes on a full extension reload.
   const loadedFullHash = (await chrome.runtime.sendMessage({ type: "navi:dev-full-hash" }).catch(() => null)) as
@@ -50,7 +51,7 @@ export async function startDevReload(onStatus: (text: string) => void) {
     if (mine && latest.buildId !== mine.buildId) {
       onStatus(`updating to #${latest.buildId}…`);
       source.close();
-      await reinjectContentScripts();
+      if (!background) await reinjectContentScripts();
       location.reload();
     }
   };

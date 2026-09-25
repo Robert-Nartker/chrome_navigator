@@ -5,17 +5,9 @@
 // - ignored or not understood: a single faint line
 // Every entry is still an `li.<kind>` inside #log, so tests and the log restore keep working.
 
-import type { LogKind } from "./controller";
+import type { LogEntry, LogKind } from "../lib/messages";
 
-export interface LogEntry {
-  kind: LogKind;
-  text: string;
-  meta?: string;
-  /** When it was logged (ms since the epoch). */
-  t?: number;
-  /** The command (turn) it belongs to; unset for notes outside a command. */
-  turn?: string;
-}
+export type { LogEntry };
 
 type TurnState = "idle" | "working" | "done";
 
@@ -94,11 +86,16 @@ export class Feed {
     if (kind === "user") entry.turn = this.newId();
     else if (this.active) entry.turn = this.active.id;
     else if (kind === "step") entry.turn = this.latest?.id ?? this.newId();
-    const follow = kind === "user" || this.nearBottom();
-    this.render(entry);
-    if (kind === "navi" || kind === "error") this.announce(entry.text);
-    if (follow) this.list.scrollTop = this.list.scrollHeight;
+    this.push(entry);
     return entry;
+  }
+
+  /** Shows an entry that already knows its command (logged by the background worker). */
+  push(entry: LogEntry) {
+    const follow = entry.kind === "user" || this.nearBottom();
+    this.render(entry);
+    if (entry.kind === "navi" || entry.kind === "error") this.announce(entry.text);
+    if (follow) this.list.scrollTop = this.list.scrollHeight;
   }
 
   /** Rebuilds the feed from saved entries (all finished, except a command still running). */

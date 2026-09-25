@@ -3,7 +3,7 @@
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
 import { tmpdir } from "node:os";
@@ -24,6 +24,27 @@ type Fixtures = {
   /** Give Chromium a fake microphone (a test tone) that's allowed without a prompt. */
   fakeMic: boolean;
 };
+
+/** One second of silence (16 kHz mono WAV): the fake mic stays quiet unless a test "talks". */
+async function silentWav(dir: string): Promise<string> {
+  const samples = 16000;
+  const wav = Buffer.alloc(44 + samples * 2);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + samples * 2, 4);
+  wav.write("WAVEfmt ", 8);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20); // PCM
+  wav.writeUInt16LE(1, 22); // mono
+  wav.writeUInt32LE(16000, 24);
+  wav.writeUInt32LE(32000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(samples * 2, 40);
+  const file = path.join(dir, "silence.wav");
+  await writeFile(file, wav);
+  return file;
+}
 
 function startServer(): Promise<{ server: Server; baseUrl: string }> {
   return new Promise((resolve) => {
@@ -54,7 +75,14 @@ const test = base.extend<Fixtures>({
   },
   context: async ({ fakeMic }, use) => {
     const userDataDir = await mkdtemp(path.join(tmpdir(), "navi-e2e-"));
-    const media = fakeMic ? ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] : [];
+    // The default fake mic beeps every second, which can sound like speech; this one is silent.
+    const media = fakeMic
+      ? [
+          "--use-fake-device-for-media-stream",
+          "--use-fake-ui-for-media-stream",
+          `--use-file-for-fake-audio-capture=${await silentWav(userDataDir)}`,
+        ]
+      : [];
     const context = await chromium.launchPersistentContext(userDataDir, {
       executablePath: CHROMIUM,
       headless: true,
@@ -906,6 +934,22 @@ test.describe("ElevenLabs speech", () => {
     };
   };
 
+  /**
+   * Saves settings, then opens the panel. Routes only reliably apply to pages opened after they're
+   * registered, so the panel (which opens Navi's background page, where the mic and ElevenLabs run)
+   * opens only once the test's routes are set.
+   */
+  async function openPanel(context: BrowserContext, extensionId: string, site: Page, settings: Record<string, unknown>) {
+    const worker = context.serviceWorkers().find((w) => w.url().includes(extensionId))!;
+    await worker.evaluate((s) => chrome.storage.local.set({ settings: s }), settings);
+    for (const p of context.pages()) if (p.url().includes("setup.html")) await p.close();
+    await site.bringToFront();
+    const panel = await context.newPage();
+    await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+    await panel.waitForFunction(() => "navi" in window);
+    return panel;
+  }
+
   /** 0.4 s of a quiet 440 Hz tone as 24 kHz 16-bit PCM, like ElevenLabs' pcm_24000 stream. */
   function tonePcm(): Buffer {
     const samples = 24000 * 0.4;
@@ -914,7 +958,7 @@ test.describe("ElevenLabs speech", () => {
     return buf;
   }
 
-  test("awake commands are transcribed by Scribe; replies stream from ElevenLabs", async ({ panel: firstPanel, context }) => {
+  test("awake commands are transcribed by Scribe; replies stream from ElevenLabs", async ({ context, extensionId, site }) => {
     const sockets: string[] = [];
     const tts: { url: string; body: Record<string, unknown>; key?: string }[] = [];
     let chunks = 0;
@@ -947,13 +991,7 @@ test.describe("ElevenLabs speech", () => {
       });
     });
 
-    await firstPanel.evaluate(() => chrome.storage.local.set({ settings: { elevenLabsKey: "el-test-key" } }));
-    // WebSocket routes only apply to pages opened after they're registered, so use a fresh panel.
-    await firstPanel.evaluate(() => (window as unknown as Hooks).navi.stopListening());
-    const panel = await context.newPage();
-    await panel.goto(firstPanel.url());
-    await firstPanel.close();
-    await panel.waitForFunction(() => "navi" in window);
+    const panel = await openPanel(context, extensionId, site, { elevenLabsKey: "el-test-key" });
     await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
     // Asleep: Chrome's on-device recognizer listens for the name; nothing goes to ElevenLabs.
     await panel.waitForTimeout(300);
@@ -1003,15 +1041,21 @@ test.describe("ElevenLabs speech", () => {
     await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
   });
 
-  test("a rejected key falls back to Chrome's recognizer and voice", async ({ panel, context }) => {
+  test("a rejected key falls back to Chrome's recognizer and voice", async ({ context, extensionId, site }) => {
     await context.route("https://api.elevenlabs.io/**", (route) =>
       route.fulfill({ status: 401, json: { detail: { status: "invalid_api_key" } } }),
     );
-    await panel.evaluate(() => chrome.storage.local.set({ settings: { elevenLabsKey: "bad-key" } }));
+    const panel = await openPanel(context, extensionId, site, { elevenLabsKey: "bad-key" });
     await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
     await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
-    await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
-    await expect(panel.locator("#log li.error").filter({ hasText: "Using Chrome's speech recognition" })).toHaveCount(1);
+    // Talk until ElevenLabs is asked (its mic may still be opening at first).
+    const fallback = panel.locator("#log li.error").filter({ hasText: "Using Chrome's speech recognition" });
+    await expect
+      .poll(async () => {
+        await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
+        return fallback.count();
+      })
+      .toBe(1);
     expect(await panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
 
     // Chrome's recognizer now handles commands, and replies use Chrome's voice.

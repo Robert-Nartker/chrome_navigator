@@ -109,6 +109,8 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://localhost:${server.address().port}`;
 
+// Navi calls the AI from its background service worker; this lets --mock intercept those requests.
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = "1";
 const sandboxChromium = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const executablePath = process.env.NAVI_CHROMIUM ?? (existsSync(sandboxChromium) ? sandboxChromium : undefined);
 // Regular Chrome no longer loads unpacked extensions from the command line, so the benchmark uses

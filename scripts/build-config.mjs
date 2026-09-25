@@ -8,6 +8,7 @@ export const entryPoints = {
   setup: "src/setup/main.ts",
   options: "src/options/main.ts",
   "pcm-worklet": "src/audio/pcm-worklet.ts",
+  offscreen: "src/offscreen/main.ts",
 };
 
 const staticFiles = [
@@ -16,6 +17,7 @@ const staticFiles = [
   ["src/sidepanel/styles.css", "sidepanel.css"],
   ["src/setup/index.html", "setup.html"],
   ["src/options/index.html", "options.html"],
+  ["src/offscreen/index.html", "offscreen.html"],
   ["src/tts-lab/index.html", "tts-lab.html"],
   ["src/shared.css", "shared.css"],
   ["src/icons", "icons"],

@@ -1,9 +1,11 @@
-// Content script entry: answers requests from the Navi side panel.
+// Content script entry: answers Navi's requests (from its background worker), and shows the floating pill.
 
+import type { PillUpdate } from "../lib/messages";
 import type { ContentRequest, ContentResponse } from "../lib/protocol";
 import { autoScroll, click, edit, findOnPage, media, pressKey, readPage, scroll, selectOption, typeText } from "./actions";
 import { clickAtPoint, gridActive, hideGrid, runGrid } from "./grid";
 import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
+import { destroyPill, startPill, updatePill } from "./pill";
 import { accessibleName, resolveElement, takeSnapshot } from "./snapshot";
 
 function element(id: number, gen?: number): Element {
@@ -71,13 +73,22 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
 // tell any older copy in this page to stop, then take over.
 window.dispatchEvent(new CustomEvent("navi:teardown"));
 
-const onMessage = (req: ContentRequest, _sender: chrome.runtime.MessageSender, sendResponse: (r: ContentResponse) => void) => {
+const onMessage = (
+  req: ContentRequest | PillUpdate,
+  _sender: chrome.runtime.MessageSender,
+  sendResponse: (r: ContentResponse) => void,
+) => {
+  if ("type" in req) {
+    if (req.type === "pill:update") updatePill(req);
+    return false;
+  }
   handle(req)
     .then(sendResponse)
     .catch((err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
   return true; // keep the channel open for the async response
 };
 chrome.runtime.onMessage.addListener(onMessage);
+startPill();
 
 // Keep badges in sync when single-page apps swap content without scrolling.
 let mutationTimer: number | undefined;
@@ -94,6 +105,7 @@ window.addEventListener(
     observer.disconnect();
     window.clearTimeout(mutationTimer);
     destroyOverlay();
+    destroyPill();
     hideGrid();
     autoScroll("stop");
     try {

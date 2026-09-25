@@ -1,7 +1,11 @@
-// Service worker: opens the side panel from the toolbar icon or Alt+Shift+N,
-// shows the setup page on first install, and refreshes content scripts on update.
+// Service worker: runs Navi (commands, AI, the activity log; see background/navi.ts), opens the side
+// panel from the toolbar icon or Alt+Shift+N, shows the setup page on first install, and refreshes
+// content scripts on update.
 
+import { startNavi } from "./background/navi";
 import { loadedDevBuild, reinjectContentScripts } from "./lib/dev-reload";
+
+startNavi();
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
 

@@ -31,9 +31,10 @@ import { formatCost } from "../lib/models";
 import { type GridCommand, type Intent, isLikelyNoise, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
 import { routeUtterance } from "../lib/router";
 import { type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
-import { Speaker, earcons } from "../lib/voice-output";
+import type { Voice } from "../lib/voice-output";
 
-export type LogKind = "user" | "navi" | "step" | "info" | "error";
+export type { LogKind } from "../lib/messages";
+import type { LogKind } from "../lib/messages";
 
 export interface ControllerUi {
   log(kind: LogKind, text: string, meta?: string): void;
@@ -91,7 +92,7 @@ export class Controller {
   constructor(
     private readonly getSettings: () => Settings,
     private readonly ui: ControllerUi,
-    readonly speaker: Speaker,
+    readonly speaker: Voice,
     private readonly hooks: { onSleep(): void; onActivity(): void; onMetric?(metric: CommandMetric): void },
   ) {
     this.agent = new NaviAgent(getSettings);
@@ -205,7 +206,7 @@ export class Controller {
         metric = { path: "error", ms: elapsed(), error: message };
         this.ui.log("error", message);
         // Errors are a sound by default; the full message is in the log (and spoken in spoken mode).
-        earcons.error();
+        this.speaker.sound("error");
         if (this.getSettings().feedback === "spoken") reply = message;
       }
     } finally {
@@ -291,7 +292,7 @@ export class Controller {
     }
     if (!keyFor(settings, settings.model)) {
       this.ui.log("step", `Didn't catch that. Say “what can I say” for examples, or add an AI API key in settings.`);
-      earcons.unknown();
+      this.speaker.sound("unknown");
       return { intent: "unknown" };
     }
 
@@ -330,11 +331,11 @@ export class Controller {
         if (fastPath) return { ...fastPath, routerMs, routerCostUsd };
       } else if (decision.route === "ignore" && voice) {
         this.ui.log("step", `Ignored “${command}” · ${routerMs} ms`);
-        earcons.unknown();
+        this.speaker.sound("unknown");
         return { intent: "ignored", routerMs, routerCostUsd };
       }
     }
-    earcons.thinking();
+    this.speaker.sound("thinking");
     return { intent: "ai", agent: await this.runAgent(command, signal), routerMs, routerCostUsd };
   }
 
@@ -413,7 +414,7 @@ export class Controller {
   private async confirm(text: string) {
     this.navi(text);
     if (this.getSettings().feedback === "spoken") void this.speaker.say(text);
-    else earcons.done();
+    else this.speaker.sound("done");
   }
 
   private async announcePage(tab: chrome.tabs.Tab, verb: string) {
@@ -643,7 +644,7 @@ export class Controller {
         if (intent.reply) {
           this.navi(intent.reply);
           await this.say(intent.reply);
-        } else earcons.done();
+        } else this.speaker.sound("done");
         return;
       case "voice": {
         const change = await this.adjustVoice(intent.change);

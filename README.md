@@ -18,7 +18,11 @@ npm run build          # outputs the extension to dist/
 1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick the `dist/` folder.
 2. A setup tab opens. Click **Allow microphone**. Chrome only lets extensions ask for the mic from a normal tab, so this one-time step is required.
 3. Pin Navi (puzzle-piece menu), then click its icon or press **Alt+Shift+N** to open the side panel.
-4. Optional: open **Settings** and paste a Claude API key to turn on the AI for open-ended commands. Basic commands work without a key.
+4. Optional: open **Settings** and paste an OpenAI or Claude API key to turn on the AI for open-ended commands. Basic commands work without a key.
+
+The side panel is optional. Once the mic is allowed, Navi keeps listening for "Hey Navi" with the panel closed:
+- **Caption:** a small caption at the bottom of the page shows what Navi hears, what it's doing, and its reply.
+- **Toolbar badge:** shows Navi's state: **zz** asleep, **ON** awake, **…** working, **!** a problem.
 
 For day-to-day testing, use the live-reload setup below instead of rebuilding by hand.
 
@@ -90,22 +94,24 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
            when supported)       then a session)        no AI, no network)  │
                                                             │ not matched   │
                                                             ▼               │
-                                              Claude agent (tool use) ──────┤
+                                              AI agent (tool use) ──────────┤
                                               sees element labels only      ▼
                                                                   content script acts on the page
                                                                   (click / type / scroll / read)
                                                                             │
-                                                  spoken reply (chrome.tts) ◄┘
+                                                       spoken reply (voice) ◄┘
 ```
 
-- **Side panel** (`src/sidepanel/`): mic, wake-word session, command pipeline, log.
+- **Ears** (`src/ears/`, run in an offscreen document, `src/offscreen/`): the mic, speech recognition, the "Hey Navi" session, spoken replies and sounds. Offscreen documents keep running with no Navi window open.
+- **Background worker** (`src/background/navi.ts`): runs each command through the fast path, router and AI (`src/sidepanel/controller.ts`), and keeps the activity log.
+- **Views:** the side panel (`src/sidepanel/`), the caption on web pages (`src/content/pill.ts`) and the toolbar badge. They only show state and pass on clicks and typed commands, so closing the panel changes nothing.
 - **Content script** (`src/content/`): builds a "snapshot" of the page's interactive elements named the way a screen reader would name them (ARIA labels, `<label>`, alt text), draws number badges, and performs clicks, typing, scrolling and reading. It also finds clickable `div`s that only have `cursor: pointer`, and scrolls inner panels (Gmail, Slack) as well as the page.
 - **Fast path** (`src/lib/parser.ts`): common commands run instantly with no AI call.
 - **Noise filter and router** (`src/lib/parser.ts`, `src/lib/router.ts`):
   - **Forgiving matching:** looser phrasing ("scroll down further", "Navi sleep") and near-miss transcriptions ("scrawl down") are caught locally.
   - **Noise filter:** keyboard clatter heard as words ("tiktok tiktok tiktok") and lone filler words are ignored without calling any AI.
-  - **Router:** anything else unrecognized goes to Claude Haiku 4.5, which in about half a second maps it to a command, passes it to the main AI, or ignores it as background talk.
-- **AI path** (`src/lib/agent.ts`): Claude gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. Default model is Claude Opus 5.5 at low effort, which keeps thinking short so actions start quickly. Opus 5, Sonnet 5 and Haiku 4.5 can be picked in settings, and there's an optional fast mode (Opus, 2x price).
+  - **Router:** anything else unrecognized goes to a quick model (GPT-6 Luna by default, or Claude Haiku 4.5). It maps the phrase to a command, passes it to the main AI, or ignores it as background talk.
+- **AI path** (`src/lib/agent.ts`): Claude gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. Default model is GPT-6 Sol at low reasoning, which keeps thinking short so actions start quickly. Claude Opus 5.5 and the other GPT-6 and Claude models can be picked in settings. Claude Opus also has an optional fast mode (2x price).
 
 ## Privacy model
 
@@ -186,7 +192,7 @@ Real usage is logged too: **Settings → Usage log** shows the running AI cost. 
 
 ## Roadmap
 
-- **Listening with the side panel closed:** move audio into an offscreen document (Web Speech works there from Chrome 150), with command execution in the service worker
+- **Older Chrome versions:** some Chrome versions block speech recognition in background pages. Navi then uses ElevenLabs for all listening if a key is set, and otherwise asks you to update Chrome. A panel-hosted fallback would cover this without a key.
 - **Voice ID:** optional enrollment on the setup page so only your voice is acted on during a session (Picovoice Eagle or WeSpeaker ONNX); see `docs/research/wake-word-and-voice-id.md`
 - **Dedicated wake-word engine** (Porcupine / openWakeWord) for lower CPU than running recognition continuously
 - **Speech-to-text comparison:** accuracy and latency of ElevenLabs Scribe v2 Realtime vs Chrome on-device on recorded noisy commands; see `docs/research/speech-to-text.md`
