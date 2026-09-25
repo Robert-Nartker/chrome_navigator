@@ -2,6 +2,7 @@
 
 import type { ContentRequest, ContentResponse } from "../lib/protocol";
 import { click, media, pressKey, readPage, scroll, selectOption, typeText } from "./actions";
+import { backGrid, clickAtPoint, clickGrid, gridActive, hideGrid, showGrid, zoomGrid } from "./grid";
 import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
 import { accessibleName, resolveElement, takeSnapshot } from "./snapshot";
 
@@ -21,8 +22,10 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
       refreshBadges(snapshot);
       return { ok: true, snapshot };
     }
-    case "showBadges":
-      return { ok: true, snapshot: showBadges() };
+    case "showBadges": {
+      const was = badgesVisible();
+      return { ok: true, snapshot: showBadges(), detail: was ? "visible" : "hidden" };
+    }
     case "hideBadges":
       hideBadges();
       return { ok: true };
@@ -46,6 +49,30 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
       return { ok: true, text: readPage(req.maxChars) };
     case "media":
       return { ok: true, detail: await media(req.action, req.seconds) };
+    case "grid": {
+      let detail: string;
+      switch (req.action) {
+        case "show":
+          detail = showGrid();
+          break;
+        case "zoom":
+          detail = zoomGrid(req.cell ?? 5);
+          break;
+        case "back":
+          detail = backGrid();
+          break;
+        case "click":
+          detail = clickGrid(req.cell);
+          break;
+        case "hide":
+          hideGrid();
+          detail = "Grid hidden";
+          break;
+      }
+      return { ok: true, detail, gridActive: gridActive() };
+    }
+    case "clickAt":
+      return { ok: true, detail: clickAtPoint(req.x, req.y) };
   }
 }
 
@@ -76,6 +103,7 @@ window.addEventListener(
     observer.disconnect();
     window.clearTimeout(mutationTimer);
     destroyOverlay();
+    hideGrid();
     try {
       chrome.runtime.onMessage.removeListener(onMessage);
     } catch {

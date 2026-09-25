@@ -349,3 +349,71 @@ test("personal commands: placeholders and chaining other commands", async ({ pan
   await run(panel, "find blue shoes here");
   await expect(site).toHaveURL(/search\.html\?q=blue\+shoes/);
 });
+
+test("mouse grid: zoom in by numbers and click an exact spot", async ({ panel, site }) => {
+  const target = await site.evaluate(() => {
+    const r = document.getElementById("signin")!.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: innerWidth, h: innerHeight };
+  });
+  // Work out which blocks a person would say to reach the button.
+  const path: number[] = [];
+  let region = { x: 0, y: 0, w: target.w, h: target.h };
+  for (let level = 0; level < 4; level++) {
+    const col = Math.min(2, Math.floor(((target.x - region.x) / region.w) * 3));
+    const row = Math.min(2, Math.floor(((target.y - region.y) / region.h) * 3));
+    path.push(row * 3 + col + 1);
+    region = { x: region.x + (col * region.w) / 3, y: region.y + (row * region.h) / 3, w: region.w / 3, h: region.h / 3 };
+  }
+  await run(panel, "show grid");
+  expect(await site.evaluate(() => !!document.querySelector("navi-grid"))).toBe(true);
+  for (const n of path) await run(panel, String(n));
+  await run(panel, "click");
+  await expect(site.locator("#result")).toHaveText("signed in");
+  expect(await site.evaluate(() => !!document.querySelector("navi-grid"))).toBe(false);
+  // "go back" after the grid closes means browser back again, not zoom out.
+  await run(panel, "show grid");
+  await run(panel, "5");
+  await run(panel, "go back");
+  await expect(site).toHaveURL(/index\.html/);
+  await run(panel, "hide grid");
+  expect(await site.evaluate(() => !!document.querySelector("navi-grid"))).toBe(false);
+});
+
+test("AI vision: looks at a tagged screenshot, then clicks a spot by coordinates", async ({ panel, site, context }) => {
+  const bodies: { messages: { role: string; content: unknown }[] }[] = [];
+  const subscribe = await site.evaluate(() => {
+    const r = document.getElementById("subscribe")!.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), dpr: devicePixelRatio };
+  });
+  await context.route("https://api.anthropic.com/**", async (route) => {
+    const body = route.request().postDataJSON() as { model: string; messages: { role: string; content: unknown }[] };
+    bodies.push(body);
+    const turn = bodies.length;
+    const content =
+      turn === 1
+        ? [{ type: "tool_use", id: "t1", name: "look_at_screen", input: {} }]
+        : turn === 2
+          ? [{ type: "tool_use", id: "t2", name: "click_at", input: { x: subscribe.x * subscribe.dpr, y: subscribe.y * subscribe.dpr } }]
+          : [{ type: "text", text: "Clicked the button you meant." }];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: `m${turn}`, type: "message", role: "assistant", model: body.model, stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 }, stop_reason: turn < 3 ? "tool_use" : "end_turn", content,
+      }),
+    });
+  });
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "click the second button in that row");
+  await expect(site.locator("#subs")).toHaveText("1");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Clicked the button you meant.");
+  // The screenshot went to the model as an image, with the element list alongside.
+  const toolResult = JSON.stringify(bodies[1].messages[bodies[1].messages.length - 1].content);
+  expect(toolResult).toContain('"type":"image"');
+  expect(toolResult).toContain("image/jpeg");
+  expect(toolResult).toContain('button \\"Subscribe\\"');
+  // Tags were only shown for the picture.
+  expect(await site.evaluate(() => document.querySelector("navi-overlay")?.shadowRoot?.querySelectorAll(".badge").length ?? 0)).toBe(0);
+});

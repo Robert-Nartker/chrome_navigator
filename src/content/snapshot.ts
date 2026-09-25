@@ -203,7 +203,7 @@ export function takeSnapshot(): PageSnapshot {
   const kept = new Set<Element>();
 
   for (const el of candidates) {
-    if (el.closest("navi-overlay")) continue;
+    if (el.closest("navi-overlay, navi-grid")) continue;
     const rect = el.getBoundingClientRect();
     if (!isRendered(el, rect) || isDisabled(el)) continue;
     const inViewport =
@@ -279,6 +279,7 @@ export function takeSnapshot(): PageSnapshot {
     scrollMax: Math.max(0, Math.round(scroller.scrollHeight - innerHeight)),
     focusedId: idOf(deepActiveElement()),
     dialogOpen: !!document.querySelector("dialog[open], [role=dialog]:not([aria-hidden=true]), [aria-modal=true]"),
+    viewport: { width: innerWidth, height: innerHeight },
   };
 }
 

@@ -33,7 +33,17 @@ export type Intent =
   | { type: "zoom"; direction: "in" | "out" | "reset" }
   | { type: "muteTab"; muted: boolean }
   | { type: "readPage" }
-  | { type: "whereAmI" };
+  | { type: "whereAmI" }
+  | { type: "showGrid" }
+  | { type: "hideGrid" };
+
+/** Commands understood while the mouse grid is showing. */
+export type GridCommand =
+  | { type: "zoom"; cell: number }
+  | { type: "click"; cell?: number }
+  | { type: "back" }
+  | { type: "hide" }
+  | { type: "show" };
 
 const LEADING_FILLER =
   /^(?:(?:ok(?:ay)?|hey|so|um+|uh+|please|now|and|then|alright|all right|can you|could you|would you|will you|i want to|i'd like to|i would like to|let's|lets|go ahead and|just)\s+)+/;
@@ -148,6 +158,10 @@ const RULES: Rule[] = [
   [/^(?:switch|go back|jump) to (?:the )?(.+?)(?: tab)?$/, (m) => ({ type: "switchTab", query: m[1] })],
   [/^(?:what|which) tabs (?:are|do i have) open$|^list (?:my |the )?tabs$|^read (?:me )?(?:my |the )?tabs$/, () => ({ type: "listTabs" })],
 
+  // Mouse grid
+  [/^(?:show |open |display )?(?:the )?(?:mouse )?grid$/, () => ({ type: "showGrid" })],
+  [/^(?:hide|close|remove|clear) (?:the )?(?:mouse )?grid$/, () => ({ type: "hideGrid" })],
+
   // Badges
   [/^(?:show|display) (?:the )?(?:numbers|labels|links|hints|badges|buttons)$|^numbers$/, () => ({ type: "showNumbers" })],
   [/^(?:hide|remove|clear) (?:the )?(?:numbers|labels|links|hints|badges)$/, () => ({ type: "hideNumbers" })],
@@ -218,6 +232,32 @@ const RULES: Rule[] = [
 function search(query: string, engine: string): Intent {
   const q = query.trim();
   return { type: "search", query: q, engine, url: searchUrl(q, engine), newTab: false };
+}
+
+const GRID_RULES: [RegExp, (m: RegExpMatchArray) => GridCommand | null][] = [
+  [new RegExp(`^(?:zoom (?:in(?:to)? )?(?:on )?|number |go (?:to )?|cell |block |square |box )?${N}$`), (m) => {
+    const cell = parseNumber(m[1]);
+    return cell !== null && cell >= 1 && cell <= 9 ? { type: "zoom", cell } : null;
+  }],
+  [new RegExp(`^(?:click|tap|press|select|choose)(?: (?:on )?(?:number |cell |block |square )?${N})?(?: here| there| it| that)?$`), (m) => {
+    if (!m[1]) return { type: "click" };
+    const cell = parseNumber(m[1]);
+    return cell !== null && cell >= 1 && cell <= 9 ? { type: "click", cell } : null;
+  }],
+  [/^(?:click|tap) (?:here|there|it|that|center|the center|the middle)$/, () => ({ type: "click" })],
+  [/^(?:back|go back|zoom out|out|up|undo)$/, () => ({ type: "back" })],
+  [/^(?:hide|close|cancel|exit|stop|never ?mind|done)(?: (?:the )?(?:mouse )?grid)?$|^(?:hide|close) it$/, () => ({ type: "hide" })],
+  [/^(?:show |reset |restart )?(?:the )?(?:mouse )?grid$/, () => ({ type: "show" })],
+];
+
+/** While the grid is showing, numbers mean grid blocks and "back" means zoom out. */
+export function parseGridCommand(text: string): GridCommand | null {
+  const t = normalize(text);
+  for (const [re, build] of GRID_RULES) {
+    const m = t.match(re);
+    if (m) return build(m);
+  }
+  return null;
 }
 
 export function parseCommand(text: string): Intent | null {

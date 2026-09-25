@@ -23,6 +23,7 @@ const ui = {
   keyBanner: $("key-banner"),
   sessionBar: $("session-bar"),
   numbersButton: $<HTMLButtonElement>("toggle-numbers"),
+  gridButton: $<HTMLButtonElement>("toggle-grid"),
 };
 
 let settings: Settings = DEFAULT_SETTINGS;
@@ -59,6 +60,9 @@ const controller = new Controller(
     },
     numbersShown(shown) {
       ui.numbersButton.textContent = shown ? "Hide numbers" : "Show numbers";
+    },
+    gridShown(shown) {
+      ui.gridButton.textContent = shown ? "Hide grid" : "Grid";
     },
   },
   speaker,
@@ -259,6 +263,9 @@ $("open-settings-inline").addEventListener("click", openSettings);
 $("help").addEventListener("click", () => {
   log("navi", HELP_TEXT);
   void speaker.say(HELP_TEXT);
+});
+ui.gridButton.addEventListener("click", () => {
+  controller.grid({ type: controller.gridShown ? "hide" : "show" }).catch((err: Error) => log("error", err.message));
 });
 ui.numbersButton.addEventListener("click", () => {
   controller.setNumbers(!controller.numbersShown).catch((err: Error) => log("error", err.message));

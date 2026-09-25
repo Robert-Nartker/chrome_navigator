@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalize, parseCommand, stripWakePhrase, wakeAliases } from "../../src/lib/parser";
+import { normalize, parseCommand, parseGridCommand, stripWakePhrase, wakeAliases } from "../../src/lib/parser";
 
 describe("normalize", () => {
   it("strips filler and punctuation", () => {
@@ -129,5 +129,25 @@ describe("wake phrase", () => {
   });
   it("supports custom names", () => {
     expect(stripWakePhrase("hey jarvis close tab", wakeAliases("Jarvis"))).toEqual({ woke: true, rest: "close tab" });
+  });
+});
+
+describe("mouse grid commands", () => {
+  it("shows and hides the grid", () => {
+    expect(parseCommand("show grid")).toEqual({ type: "showGrid" });
+    expect(parseCommand("grid")).toEqual({ type: "showGrid" });
+    expect(parseCommand("hide the grid")).toEqual({ type: "hideGrid" });
+  });
+  it("treats numbers as blocks while the grid is up", () => {
+    expect(parseGridCommand("5")).toEqual({ type: "zoom", cell: 5 });
+    expect(parseGridCommand("seven")).toEqual({ type: "zoom", cell: 7 });
+    expect(parseGridCommand("zoom into 3")).toEqual({ type: "zoom", cell: 3 });
+    expect(parseGridCommand("click")).toEqual({ type: "click" });
+    expect(parseGridCommand("click 9")).toEqual({ type: "click", cell: 9 });
+    expect(parseGridCommand("click here")).toEqual({ type: "click" });
+    expect(parseGridCommand("go back")).toEqual({ type: "back" });
+    expect(parseGridCommand("cancel")).toEqual({ type: "hide" });
+    expect(parseGridCommand("12")).toBeNull();
+    expect(parseGridCommand("scroll down")).toBeNull();
   });
 });

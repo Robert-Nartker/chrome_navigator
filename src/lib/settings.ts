@@ -22,6 +22,8 @@ export interface Settings {
   allowCloudSpeech: boolean;
   /** Whether the AI may read page text when asked to read/summarize/answer questions. */
   allowPageText: boolean;
+  /** Whether the AI may take a screenshot when the element list isn't enough. */
+  allowScreenshots: boolean;
   /** Hostname fragments where Navi never sends anything to the AI. */
   blockedSites: string[];
   maxAgentSteps: number;
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lang: "en-US",
   allowCloudSpeech: true,
   allowPageText: true,
+  allowScreenshots: true,
   blockedSites: [],
   maxAgentSteps: 12,
 };

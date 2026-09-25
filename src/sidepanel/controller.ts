@@ -26,7 +26,7 @@ import {
 } from "../lib/custom-commands";
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
-import { type Intent, parseCommand } from "../lib/parser";
+import { type GridCommand, type Intent, parseCommand, parseGridCommand } from "../lib/parser";
 import type { Settings } from "../lib/settings";
 import { Speaker, earcons } from "../lib/voice-output";
 
@@ -36,10 +36,11 @@ export interface ControllerUi {
   log(kind: LogKind, text: string, meta?: string): void;
   setWorking(working: boolean, detail?: string): void;
   numbersShown(shown: boolean): void;
+  gridShown?(shown: boolean): void;
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, show numbers, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, show numbers, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done.";
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
@@ -57,6 +58,7 @@ export class Controller {
   private busy = false;
   private numbers = false;
   private commands: CustomCommand[] = [];
+  private gridOn = false;
 
   constructor(
     private readonly getSettings: () => Settings,
@@ -87,6 +89,22 @@ export class Controller {
     this.queue = [];
     this.current?.abort();
     this.speaker.stop();
+    if (this.gridOn) void this.grid({ type: "hide" }).catch(() => undefined);
+  }
+
+  get gridShown() {
+    return this.gridOn;
+  }
+
+  /** Mouse grid: show, zoom into a block, zoom out, click, or hide. */
+  async grid(command: GridCommand): Promise<string> {
+    const tab = await targetTab();
+    const action = command.type === "show" ? "show" : command.type;
+    const cell = "cell" in command ? command.cell : undefined;
+    const res = await pageRequest(tab, { kind: "grid", action, cell });
+    this.gridOn = !!res.gridActive;
+    this.ui.gridShown?.(this.gridOn);
+    return res.detail ?? "";
   }
 
   async run(text: string): Promise<void> {
@@ -153,6 +171,16 @@ export class Controller {
   /** Personal commands first, then built-in commands, then the AI. */
   private async dispatch(command: string, signal: AbortSignal, depth: number): Promise<Outcome> {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+    if (this.gridOn) {
+      const gridCommand = parseGridCommand(command);
+      if (gridCommand) {
+        const detail = await this.grid(gridCommand);
+        if (gridCommand.type === "click") await this.confirm(detail);
+        else this.ui.log("navi", detail);
+        return { intent: `grid:${gridCommand.type}` };
+      }
+    }
 
     const custom = matchCommand(command, this.commands);
     if (custom) return this.runCustom(custom, signal, depth);
@@ -356,6 +384,12 @@ export class Controller {
         if (!match) throw new Unhandled(`I couldn't find ${intent.text}. Say show numbers, then click a number.`);
         const res = await pageRequest(tab, { kind: "click", id: match.element.id, gen: snap.gen });
         await this.confirm(res.detail ?? `Clicked ${match.element.name}`);
+        return;
+      }
+      case "showGrid":
+      case "hideGrid": {
+        const detail = await this.grid({ type: intent.type === "showGrid" ? "show" : "hide" });
+        await this.confirm(intent.type === "showGrid" ? "Grid on. Say a number to zoom in, then say click." : detail);
         return;
       }
       case "showNumbers":

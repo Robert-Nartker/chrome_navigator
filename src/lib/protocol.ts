@@ -40,7 +40,9 @@ export type ContentRequest =
   | { kind: "scroll"; direction: ScrollDirection; amount: ScrollAmount }
   | { kind: "pressKey"; key: Key }
   | { kind: "readPage"; maxChars: number }
-  | { kind: "media"; action: MediaAction; seconds?: number };
+  | { kind: "media"; action: MediaAction; seconds?: number }
+  | { kind: "grid"; action: "show" | "zoom" | "back" | "hide" | "click"; cell?: number }
+  | { kind: "clickAt"; x: number; y: number };
 
 export interface ElementInfo {
   /** Number shown on the badge; valid for the snapshot generation it came from. */
@@ -64,8 +66,10 @@ export interface PageSnapshot {
   scrollMax: number;
   focusedId?: number;
   dialogOpen: boolean;
+  /** Viewport size in CSS pixels (to map screenshot coordinates back to the page). */
+  viewport: { width: number; height: number };
 }
 
 export type ContentResponse =
-  | { ok: true; snapshot?: PageSnapshot; text?: string; detail?: string }
+  | { ok: true; snapshot?: PageSnapshot; text?: string; detail?: string; gridActive?: boolean }
   | { ok: false; error: string };
