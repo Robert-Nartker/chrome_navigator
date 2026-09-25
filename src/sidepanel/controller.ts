@@ -26,9 +26,9 @@ import {
 } from "../lib/custom-commands";
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
-import { type GridCommand, type Intent, isLikelyNoise, parseCommand, parseGridCommand } from "../lib/parser";
+import { type GridCommand, type Intent, isLikelyNoise, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
 import { routeUtterance } from "../lib/router";
-import { type Settings, isBlocked } from "../lib/settings";
+import { type Settings, isBlocked, saveSettings } from "../lib/settings";
 import { Speaker, earcons } from "../lib/voice-output";
 
 export type LogKind = "user" | "navi" | "step" | "info" | "error";
@@ -71,6 +71,9 @@ export class Controller {
   private numbers = false;
   private commands: CustomCommand[] = [];
   private gridOn = false;
+  private autoScrolling = false;
+  /** Last thing Navi said or showed, for "what did you say?". */
+  private lastMessage = "";
 
   constructor(
     private readonly getSettings: () => Settings,
@@ -99,6 +102,7 @@ export class Controller {
   /** Stops whatever Navi is doing or saying. */
   cancel() {
     this.queue = [];
+    if (this.autoScrolling) void this.autoScroll("stop").catch(() => undefined);
     this.current?.abort();
     this.speaker.stop();
     if (this.gridOn) void this.grid({ type: "hide" }).catch(() => undefined);
@@ -195,9 +199,16 @@ export class Controller {
       if (gridCommand) {
         const detail = await this.grid(gridCommand);
         if (gridCommand.type === "click") await this.confirm(detail);
-        else this.ui.log("navi", detail);
+        else this.navi(detail);
         return { intent: `grid:${gridCommand.type}` };
       }
+    }
+
+    // While number tags are showing, a bare number means "click that number".
+    const bare = this.numbers ? parseBareNumber(command) : null;
+    if (bare !== null) {
+      await this.execute({ type: "clickNumber", n: bare });
+      return { intent: "clickNumber" };
     }
 
     const custom = matchCommand(command, this.commands);
@@ -209,7 +220,7 @@ export class Controller {
             .map((c) => c.phrases[0])
             .join(", ")}.`
         : "You don't have any commands yet. Try saying: add a command open wordle.";
-      this.ui.log("navi", text);
+      this.navi(text);
       await this.say(text);
       return { intent: "listCommands" };
     }
@@ -312,7 +323,7 @@ export class Controller {
       },
     });
     const seconds = (result.totalMs / 1000).toFixed(1);
-    this.ui.log("navi", result.reply, `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s`);
+    this.navi(result.reply, `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s`);
     return result;
   }
 
@@ -322,8 +333,34 @@ export class Controller {
   }
 
   /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
+  private navi(text: string, meta?: string) {
+    this.lastMessage = text;
+    this.ui.log("navi", text, meta);
+  }
+
+  private async autoScroll(action: "start" | "stop" | "faster" | "slower") {
+    const res = await pageRequest(await targetTab(), { kind: "autoScroll", action });
+    this.autoScrolling = !!res.active;
+    return res.detail ?? "";
+  }
+
+  private async adjustVoice(change: "louder" | "quieter" | "faster" | "slower") {
+    const s = this.getSettings();
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const patch =
+      change === "louder"
+        ? { volume: round(Math.min(1, s.volume + 0.15)) }
+        : change === "quieter"
+          ? { volume: round(Math.max(0.1, s.volume - 0.15)) }
+          : change === "faster"
+            ? { speechRate: round(Math.min(2, s.speechRate + 0.15)) }
+            : { speechRate: round(Math.max(0.6, s.speechRate - 0.15)) };
+    await saveSettings(patch);
+    return change;
+  }
+
   private async confirm(text: string) {
-    this.ui.log("navi", text);
+    this.navi(text);
     if (this.getSettings().feedback === "spoken") void this.speaker.say(text);
     else earcons.done();
   }
@@ -348,11 +385,11 @@ export class Controller {
     const tab = await targetTab();
     switch (intent.type) {
       case "sleep":
-        this.ui.log("navi", "Going to sleep.");
+        this.navi("Going to sleep.");
         this.hooks.onSleep();
         return;
       case "help":
-        this.ui.log("navi", HELP_TEXT);
+        this.navi(HELP_TEXT);
         await this.say(HELP_TEXT);
         return;
       case "scroll":
@@ -400,7 +437,13 @@ export class Controller {
       case "switchTab": {
         const tabs = await listTabs();
         const found =
-          intent.index !== undefined ? tabs[intent.index - 1] : intent.query ? await findTab(intent.query) : undefined;
+          intent.index === -1
+            ? tabs[tabs.length - 1]
+            : intent.index !== undefined
+              ? tabs[intent.index - 1]
+              : intent.query
+                ? await findTab(intent.query)
+                : undefined;
         if (!found) {
           if (intent.index !== undefined) throw new Error(`There's no tab ${intent.index}.`);
           throw new Unhandled(`No open tab matches ${intent.query}.`);
@@ -414,7 +457,7 @@ export class Controller {
         const text = `You have ${tabs.length} tab${tabs.length === 1 ? "" : "s"}. ${tabs
           .map((t, i) => `${i + 1}: ${t.title || hostOf(t.url)}.`)
           .join(" ")}`;
-        this.ui.log("navi", text);
+        this.navi(text);
         await this.say(text);
         return;
       }
@@ -502,7 +545,7 @@ export class Controller {
         // Read aloud locally; page text never leaves the browser for this.
         const res = await pageRequest(tab, { kind: "readPage", maxChars: 6000 });
         const text = res.text?.trim() || "There's no text to read on this page.";
-        this.ui.log("navi", text.length > 280 ? `${text.slice(0, 280)}…` : text, "Reading aloud · say stop to interrupt");
+        this.navi(text.length > 280 ? `${text.slice(0, 280)}…` : text, "Reading aloud · say stop to interrupt");
         await this.say(text);
         return;
       }
@@ -512,12 +555,126 @@ export class Controller {
         const text = `You're on ${tab.title || "a page"}, at ${hostOf(tab.url) || "a browser page"}.${
           snap ? ` There are ${count} things you can click on screen.` : ""
         }`;
-        this.ui.log("navi", text);
+        this.navi(text);
         await this.say(text);
         return;
       }
       case "stop":
         return;
+      case "repeat": {
+        const text = this.lastMessage || "I haven't said anything yet.";
+        this.ui.log("navi", text, "Repeated");
+        await this.say(text);
+        return;
+      }
+      case "ack":
+        this.speaker.stop();
+        if (intent.reply) {
+          this.navi(intent.reply);
+          await this.say(intent.reply);
+        } else earcons.done();
+        return;
+      case "voice": {
+        const change = await this.adjustVoice(intent.change);
+        // Let the next reply use the new settings, then demonstrate them.
+        await new Promise((r) => setTimeout(r, 50));
+        const text = { louder: "Is this better?", quieter: "Is this better?", faster: "Okay, a bit faster.", slower: "Okay, a bit slower." }[change];
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
+      case "autoScroll":
+        await this.confirm(await this.autoScroll(intent.action));
+        return;
+      case "fasterSlower":
+        // "faster" means auto-scroll speed while scrolling, otherwise Navi's speaking speed.
+        if (this.autoScrolling) await this.confirm(await this.autoScroll(intent.direction));
+        else {
+          await this.adjustVoice(intent.direction);
+          const text = intent.direction === "faster" ? "Okay, a bit faster." : "Okay, a bit slower.";
+          this.navi(text);
+          await this.say(text);
+        }
+        return;
+      case "siteHome": {
+        const origin = new URL(tab.url ?? "").origin;
+        if (!origin || origin === "null") throw new Error("This page has no home page.");
+        await this.announcePage(await navigate(`${origin}/`, false), "Opened");
+        return;
+      }
+      case "backN":
+        for (let i = 0; i < intent.times; i++) await chrome.tabs.goBack(tab.id!).catch(() => undefined);
+        await this.announcePage(await waitForLoad(tab.id!), "Back to");
+        return;
+      case "nextPage": {
+        // Pagination link on search results and lists: "Next", "Next page", "›", "More results".
+        const snap = await snapshot(tab);
+        const next =
+          bestMatch("next", snap.elements) ??
+          bestMatch("next page", snap.elements) ??
+          bestMatch("more results", snap.elements);
+        if (!next) throw new Unhandled("I couldn't find a next page button here.");
+        const res = await pageRequest(tab, { kind: "click", id: next.element.id, gen: snap.gen });
+        await this.confirm(res.detail ?? "Next page");
+        return;
+      }
+      case "newWindow":
+        await chrome.windows.create({ focused: true });
+        await this.confirm("New window");
+        return;
+      case "closeOtherTabs": {
+        const others = (await listTabs()).filter((t) => t.id !== tab.id && !t.pinned).map((t) => t.id!);
+        if (others.length) await chrome.tabs.remove(others);
+        await this.confirm(`Closed ${others.length} other tab${others.length === 1 ? "" : "s"}`);
+        return;
+      }
+      case "duplicateTab":
+        await chrome.tabs.duplicate(tab.id!);
+        await this.confirm("Duplicated the tab");
+        return;
+      case "pinTab":
+        await chrome.tabs.update(tab.id!, { pinned: intent.pinned });
+        await this.confirm(intent.pinned ? "Pinned the tab" : "Unpinned the tab");
+        return;
+      case "switchBack": {
+        const previous = (await listTabs())
+          .filter((t) => t.id !== tab.id)
+          .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+        if (!previous) throw new Error("There's no other tab.");
+        await activateTab(previous);
+        await this.announcePage(previous, "");
+        return;
+      }
+      case "find": {
+        try {
+          const res = await pageRequest(tab, { kind: "find", text: intent.text });
+          await this.confirm(res.detail ?? "Found it");
+        } catch (err) {
+          // Not literally on the page: maybe the AI can find what they meant.
+          throw new Unhandled(err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+      case "edit": {
+        const res = await pageRequest(tab, { kind: "edit", action: intent.action });
+        await this.confirm(res.detail ?? "Done");
+        return;
+      }
+      case "print":
+        await pageRequest(tab, { kind: "print" });
+        await this.confirm("Opening the print dialog");
+        return;
+      case "time":
+      case "date": {
+        const now = new Date();
+        const text =
+          intent.type === "time"
+            ? `It's ${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+            : `It's ${now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}.`;
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
     }
   }
 }

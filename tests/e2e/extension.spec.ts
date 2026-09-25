@@ -437,10 +437,12 @@ function routerOrAgent(route: (body: Record<string, unknown>) => unknown) {
 
 test("router: a loosely worded command is understood by the quick model and runs on the fast path", async ({ panel, site, context }) => {
   const models: string[] = [];
+  const bodies: Record<string, unknown>[] = [];
   await context.route(
     "https://api.anthropic.com/**",
     routerOrAgent((body) => {
       models.push(String(body.model));
+      bodies.push(body);
       // Only the router is expected here; it answers with structured JSON.
       return [{ type: "text", text: JSON.stringify({ route: "command", command: "click subscribe" }) }];
     }),
@@ -448,8 +450,10 @@ test("router: a loosely worded command is understood by the quick model and runs
   await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "yo can you smash that sub thingy");
+  // The router runs without extended thinking so it stays fast.
+  expect(bodies[0].thinking).toEqual({ type: "disabled" });
   await expect(site.locator("#subs")).toHaveText("1");
-  expect(models).toEqual(["claude-haiku-4-5"]);
+  expect(models).toEqual(["claude-sonnet-5"]);
   await expect(panel.locator("#log li.step").filter({ hasText: "Understood as “click subscribe”" })).toHaveCount(1);
 });
 
@@ -474,7 +478,47 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   // Someone talking nearby: the quick model says ignore, the main model is never called.
   await final("and then she told me the car was still in the shop");
   await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “and then she told me" })).toHaveCount(1);
-  expect(models).toEqual(["claude-haiku-4-5"]);
+  expect(models).toEqual(["claude-sonnet-5"]);
   // Nothing was spoken or shown as an error.
   await expect(panel.locator("#log li.error")).toHaveCount(0);
+});
+
+test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch back", async ({ panel, site, context, baseUrl }) => {
+  // Auto-scroll runs until "stop".
+  await run(panel, "start scrolling");
+  await expect.poll(() => site.evaluate(() => scrollY), { timeout: 3000 }).toBeGreaterThan(40);
+  await run(panel, "stop");
+  const stoppedAt = await site.evaluate(() => scrollY);
+  await panel.waitForTimeout(300);
+  expect(await site.evaluate(() => scrollY)).toBe(stoppedAt);
+
+  // Find text on the page.
+  await run(panel, "scroll to the top");
+  await run(panel, "find article text");
+  await expect.poll(() => site.evaluate(() => window.getSelection()?.toString())).toBe("Article text");
+
+  // With number tags showing, a bare number clicks.
+  await run(panel, "scroll to the top");
+  await expect.poll(() => site.evaluate(() => scrollY)).toBe(0);
+  await run(panel, "show numbers");
+  const snap = await snapshotFromPanel(panel);
+  const signIn = snap.elements.find((e) => e.name === "Sign in")!;
+  await run(panel, String(signIn.id));
+  await expect(site.locator("#result")).toHaveText("signed in");
+
+  // "What did you say?" repeats the last message.
+  await run(panel, "where am i");
+  await run(panel, "what did you say");
+  const replies = await panel.locator("#log li.navi").allTextContents();
+  expect(replies.at(-1)).toContain(replies.at(-2)!.slice(0, 20));
+
+  // "Switch back" returns to the previous tab.
+  const other = await context.newPage();
+  await other.goto(`${baseUrl}/about.html`);
+  await site.bringToFront();
+  await other.bringToFront();
+  await run(panel, "switch back");
+  await expect
+    .poll(() => panel.evaluate(async () => (await chrome.tabs.query({ active: true, url: "http://*/*" })).map((t) => t.title)))
+    .toContain("Navi Test Page");
 });

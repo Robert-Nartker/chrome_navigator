@@ -1,7 +1,7 @@
 // Content script entry: answers requests from the Navi side panel.
 
 import type { ContentRequest, ContentResponse } from "../lib/protocol";
-import { click, media, pressKey, readPage, scroll, selectOption, typeText } from "./actions";
+import { autoScroll, click, edit, findOnPage, media, pressKey, readPage, scroll, selectOption, typeText } from "./actions";
 import { backGrid, clickAtPoint, clickGrid, gridActive, hideGrid, showGrid, zoomGrid } from "./grid";
 import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
 import { accessibleName, resolveElement, takeSnapshot } from "./snapshot";
@@ -73,6 +73,15 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
     }
     case "clickAt":
       return { ok: true, detail: clickAtPoint(req.x, req.y) };
+    case "autoScroll":
+      return { ok: true, ...autoScroll(req.action) };
+    case "find":
+      return { ok: true, detail: findOnPage(req.text) };
+    case "edit":
+      return { ok: true, detail: edit(req.action) };
+    case "print":
+      window.setTimeout(() => window.print(), 50);
+      return { ok: true, detail: "printing" };
   }
 }
 
@@ -104,6 +113,7 @@ window.addEventListener(
     window.clearTimeout(mutationTimer);
     destroyOverlay();
     hideGrid();
+    autoScroll("stop");
     try {
       chrome.runtime.onMessage.removeListener(onMessage);
     } catch {

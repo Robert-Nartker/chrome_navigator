@@ -1,7 +1,7 @@
 // Fast path: turns common spoken commands into actions with no AI call, so they
 // feel instant. Anything this doesn't recognize goes to the AI agent.
 
-import type { Key, MediaAction, ScrollAmount, ScrollDirection } from "./protocol";
+import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from "./protocol";
 import { NUMBER_PATTERN, parseNumber } from "./numbers";
 import { SEARCH_ENGINES, resolveSite, searchUrl } from "./sites";
 
@@ -35,7 +35,25 @@ export type Intent =
   | { type: "readPage" }
   | { type: "whereAmI" }
   | { type: "showGrid" }
-  | { type: "hideGrid" };
+  | { type: "hideGrid" }
+  | { type: "repeat" }
+  | { type: "ack"; reply?: string }
+  | { type: "voice"; change: "louder" | "quieter" | "faster" | "slower" }
+  | { type: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
+  | { type: "fasterSlower"; direction: "faster" | "slower" }
+  | { type: "siteHome" }
+  | { type: "backN"; times: number }
+  | { type: "nextPage" }
+  | { type: "newWindow" }
+  | { type: "closeOtherTabs" }
+  | { type: "duplicateTab" }
+  | { type: "pinTab"; pinned: boolean }
+  | { type: "switchBack" }
+  | { type: "find"; text?: string }
+  | { type: "edit"; action: EditAction }
+  | { type: "print" }
+  | { type: "time" }
+  | { type: "date" };
 
 /** Commands understood while the mouse grid is showing. */
 export type GridCommand =
@@ -107,7 +125,19 @@ const ENGINE_NAMES = Object.keys(SEARCH_ENGINES)
 type Rule = [RegExp, (m: RegExpMatchArray) => Intent | null];
 
 const RULES: Rule[] = [
-  [/^(?:stop|cancel|never ?mind|shut up|be quiet|quiet|stop talking|stop reading|hush|silence)$/, () => ({ type: "stop" })],
+  [/^(?:stop|cancel|never ?mind|shut up|be quiet|quiet|stop talking|stop reading|hush|silence|wait|hold on|hang on|one sec(?:ond)?|shh+|enough|forget it|scratch that|stop it|stop that)$/, () => ({ type: "stop" })],
+  [/^(?:stop|pause|quit) (?:the )?(?:auto ?)?scroll(?:ing)?$/, () => ({ type: "autoScroll", action: "stop" })],
+
+  // Talking with Navi
+  [/^(?:what did you (?:just )?say|say (?:that|it) again|repeat (?:that|it|yourself|what you said)?|come again|pardon(?: me)?|sorry what|what was that|huh|i didn'?t (?:catch|hear) (?:that|you))$/, () => ({ type: "repeat" })],
+  [/^(?:thanks?|thank you|thanks navi|got it|ok(?:ay)? thanks|perfect|cool|nice|great|awesome|good job|sounds good)$/, () => ({ type: "ack" })],
+  [/^(?:are you (?:there|awake|listening|on)|you there|hello|hi|hey|can you hear me)$/, () => ({ type: "ack", reply: "I'm here." })],
+  [/^(?:(?:talk|speak) (?:louder|up)|louder|speak up)$/, () => ({ type: "voice", change: "louder" })],
+  [/^(?:(?:talk|speak) (?:quieter|softer|more quietly)|quieter|softer|not so loud|too loud)$/, () => ({ type: "voice", change: "quieter" })],
+  [/^(?:talk|speak) (?:faster|quicker)$/, () => ({ type: "voice", change: "faster" })],
+  [/^(?:talk|speak) (?:slower|more slowly)$|^slow down(?: talking)?$/, () => ({ type: "voice", change: "slower" })],
+  [/^what(?:'s| is) the time$|^what time is it$/, () => ({ type: "time" })],
+  [/^what(?:'s| is) (?:the date|today'?s date)$|^what day is (?:it|today)$/, () => ({ type: "date" })],
   [
     /^(?:go to sleep|sleep|stop listening|that's all|that is all|goodbye|good bye|bye|(?:thanks|thank you) that's all|dismiss|pause listening)$/,
     () => ({ type: "sleep" }),
@@ -127,27 +157,55 @@ const RULES: Rule[] = [
       return { type: "scroll", direction: (m[1] ?? "down") as ScrollDirection, amount };
     },
   ],
-  [/^(?:keep scrolling|scroll more|more|keep going|down)$/, () => ({ type: "scroll", direction: "down", amount: "page" })],
-  [/^up$/, () => ({ type: "scroll", direction: "up", amount: "page" })],
+  [/^(?:keep scrolling|scroll more|more|keep going|down|lower|go lower|further|further down|continue|next section)$/, () => ({ type: "scroll", direction: "down", amount: "page" })],
+  [/^(?:a (?:bit|little) (?:more|further|lower)|little more|bit more)$/, () => ({ type: "scroll", direction: "down", amount: "small" })],
+  [/^(?:up|back up|scroll back up|higher|go higher|up top)$/, () => ({ type: "scroll", direction: "up", amount: "page" })],
+  [/^(?:up a (?:bit|little)|a (?:bit|little) (?:higher|up))$/, () => ({ type: "scroll", direction: "up", amount: "small" })],
+  [/^(?:go (?:back )?to )?(?:the )?(?:beginning|start)(?: of (?:the )?page)?$|^back to (?:the )?top$/, () => ({ type: "scroll", direction: "top", amount: "page" })],
+  [/^(?:go to )?(?:the )?end(?: of (?:the )?page)?$/, () => ({ type: "scroll", direction: "bottom", amount: "page" })],
+  [/^(?:start|begin|auto) ?scroll(?:ing)?(?: (?:slowly|for me))?$|^scroll (?:slowly|automatically)$|^read mode$/, () => ({ type: "autoScroll", action: "start" })],
+  [/^scroll (faster|slower)$/, (m) => ({ type: "autoScroll", action: m[1] as "faster" | "slower" })],
+  [/^(faster|slower)$/, (m) => ({ type: "fasterSlower", direction: m[1] as "faster" | "slower" })],
 
   // Media (before "go back" so "go back 10 seconds" matches here)
   [new RegExp(`^(?:skip|fast forward|jump|go)(?: ahead| forward)?(?: by)? ${N} seconds?$`), (m) => ({ type: "media", action: "forward", seconds: parseNumber(m[1]) ?? 10 })],
   [new RegExp(`^(?:rewind|go back|jump back|back)(?: by)? ${N} seconds?$`), (m) => ({ type: "media", action: "rewind", seconds: parseNumber(m[1]) ?? 10 })],
   [/^(?:skip ahead|fast forward)$/, () => ({ type: "media", action: "forward", seconds: 10 })],
   [/^rewind$/, () => ({ type: "media", action: "rewind", seconds: 10 })],
-  [/^(?:play|resume|unpause)(?: (?:the )?(?:video|it|this))?$/, () => ({ type: "media", action: "play" })],
-  [/^pause(?: (?:the )?(?:video|it|this))?$/, () => ({ type: "media", action: "pause" })],
-  [/^(?:make it )?full ?screen$/, () => ({ type: "media", action: "fullscreen" })],
+  [/^(?:play|resume|unpause|keep playing)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "play" })],
+  [/^(?:pause|stop)(?: (?:the )?(?:video|it|this|music))?$|^pause$/, () => ({ type: "media", action: "pause" })],
+  [/^(?:make it |go )?full ?screen$/, () => ({ type: "media", action: "fullscreen" })],
+  [/^(?:exit|leave|close|get out of) (?:the )?full ?screen$/, () => ({ type: "media", action: "exitFullscreen" })],
+  [/^(?:speed (?:it |the video )?up|play (?:it )?faster|faster video)$/, () => ({ type: "media", action: "faster" })],
+  [/^(?:slow (?:it |the video )?down|play (?:it )?slower|slower video)$/, () => ({ type: "media", action: "slower" })],
+  [/^(?:normal|regular) speed$/, () => ({ type: "media", action: "normalSpeed" })],
+  [/^(?:turn (?:it|the volume|the video) up|volume up|turn up the volume|louder video)$/, () => ({ type: "media", action: "volumeUp" })],
+  [/^(?:turn (?:it|the volume|the video) down|volume down|turn down the volume|quieter video)$/, () => ({ type: "media", action: "volumeDown" })],
+  [/^(?:restart|replay)(?: (?:the |this )?video)?$|^(?:start (?:it )?over|play (?:it )?from the (?:beginning|start))$/, () => ({ type: "media", action: "restart" })],
   [/^(mute|unmute)(?: (?:the |this )?(?:tab|sound|audio|page))?$/, (m) => ({ type: "muteTab", muted: m[1] === "mute" })],
   [/^(mute|unmute) (?:the )?video$/, (m) => ({ type: "media", action: m[1] as MediaAction })],
 
   // History
-  [/^(?:go )?back(?: a page)?$|^(?:go to )?(?:the )?previous page$/, () => ({ type: "back" })],
+  [/^(?:go )?back(?: a page)?$|^(?:go to )?(?:the )?previous page$|^(?:go to )?(?:the )?last page$/, () => ({ type: "back" })],
+  [new RegExp(`^(?:go )?back ${N} (?:pages|times)$`), (m) => {
+    const times = parseNumber(m[1]);
+    return times && times > 1 && times < 20 ? { type: "backN", times } : null;
+  }],
+  [/^(?:go )?(?:to )?(?:the )?home ?page$|^go home$|^home$/, () => ({ type: "siteHome" })],
+  [/^(?:go to )?(?:the )?next page(?: of results)?$|^more results$/, () => ({ type: "nextPage" })],
   [/^(?:go )?forward(?: a page)?$/, () => ({ type: "forward" })],
   [/^(?:reload|refresh)(?: (?:the |this )?page)?$/, () => ({ type: "reload" })],
 
   // Tabs
   [/^(?:open )?(?:a )?new tab$/, () => ({ type: "newTab" })],
+  [/^(?:open )?(?:a )?new window$/, () => ({ type: "newWindow" })],
+  [/^close (?:all )?(?:the |of the )?other tabs$|^close everything else$/, () => ({ type: "closeOtherTabs" })],
+  [/^duplicate (?:this |the )?tab$/, () => ({ type: "duplicateTab" })],
+  [/^(pin|unpin) (?:this |the )?tab$/, (m) => ({ type: "pinTab", pinned: m[1] === "pin" })],
+  [/^(?:go to |switch to )?(?:the )?first tab$/, () => ({ type: "switchTab", index: 1 })],
+  [/^(?:go to |switch to )?(?:the )?last tab$/, () => ({ type: "switchTab", index: -1 })],
+  [/^switch back$|^(?:the )?other tab$|^(?:go |switch )?back to (?:the )?(?:other|previous|last) tab$/, () => ({ type: "switchBack" })],
+  [/^how many tabs(?: do i have)?(?: open)?$/, () => ({ type: "listTabs" })],
   [/^close (?:this |the |current )?tab$/, () => ({ type: "closeTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:next|right) tab$/, () => ({ type: "nextTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:previous|left) tab$/, () => ({ type: "prevTab" })],
@@ -191,6 +249,17 @@ const RULES: Rule[] = [
   // Zoom
   [/^zoom (in|out)$/, (m) => ({ type: "zoom", direction: m[1] as "in" | "out" })],
   [/^(?:reset (?:the )?zoom|zoom reset|normal size|actual size)$/, () => ({ type: "zoom", direction: "reset" })],
+
+  // Find text on the page, editing, printing
+  [/^(?:find|look for|search (?:the |this )?page for|where does it say) (.+?)(?: on (?:the |this )?page)?$/, (m) => ({ type: "find", text: m[1] })],
+  [/^(?:find (?:the )?next(?: one)?|next match|next result)$/, () => ({ type: "find" })],
+  [/^select (?:all|everything)$/, () => ({ type: "edit", action: "selectAll" })],
+  [/^undo(?: that)?$/, () => ({ type: "edit", action: "undo" })],
+  [/^(?:clear|erase|empty) (?:the |this )?(?:box|field|text|input|search|it)$|^clear it$/, () => ({ type: "edit", action: "clear" })],
+  [/^(?:new|next) (?:line|paragraph)$/, () => ({ type: "edit", action: "newline" })],
+  [/^print(?: (?:this|the) page)?$/, () => ({ type: "print" })],
+  [/^(?:make (?:it|the text|everything) )?(?:bigger|larger)$/, () => ({ type: "zoom", direction: "in" })],
+  [/^(?:make (?:it|the text|everything) )?smaller$/, () => ({ type: "zoom", direction: "out" })],
 
   // Reading and orientation (no AI needed)
   [/^(?:read|read (?:this|the|it) ?(?:page|article|out loud|aloud)?|read it to me|read (?:the )?selection|read this to me)$/, () => ({ type: "readPage" })],
@@ -250,6 +319,12 @@ const GRID_RULES: [RegExp, (m: RegExpMatchArray) => GridCommand | null][] = [
   [/^(?:hide|close|cancel|exit|stop|never ?mind|done)(?: (?:the )?(?:mouse )?grid)?$|^(?:hide|close) it$/, () => ({ type: "hide" })],
   [/^(?:show |reset |restart )?(?:the )?(?:mouse )?grid$/, () => ({ type: "show" })],
 ];
+
+/** "12", "twelve", "number 12" -> 12 (used while number tags are showing). */
+export function parseBareNumber(text: string): number | null {
+  const m = normalize(text).match(new RegExp(`^(?:number |click )?${N}$`));
+  return m ? parseNumber(m[1]) : null;
+}
 
 /** While the grid is showing, numbers mean grid blocks and "back" means zoom out. */
 export function parseGridCommand(text: string): GridCommand | null {

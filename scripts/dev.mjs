@@ -125,11 +125,20 @@ async function pull() {
     await git("fetch", "-q", "origin", branch);
     const behind = Number(await git("rev-list", "--count", `HEAD..origin/${branch}`));
     if (!behind) return;
-    const dirty = await git("status", "--porcelain", "--untracked-files=no");
-    if (dirty) {
-      if (!warnedDirty) log(`New commits on origin/${branch}, but you have local edits, so auto-pull is paused.`);
-      warnedDirty = true;
-      return;
+    if (await git("status", "--porcelain", "--untracked-files=no")) {
+      // npm rewrites package-lock.json and Windows can flip line endings; neither is a real edit.
+      const realEdits = (await git("diff", "--ignore-cr-at-eol", "--name-only"))
+        .split("\n")
+        .filter((f) => f && f !== "package-lock.json");
+      if (realEdits.length) {
+        if (!warnedDirty) {
+          log(`New commits on origin/${branch}, but these files have local edits, so auto-pull is paused:\n  ${realEdits.join("\n  ")}`);
+          log("To throw away your local edits and update: git reset --hard origin/" + branch);
+        }
+        warnedDirty = true;
+        return;
+      }
+      await git("checkout", "--", ".");
     }
     warnedDirty = false;
     const changed = await git("diff", "--name-only", `HEAD..origin/${branch}`);

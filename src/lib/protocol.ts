@@ -27,7 +27,16 @@ export type MediaAction =
   | "unmute"
   | "forward"
   | "rewind"
-  | "fullscreen";
+  | "fullscreen"
+  | "exitFullscreen"
+  | "faster"
+  | "slower"
+  | "normalSpeed"
+  | "volumeUp"
+  | "volumeDown"
+  | "restart";
+
+export type EditAction = "selectAll" | "undo" | "clear" | "newline";
 
 export type ContentRequest =
   | { kind: "ping" }
@@ -42,7 +51,11 @@ export type ContentRequest =
   | { kind: "readPage"; maxChars: number }
   | { kind: "media"; action: MediaAction; seconds?: number }
   | { kind: "grid"; action: "show" | "zoom" | "back" | "hide" | "click"; cell?: number }
-  | { kind: "clickAt"; x: number; y: number };
+  | { kind: "clickAt"; x: number; y: number }
+  | { kind: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
+  | { kind: "find"; text?: string }
+  | { kind: "edit"; action: EditAction }
+  | { kind: "print" };
 
 export interface ElementInfo {
   /** Number shown on the badge; valid for the snapshot generation it came from. */
@@ -71,5 +84,5 @@ export interface PageSnapshot {
 }
 
 export type ContentResponse =
-  | { ok: true; snapshot?: PageSnapshot; text?: string; detail?: string; gridActive?: boolean }
+  | { ok: true; snapshot?: PageSnapshot; text?: string; detail?: string; gridActive?: boolean; active?: boolean }
   | { ok: false; error: string };

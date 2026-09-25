@@ -19,13 +19,16 @@ const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assi
 
 Built-in commands:
 scroll down / up / to the top / to the bottom (optionally "a little", "a lot"); page up / page down
-go back; go forward; refresh
-new tab; close tab; next tab; previous tab; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
+start scrolling (auto-scroll); stop scrolling; scroll faster; scroll slower
+go back; go back <n> pages; go forward; refresh; go home (site home page); next page (pagination)
+new tab; new window; close tab; close other tabs; duplicate tab; pin tab; next tab; previous tab; first tab; last tab; switch back; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
+find <text> (on this page); find next; select all; undo; clear it; new line; print
+what did you say; talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
 open <site or URL> (optionally "in a new tab"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query>; search this site for <query>
 show numbers; hide numbers; click <number>; click <button or link name>
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
-pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen
+pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
 go to sleep; stop
@@ -54,6 +57,8 @@ export async function routeUtterance(
     {
       model: settings.routerModel,
       max_tokens: 256,
+      // Routing is a quick classification: skip extended thinking where the model allows it.
+      ...(settings.routerModel.startsWith("claude-sonnet-5") ? { thinking: { type: "disabled" as const } } : {}),
       system: SYSTEM_PROMPT,
       output_config: { format: { type: "json_schema", schema: SCHEMA } },
       messages: [

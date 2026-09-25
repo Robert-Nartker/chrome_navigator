@@ -1,6 +1,6 @@
 // Performs actions on page elements the way a user's mouse and keyboard would.
 
-import type { Key, MediaAction, ScrollAmount, ScrollDirection } from "../lib/protocol";
+import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from "../lib/protocol";
 import { deepActiveElement } from "./snapshot";
 import { flash } from "./overlay";
 
@@ -182,6 +182,11 @@ function scrollTarget(): Element {
   return best;
 }
 
+/** Smooth scrolling for the visible tab; instant in background tabs, where animations are throttled. */
+function scrollBehavior(): ScrollBehavior {
+  return document.visibilityState === "visible" ? "smooth" : "instant";
+}
+
 export function scroll(direction: ScrollDirection, amount: ScrollAmount): string {
   const target = scrollTarget();
   const isDoc = target === document.scrollingElement || target === document.documentElement;
@@ -191,22 +196,22 @@ export function scroll(direction: ScrollDirection, amount: ScrollAmount): string
   const scroller: Element | Window = isDoc ? window : target;
   switch (direction) {
     case "top":
-      scroller.scrollTo({ top: 0, behavior: "smooth" });
+      scroller.scrollTo({ top: 0, behavior: scrollBehavior() });
       break;
     case "bottom":
-      scroller.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
+      scroller.scrollTo({ top: target.scrollHeight, behavior: scrollBehavior() });
       break;
     case "up":
-      scroller.scrollBy({ top: -delta, behavior: "smooth" });
+      scroller.scrollBy({ top: -delta, behavior: scrollBehavior() });
       break;
     case "down":
-      scroller.scrollBy({ top: delta, behavior: "smooth" });
+      scroller.scrollBy({ top: delta, behavior: scrollBehavior() });
       break;
     case "left":
-      scroller.scrollBy({ left: -Math.round(innerWidth * factor), behavior: "smooth" });
+      scroller.scrollBy({ left: -Math.round(innerWidth * factor), behavior: scrollBehavior() });
       break;
     case "right":
-      scroller.scrollBy({ left: Math.round(innerWidth * factor), behavior: "smooth" });
+      scroller.scrollBy({ left: Math.round(innerWidth * factor), behavior: scrollBehavior() });
       break;
   }
   return `scrolled ${direction}`;
@@ -284,5 +289,106 @@ export async function media(action: MediaAction, seconds = 10): Promise<string> 
     case "fullscreen":
       await video.requestFullscreen();
       return "full screen";
+    case "exitFullscreen":
+      if (document.fullscreenElement) await document.exitFullscreen();
+      return "exited full screen";
+    case "faster":
+      video.playbackRate = Math.min(4, Math.round((video.playbackRate + 0.25) * 100) / 100);
+      return `speed ${video.playbackRate}x`;
+    case "slower":
+      video.playbackRate = Math.max(0.25, Math.round((video.playbackRate - 0.25) * 100) / 100);
+      return `speed ${video.playbackRate}x`;
+    case "normalSpeed":
+      video.playbackRate = 1;
+      return "normal speed";
+    case "volumeUp":
+      video.muted = false;
+      video.volume = Math.min(1, video.volume + 0.15);
+      return `volume ${Math.round(video.volume * 100)}%`;
+    case "volumeDown":
+      video.volume = Math.max(0, video.volume - 0.15);
+      return `volume ${Math.round(video.volume * 100)}%`;
+    case "restart":
+      video.currentTime = 0;
+      await video.play().catch(() => undefined);
+      return "restarted";
+  }
+}
+
+// ---- Auto-scroll: reads like a teleprompter until "stop" ----
+let autoTimer: number | undefined;
+let autoSpeed = 2; // pixels per frame at ~60 fps
+
+export function autoScroll(action: "start" | "stop" | "faster" | "slower"): { detail: string; active: boolean } {
+  if (action === "stop") {
+    window.clearInterval(autoTimer);
+    autoTimer = undefined;
+    return { detail: "stopped scrolling", active: false };
+  }
+  if (action === "faster") autoSpeed = Math.min(12, autoSpeed * 1.5);
+  if (action === "slower") autoSpeed = Math.max(0.5, autoSpeed / 1.5);
+  if (autoTimer === undefined) {
+    const target = scrollTarget();
+    const isDoc = target === document.scrollingElement || target === document.documentElement;
+    autoTimer = window.setInterval(() => {
+      const before = isDoc ? scrollY : target.scrollTop;
+      if (isDoc) window.scrollBy(0, autoSpeed);
+      else target.scrollTop += autoSpeed;
+      const after = isDoc ? scrollY : target.scrollTop;
+      if (after === before) autoScroll("stop"); // reached the end
+    }, 16);
+  }
+  return { detail: action === "start" ? "scrolling" : action === "faster" ? "scrolling faster" : "scrolling slower", active: true };
+}
+
+// ---- Find on page ----
+let lastFind = "";
+
+export function findOnPage(text?: string): string {
+  const query = (text ?? lastFind).trim();
+  if (!query) throw new Error("Say what to find.");
+  lastFind = query;
+  // window.find is non-standard but supported by Chrome: it selects and scrolls to the next match.
+  const find = (window as unknown as { find?: (s: string, cs: boolean, back: boolean, wrap: boolean) => boolean }).find;
+  const found = find?.call(window, query, false, false, true) ?? false;
+  if (!found) throw new Error(`“${query}” isn't on this page.`);
+  const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
+  const el = range?.startContainer.parentElement;
+  if (el) {
+    el.scrollIntoView({ block: "center", behavior: scrollBehavior() });
+    flash(el);
+  }
+  return `found ${query}`;
+}
+
+// ---- Editing the focused field ----
+export function edit(action: EditAction): string {
+  const el = deepActiveElement();
+  switch (action) {
+    case "selectAll":
+      if (isTextField(el)) el.select();
+      else document.execCommand("selectAll");
+      return "selected all";
+    case "undo":
+      document.execCommand("undo");
+      return "undone";
+    case "clear":
+      if (isTextField(el)) {
+        setNativeValue(el, "");
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "deleteContentBackward" }));
+        return "cleared";
+      }
+      if ((el as HTMLElement | null)?.isContentEditable) {
+        document.execCommand("selectAll");
+        document.execCommand("delete");
+        return "cleared";
+      }
+      throw new Error("There's no text field selected.");
+    case "newline":
+      if (el instanceof HTMLTextAreaElement) {
+        setNativeValue(el, `${el.value}\n`);
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertLineBreak" }));
+      } else document.execCommand("insertParagraph");
+      return "new line";
   }
 }

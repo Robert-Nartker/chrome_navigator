@@ -188,3 +188,59 @@ describe("noise filter", () => {
     expect(isLikelyNoise("wordle")).toBe(false);
   });
 });
+
+describe("everyday phrasings", () => {
+  const cases: [string, object][] = [
+    ["what did you say", { type: "repeat" }],
+    ["say that again", { type: "repeat" }],
+    ["sorry what", { type: "repeat" }],
+    ["thanks", { type: "ack" }],
+    ["are you there", { type: "ack", reply: "I'm here." }],
+    ["hold on", { type: "stop" }],
+    ["shh", { type: "stop" }],
+    ["talk louder", { type: "voice", change: "louder" }],
+    ["too loud", { type: "voice", change: "quieter" }],
+    ["speak slower", { type: "voice", change: "slower" }],
+    ["keep scrolling", { type: "scroll", direction: "down", amount: "page" }],
+    ["a little more", { type: "scroll", direction: "down", amount: "small" }],
+    ["back up", { type: "scroll", direction: "up", amount: "page" }],
+    ["back to the top", { type: "scroll", direction: "top", amount: "page" }],
+    ["start scrolling", { type: "autoScroll", action: "start" }],
+    ["stop scrolling", { type: "autoScroll", action: "stop" }],
+    ["scroll faster", { type: "autoScroll", action: "faster" }],
+    ["slower", { type: "fasterSlower", direction: "slower" }],
+    ["go back three pages", { type: "backN", times: 3 }],
+    ["go home", { type: "siteHome" }],
+    ["next page", { type: "nextPage" }],
+    ["close all the other tabs", { type: "closeOtherTabs" }],
+    ["duplicate this tab", { type: "duplicateTab" }],
+    ["pin this tab", { type: "pinTab", pinned: true }],
+    ["last tab", { type: "switchTab", index: -1 }],
+    ["switch back", { type: "switchBack" }],
+    ["go back to the other tab", { type: "switchBack" }],
+    ["find recipes", { type: "find", text: "recipes" }],
+    ["search this page for price", { type: "find", text: "price" }],
+    ["next match", { type: "find" }],
+    ["select all", { type: "edit", action: "selectAll" }],
+    ["undo that", { type: "edit", action: "undo" }],
+    ["clear the box", { type: "edit", action: "clear" }],
+    ["new line", { type: "edit", action: "newline" }],
+    ["make it bigger", { type: "zoom", direction: "in" }],
+    ["what time is it", { type: "time" }],
+    ["what day is it", { type: "date" }],
+    ["stop the video", { type: "media", action: "pause" }],
+    ["exit full screen", { type: "media", action: "exitFullscreen" }],
+    ["speed it up", { type: "media", action: "faster" }],
+    ["normal speed", { type: "media", action: "normalSpeed" }],
+    ["turn it up", { type: "media", action: "volumeUp" }],
+    ["start over", { type: "media", action: "restart" }],
+  ];
+  it.each(cases)("%s", (text, expected) => {
+    expect(parseCommand(text)).toEqual(expected);
+  });
+  it("still sends real requests onward", () => {
+    for (const text of ["open the first result", "reply to this email saying thanks", "what's on this page"]) {
+      expect(parseCommand(text), text).toBeNull();
+    }
+  });
+});

@@ -34,6 +34,8 @@ const PROTECTED_INTENTS = new Set(["stop", "sleep", "help"]);
 const RESERVED_INTENTS = new Set([
   "scroll", "back", "forward", "reload", "newTab", "closeTab", "nextTab", "prevTab", "reopenTab", "switchTab",
   "listTabs", "clickNumber", "showNumbers", "hideNumbers", "pressKey", "media", "zoom", "muteTab", "readPage", "whereAmI",
+  "showGrid", "hideGrid", "repeat", "ack", "voice", "autoScroll", "fasterSlower", "siteHome", "backN", "nextPage",
+  "newWindow", "closeOtherTabs", "duplicateTab", "pinTab", "switchBack", "edit", "print", "time", "date",
 ]);
 const LIST_PHRASES = /^(?:what are my commands|list (?:my )?(?:custom )?commands|my commands|show (?:my )?commands)$/;
 

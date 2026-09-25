@@ -51,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
   feedback: "minimal",
   speechRate: 1.0,
   volume: 0.6,
-  routerModel: "claude-haiku-4-5",
+  routerModel: "claude-sonnet-5",
   voiceName: "",
   lang: "en-US",
   allowCloudSpeech: true,

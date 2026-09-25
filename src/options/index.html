@@ -62,7 +62,8 @@
           <input id="maxAgentSteps" type="number" min="1" max="30" />
           <label for="routerModel">When a command isn't recognized</label>
           <select id="routerModel">
-            <option value="claude-haiku-4-5">Quick check with Claude Haiku 4.5 first (recommended)</option>
+            <option value="claude-sonnet-5">Quick check with Claude Sonnet 5 first (recommended)</option>
+            <option value="claude-haiku-4-5">Quick check with Claude Haiku 4.5 first</option>
             <option value="off">Send straight to the main model</option>
           </select>
           <p class="hint">The quick check fixes misheard commands and ignores background noise in about half a second, before anything slower runs.</p>
@@ -96,7 +97,7 @@
           <div class="row">
             <div>
               <label for="voiceName">Voice</label>
-              <select id="voiceName"><option value="">Automatic (calmest available)</option></select>
+              <select id="voiceName"><option value="">Navi voice (Google US English)</option></select>
             </div>
             <div>
               <label for="speechRate">Speed</label>

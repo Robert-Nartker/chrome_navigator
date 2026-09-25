@@ -1,21 +1,10 @@
 // Spoken replies (chrome.tts) and short sounds ("earcons") for wake/sleep/error.
 
 /**
- * Voices to prefer when the user hasn't picked one: calm, natural-sounding female
- * voices first (Windows natural voices, macOS premium voices, Google), robotic ones last.
+ * One voice everywhere: Chrome's built-in "Google US English" is the same voice on
+ * macOS and Windows. Others are fallbacks only if Chrome doesn't offer it.
  */
-const PREFERRED_VOICES = [
-  /Aria.*Natural/i,
-  /Jenny.*Natural/i,
-  /Ava \((Premium|Enhanced)\)/i,
-  /Zoe \((Premium|Enhanced)\)/i,
-  /Samantha \(Enhanced\)/i,
-  /^Google US English$/i,
-  /Allison|Susan \(Enhanced\)/i,
-  /^Samantha/i,
-  /Google UK English Female/i,
-  /Zira/i,
-];
+const PREFERRED_VOICES = [/^Google US English$/i, /Aria.*Natural/i, /^Samantha/i, /Zira/i];
 
 let voicesPromise: Promise<chrome.tts.TtsVoice[]> | null = null;
 
