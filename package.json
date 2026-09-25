@@ -6,13 +6,13 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tests",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
     "check": "npm run typecheck && npm test && npm run test:e2e",
     "bench": "npm run build && node scripts/bench.mjs",
-    "bench:mock": "npm run build && node scripts/bench.mjs --mock"
+    "bench:mock": "npm run build && node scripts/bench.mjs --mock",
+    "dev": "node scripts/dev.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0"

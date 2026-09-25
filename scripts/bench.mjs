@@ -4,7 +4,8 @@
 //   npm run build
 //   ANTHROPIC_API_KEY=sk-ant-... node scripts/bench.mjs --models claude-opus-5,claude-haiku-4-5
 //
-// Options: --models a,b  --tasks id1,id2  --repeat N  --effort low|medium|high  --mock (no API calls)
+// Options: --models a,b  --tasks id1,id2  --repeat N  --effort low|medium|high  --fast (Opus fast mode)
+//          --mock (no API calls)
 import { chromium } from "@playwright/test";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
@@ -19,7 +20,8 @@ const args = Object.fromEntries(
   }, []),
 );
 const mock = !!args.mock;
-const models = String(args.models ?? "claude-opus-5").split(",");
+const models = String(args.models ?? "claude-opus-5-5").split(",");
+const fastMode = !!args.fast;
 const repeat = Number(args.repeat ?? 1);
 const effort = String(args.effort ?? "low");
 const apiKey = process.env.ANTHROPIC_API_KEY ?? (mock ? "sk-ant-mock" : "");
@@ -84,7 +86,7 @@ const results = [];
 for (const model of models) {
   await panel.evaluate(
     (s) => chrome.storage.local.set({ settings: s }),
-    { apiKey, model, effort, listenMode: "push", feedback: "minimal", maxAgentSteps: 12 },
+    { apiKey, model, effort, fastMode, listenMode: "push", feedback: "minimal", maxAgentSteps: 12 },
   );
   await panel.waitForTimeout(200);
   for (const task of tasks) {
@@ -151,5 +153,5 @@ for (const model of models) {
 console.log(`\n${lines.join("\n")}`);
 await mkdir("bench-results", { recursive: true });
 const out = `bench-results/navibench-${new Date().toISOString().replace(/[:.]/g, "-")}${mock ? "-mock" : ""}.json`;
-await writeFile(out, JSON.stringify({ models, effort, repeat, results }, null, 2));
+await writeFile(out, JSON.stringify({ models, effort, fastMode, repeat, results }, null, 2));
 console.log(`\nSaved ${out}`);

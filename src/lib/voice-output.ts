@@ -85,4 +85,8 @@ export const earcons = {
   done() {
     tone(1175, 0, 0.08, 0.05);
   },
+  /** Soft tick when a command goes to the AI, so you know Navi heard you. */
+  thinking() {
+    tone(784, 0, 0.06, 0.04);
+  },
 };

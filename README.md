@@ -20,7 +20,28 @@ npm run build          # outputs the extension to dist/
 3. Pin Navi (puzzle-piece menu), then click its icon or press **Alt+Shift+N** to open the side panel.
 4. Optional: open **Settings** and paste a Claude API key to turn on the AI for open-ended commands. Basic commands work without a key.
 
-While developing, run `npm run watch` and click the reload icon on `chrome://extensions` after changes.
+For day-to-day testing, use the live-reload setup below instead of rebuilding by hand.
+
+## Testing on your Mac with live reload (recommended)
+
+Set this up once. After that, new changes appear in your Chrome on their own.
+
+1. Install Node.js 20+ (`brew install node`, or the installer from nodejs.org).
+2. Clone the repo and install dependencies:
+   ```bash
+   git clone https://github.com/Robert-Nartker/chrome_navigator && cd chrome_navigator
+   git checkout claude/sleepy-hypatia-gt7x80 && npm install
+   ```
+3. Start the dev loop and **leave this Terminal window open**:
+   ```bash
+   npm run dev
+   ```
+4. In Chrome, go to `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and pick the `dist` folder. You only do this once.
+
+From then on, `npm run dev` checks GitHub every 10 seconds. When new commits land on the branch, it pulls them, rebuilds, and the open Navi panel reloads itself. The panel footer shows `dev build #N · <latest commit>`, so you can tell you're on the newest version. Your settings and API key are kept across reloads.
+
+- **Core changes:** changes to `background.ts` or the manifest restart the whole extension, which closes the side panel. Reopen it with Alt+Shift+N. If Navi ever disappears from the toolbar, click ↻ on `chrome://extensions`.
+- **Local edits:** if you edit files yourself, auto-pull pauses (the Terminal says so) until you commit or discard them.
 
 ## What you can say
 
@@ -60,7 +81,7 @@ You can also type commands in the side panel.
 - **Side panel** (`src/sidepanel/`): mic, wake-word session, command pipeline, log.
 - **Content script** (`src/content/`): builds a "snapshot" of the page's interactive elements named the way a screen reader would name them (ARIA labels, `<label>`, alt text), draws number badges, and performs clicks, typing, scrolling and reading. It also finds clickable `div`s that only have `cursor: pointer`, and scrolls inner panels (Gmail, Slack) as well as the page.
 - **Fast path** (`src/lib/parser.ts`): common commands run instantly with no AI call.
-- **AI path** (`src/lib/agent.ts`): Claude gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. Default model is Claude Opus 5 at low effort. Haiku 4.5 and Sonnet 5 can be picked in settings.
+- **AI path** (`src/lib/agent.ts`): Claude gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. Default model is Claude Opus 5.5 at low effort, which keeps thinking short so actions start quickly. Opus 5, Sonnet 5 and Haiku 4.5 can be picked in settings, and there's an optional fast mode (Opus, 2x price).
 
 ## Privacy model
 

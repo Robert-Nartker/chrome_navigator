@@ -1,5 +1,6 @@
 // Side panel: microphone, wake-word session, status UI, and the command log.
 
+import { startDevReload } from "../lib/dev-reload";
 import type { CommandMetric } from "../lib/metrics";
 import { SITES } from "../lib/sites";
 import { WakeSession } from "../lib/session";
@@ -293,6 +294,11 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
 };
 
 async function init() {
+  if (__DEV__) {
+    const devStatus = $("dev-status");
+    devStatus.hidden = false;
+    void startDevReload((text) => (devStatus.textContent = text));
+  }
   applySettings(await loadSettings());
   onSettingsChanged(applySettings);
   const granted = await checkMicPermission();

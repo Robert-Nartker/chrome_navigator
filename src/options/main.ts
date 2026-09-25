@@ -22,6 +22,7 @@ async function fill() {
   field<HTMLInputElement>("apiKey").value = s.apiKey;
   modelSelect.value = s.model;
   field<HTMLSelectElement>("effort").value = s.effort;
+  field<HTMLInputElement>("fastMode").checked = s.fastMode;
   field<HTMLInputElement>("maxAgentSteps").value = String(s.maxAgentSteps);
   field<HTMLInputElement>("wakeName").value = s.wakeName;
   field<HTMLSelectElement>("listenMode").value = s.listenMode;
@@ -48,6 +49,7 @@ form.addEventListener("submit", async (e) => {
     apiKey: field<HTMLInputElement>("apiKey").value.trim(),
     model: modelSelect.value,
     effort: field<HTMLSelectElement>("effort").value as Settings["effort"],
+    fastMode: field<HTMLInputElement>("fastMode").checked,
     maxAgentSteps: clamp(field<HTMLInputElement>("maxAgentSteps").value, 1, 30, 12),
     wakeName: field<HTMLInputElement>("wakeName").value.trim() || "Navi",
     listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],

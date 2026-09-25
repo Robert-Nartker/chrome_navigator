@@ -7,6 +7,8 @@ export interface Settings {
   apiKey: string;
   model: string;
   effort: "low" | "medium" | "high";
+  /** Opus fast mode: faster output at 2x price (research preview). */
+  fastMode: boolean;
   wakeName: string;
   listenMode: ListenMode;
   /** Seconds of silence before an active session goes back to sleep. */
@@ -26,15 +28,17 @@ export interface Settings {
 }
 
 export const MODELS = [
-  { id: "claude-opus-5", label: "Claude Opus 5 (most capable)" },
+  { id: "claude-opus-5-5", label: "Claude Opus 5.5 (recommended)" },
+  { id: "claude-opus-5", label: "Claude Opus 5" },
   { id: "claude-sonnet-5", label: "Claude Sonnet 5 (balanced)" },
   { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (fastest)" },
 ] as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
-  model: "claude-opus-5",
+  model: "claude-opus-5-5",
   effort: "low",
+  fastMode: false,
   wakeName: "Navi",
   listenMode: "handsfree",
   sessionTimeoutSec: 120,

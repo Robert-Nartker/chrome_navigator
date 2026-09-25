@@ -2,14 +2,8 @@
 
 import type { ContentRequest, ContentResponse } from "../lib/protocol";
 import { click, media, pressKey, readPage, scroll, selectOption, typeText } from "./actions";
-import { badgesVisible, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
+import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
 import { accessibleName, resolveElement, takeSnapshot } from "./snapshot";
-
-declare global {
-  interface Window {
-    __naviContentLoaded?: boolean;
-  }
-}
 
 function element(id: number, gen?: number): Element {
   // Numbers the user reads off the screen refer to the badges currently shown.
@@ -55,21 +49,38 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
   }
 }
 
-if (!window.__naviContentLoaded) {
-  window.__naviContentLoaded = true;
-  chrome.runtime.onMessage.addListener((req: ContentRequest, _sender, sendResponse) => {
-    handle(req)
-      .then(sendResponse)
-      .catch((err: unknown) =>
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
-      );
-    return true; // keep the channel open for the async response
-  });
-  // Keep badges in sync when single-page apps swap content without scrolling.
-  let mutationTimer: number | undefined;
-  new MutationObserver(() => {
-    if (!badgesVisible()) return;
+// A newer copy of this script (extension update or dev reload) replaces this one:
+// tell any older copy in this page to stop, then take over.
+window.dispatchEvent(new CustomEvent("navi:teardown"));
+
+const onMessage = (req: ContentRequest, _sender: chrome.runtime.MessageSender, sendResponse: (r: ContentResponse) => void) => {
+  handle(req)
+    .then(sendResponse)
+    .catch((err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+  return true; // keep the channel open for the async response
+};
+chrome.runtime.onMessage.addListener(onMessage);
+
+// Keep badges in sync when single-page apps swap content without scrolling.
+let mutationTimer: number | undefined;
+const observer = new MutationObserver(() => {
+  if (!badgesVisible()) return;
+  window.clearTimeout(mutationTimer);
+  mutationTimer = window.setTimeout(() => refreshBadges(takeSnapshot()), 400);
+});
+observer.observe(document.documentElement, { childList: true, subtree: true });
+
+window.addEventListener(
+  "navi:teardown",
+  () => {
+    observer.disconnect();
     window.clearTimeout(mutationTimer);
-    mutationTimer = window.setTimeout(() => refreshBadges(takeSnapshot()), 400);
-  }).observe(document.documentElement, { childList: true, subtree: true });
-}
+    destroyOverlay();
+    try {
+      chrome.runtime.onMessage.removeListener(onMessage);
+    } catch {
+      // This copy's extension context is already gone.
+    }
+  },
+  { once: true },
+);

@@ -199,7 +199,7 @@ test("AI path: Claude picks the element, extension clicks it, reply is logged", 
 
   expect(requests).toHaveLength(2);
   const [firstReq, secondReq] = requests;
-  expect(firstReq.body.model).toBe("claude-opus-5");
+  expect(firstReq.body.model).toBe("claude-opus-5-5");
   expect(firstReq.body.fallbacks).toBe("default");
   expect(firstReq.headers["anthropic-beta"]).toContain("server-side-fallback-2026-07-01");
   expect(firstReq.body.output_config).toEqual({ effort: "low" });
@@ -258,4 +258,34 @@ test("commands spoken while Navi is busy run in order", async ({ panel, site }) 
   });
   await expect(site.locator("#subs")).toHaveText("2");
   await expect(site.locator("#result")).toHaveText("signed in");
+});
+
+test("fast mode: sends speed=fast, and falls back to standard speed if unavailable", async ({ panel, site, context }) => {
+  const speeds: (string | undefined)[] = [];
+  await context.route("https://api.anthropic.com/**", async (route) => {
+    const body = route.request().postDataJSON() as { speed?: string; model: string; messages: unknown[] };
+    speeds.push(body.speed);
+    if (body.speed === "fast") {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "fast mode not available" } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "msg_1", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
+        content: [{ type: "text", text: "Standard speed works." }], usage: { input_tokens: 1, output_tokens: 1 },
+      }),
+    });
+  });
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", fastMode: true } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "what is on this page");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Standard speed works.");
+  expect(speeds).toEqual(["fast", undefined]);
+  void site;
 });

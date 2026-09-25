@@ -26,7 +26,7 @@ const SYSTEM_PROMPT = `You are Navi, a voice assistant that operates the user's 
 How you see the page: each observation lists the page's interactive elements as [id] role "label". Ids are valid only for the most recent observation. You cannot see page text unless you call read_page.
 
 Rules:
-- Be fast. Take the most direct action; don't ask for confirmation for ordinary browsing (opening sites, clicking links, typing into search boxes, scrolling).
+- Be fast: every second you spend is a second the user waits. For simple steps, act without deliberating. Take the most direct action; don't ask for confirmation for ordinary browsing (opening sites, clicking links, typing into search boxes, scrolling).
 - Before anything irreversible or that affects other people (sending a message or email, posting, commenting, buying, deleting, submitting payment or personal details), stop and ask one short yes/no question. Only continue after the user says yes.
 - If the target isn't in the list, scroll or navigate to find it. If you still can't find it after a few tries, say so briefly.
 - For questions about the page's content (read, summarize, what does it say), call read_page, then answer in 1-3 spoken sentences.
@@ -97,6 +97,7 @@ export interface AgentResult {
   totalMs: number;
 }
 
+const FAST_MODE_MODELS = ["claude-opus-5-5", "claude-opus-5"];
 const HISTORY_TTL_MS = 3 * 60 * 1000;
 const MAX_HISTORY_MESSAGES = 40;
 const PAGE_TEXT_LIMIT = 12000;
@@ -168,11 +169,22 @@ export class NaviAgent {
       content: `Command: "${command}"\n\n${observation}\n\nOpen tabs:\n${await formatTabs()}`,
     });
 
+    let fast = settings.fastMode && FAST_MODE_MODELS.includes(settings.model);
     try {
       for (let step = 1; step <= settings.maxAgentSteps; step++) {
         hooks.onStep?.(step === 1 ? "Thinking…" : `Step ${step}…`);
         const t0 = performance.now();
-        const response = await client.beta.messages.create(this.requestParams(settings), { signal: hooks.signal });
+        let response: Anthropic.Beta.BetaMessage;
+        try {
+          response = await client.beta.messages.create(this.requestParams(settings, fast), { signal: hooks.signal });
+        } catch (err) {
+          // Fast mode has its own rate limit and isn't on every model: fall back to standard speed.
+          const fastUnavailable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError;
+          if (!fast || !fastUnavailable) throw err;
+          fast = false;
+          hooks.onStep?.("Fast mode unavailable, using standard speed");
+          response = await client.beta.messages.create(this.requestParams(settings, false), { signal: hooks.signal });
+        }
         modelMs += performance.now() - t0;
         this.history.push({ role: "assistant", content: response.content });
 
@@ -204,24 +216,32 @@ export class NaviAgent {
     }
   }
 
-  private requestParams(settings: Settings): Anthropic.Beta.MessageCreateParamsNonStreaming {
+  private requestParams(settings: Settings, fast: boolean): Anthropic.Beta.MessageCreateParamsNonStreaming {
+    const betas: Anthropic.Beta.AnthropicBeta[] = [];
     const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
       model: settings.model,
-      max_tokens: 8000,
+      max_tokens: 16000,
       system: SYSTEM_PROMPT,
       tools: TOOLS,
       messages: this.history,
       cache_control: { type: "ephemeral" },
     };
-    // Haiku 4.5 doesn't take an effort setting; newer models do.
+    // Effort controls how long the model thinks before acting (Opus 5.5 always thinks; "low" keeps it short).
+    // Haiku 4.5 doesn't take an effort setting.
     if (!settings.model.startsWith("claude-haiku")) {
       params.output_config = { effort: settings.effort };
     }
     // If Opus declines on safety grounds, let the API retry on its recommended fallback model.
     if (settings.model.startsWith("claude-opus-5")) {
-      params.betas = ["server-side-fallback-2026-07-01"];
+      betas.push("server-side-fallback-2026-07-01");
       params.fallbacks = "default";
     }
+    // Fast mode: same model, faster output, 2x price (research preview, Claude API only).
+    if (fast) {
+      betas.push("fast-mode-2026-02-01");
+      params.speed = "fast";
+    }
+    if (betas.length) params.betas = betas;
     return params;
   }
 

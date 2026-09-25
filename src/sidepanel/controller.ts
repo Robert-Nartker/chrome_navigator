@@ -107,6 +107,7 @@ export class Controller {
         );
       }
       if (!handled) {
+        earcons.thinking();
         const result = await this.runAgent(command, controller.signal);
         metric = { path: "ai", ms: result.totalMs, modelMs: result.modelMs, steps: result.steps, model: this.getSettings().model };
         reply = result.reply;

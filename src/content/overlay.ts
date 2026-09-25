@@ -111,3 +111,14 @@ export function flash(el: Element) {
 
 addEventListener("scroll", scheduleRefresh, { passive: true, capture: true });
 addEventListener("resize", scheduleRefresh, { passive: true });
+
+/** Removes badges and listeners (when a newer copy of the content script takes over). */
+export function destroyOverlay() {
+  visible = false;
+  window.clearTimeout(refreshTimer);
+  removeEventListener("scroll", scheduleRefresh, { capture: true });
+  removeEventListener("resize", scheduleRefresh);
+  host?.remove();
+  host = null;
+  layer = null;
+}
