@@ -40,7 +40,6 @@ interface Recognition extends EventTarget {
   interimResults: boolean;
   maxAlternatives: number;
   processLocally?: boolean;
-  phrases?: unknown[];
   start(track?: MediaStreamTrack): void;
   stop(): void;
   abort(): void;
@@ -106,8 +105,6 @@ export interface WebSpeechOptions {
   preferOnDevice: boolean;
   /** If on-device isn't available, may audio go to Google's speech service? */
   allowCloud: boolean;
-  /** Words to bias recognition toward (site names, the wake name). */
-  phrases: string[];
 }
 
 export class WebSpeechEngine implements SpeechEngine {
@@ -209,7 +206,6 @@ export class WebSpeechEngine implements SpeechEngine {
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     if (this.onDevice && "processLocally" in rec) rec.processLocally = true;
-    this.applyPhrases(rec);
 
     rec.onstart = () => {
       if (!this.active) {
@@ -235,7 +231,7 @@ export class WebSpeechEngine implements SpeechEngine {
     };
     rec.onerror = (event) => {
       // Back off on every real error so a broken mic isn't reopened several times a second.
-      if (!["no-speech", "aborted", "phrases-not-supported"].includes(event.error)) {
+      if (!["no-speech", "aborted"].includes(event.error)) {
         this.restartDelay = Math.min(this.restartDelay * 2, 30_000);
       }
       const report = (message: string) => {
@@ -250,8 +246,6 @@ export class WebSpeechEngine implements SpeechEngine {
         case "service-not-allowed":
           this.wanted = false;
           this.callbacks.onError("Microphone access is blocked. Open Navi setup to allow it.", true);
-          return;
-        case "phrases-not-supported":
           return;
         case "language-not-supported":
           if (this.onDevice) {
@@ -305,18 +299,6 @@ export class WebSpeechEngine implements SpeechEngine {
         }
       }
       this.callbacks.onError(`Couldn't start speech recognition: ${String(err)}`, false);
-    }
-  }
-
-  private applyPhrases(rec: Recognition) {
-    const Phrase = (window as unknown as { SpeechRecognitionPhrase?: new (phrase: string, boost: number) => unknown })
-      .SpeechRecognitionPhrase;
-    // Chrome only supports phrase boosting on-device; setting it otherwise is an error.
-    if (!this.onDevice || !Phrase || !("phrases" in rec) || this.options.phrases.length === 0) return;
-    try {
-      rec.phrases = this.options.phrases.map((p) => new Phrase(p, 1.5));
-    } catch {
-      // Phrase biasing is optional.
     }
   }
 }

@@ -5,7 +5,6 @@ import type { CommandMetric } from "../lib/metrics";
 import { MODEL_CATALOG } from "../lib/models";
 import { parseCommand } from "../lib/parser";
 import { routeUtterance } from "../lib/router";
-import { SITES } from "../lib/sites";
 import { WakeSession } from "../lib/session";
 import { ScribeEngine } from "../lib/scribe";
 import {
@@ -244,11 +243,10 @@ function handleInterim(text: string) {
 }
 
 function buildEngine(): SpeechEngine {
-  // Only the wake name is boosted, gently. Boosting site names made Chrome "hear" them in background
-  // noise ("testing" came out as "hey navi wikipedia tiktok").
-  const phrases = [settings.wakeName, `Hey ${settings.wakeName}`];
+  // No word boosting: it made Chrome "hear" boosted words in background noise ("testing" came out as
+  // "hey navi wikipedia tiktok"). Misheard wake names ("navy", "nobby"...) are matched in the parser instead.
   return new WebSpeechEngine(
-    { lang: settings.lang, preferOnDevice: true, allowCloud: settings.allowCloudSpeech, phrases },
+    { lang: settings.lang, preferOnDevice: true, allowCloud: settings.allowCloudSpeech },
     {
       onInterim: (text) => {
         if (!scribeActive()) handleInterim(text);
@@ -272,7 +270,8 @@ function buildEngine(): SpeechEngine {
 /** Starts ElevenLabs transcription for an awake session (no-op without a key). */
 function startScribe() {
   if (scribe || scribeDisabled || !usesElevenInput(settings) || !engine?.running) return;
-  const keyterms = [settings.wakeName, `Hey ${settings.wakeName}`, ...Object.keys(SITES).slice(0, 40)];
+  // Just the wake name: a long list of boosted words risks the same phantom words as Chrome's boosting did.
+  const keyterms = [settings.wakeName, `Hey ${settings.wakeName}`];
   let lastError = "";
   const current = new ScribeEngine(
     {
