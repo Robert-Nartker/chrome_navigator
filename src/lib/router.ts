@@ -35,7 +35,7 @@ new tab; new window; close tab; close other tabs; duplicate tab; pin tab; next t
 find <text> (on this page); find next; select all; undo; clear it; new line; print
 what did you say; talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
 open <site or URL> (optionally "in a new tab"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
-show numbers; hide numbers; click <number>; click <button or link name>
+flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
 pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; restart the video
@@ -43,7 +43,7 @@ zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
 go to sleep; stop
 
-Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Prefer "ignore" over guessing when the text doesn't sound like an instruction.`;
+Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". If you can't tell whether it's a command or a task, choose "agent": the main AI sees the page and can ask the user. Choose "ignore" only when the text clearly isn't meant for Navi.`;
 
 const SCHEMA = {
   type: "object",

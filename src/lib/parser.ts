@@ -246,13 +246,13 @@ const RULES: Rule[] = [
   [/^(?:show |open |display )?(?:the )?(?:mouse )?grid$/, () => ({ type: "showGrid" })],
   [/^(?:hide|close|remove|clear) (?:the )?(?:mouse )?grid$/, () => ({ type: "hideGrid" })],
 
-  // Badges
-  [/^(?:show|display) (?:the )?(?:numbers|labels|links|hints|badges|buttons)$|^numbers$/, () => ({ type: "showNumbers" })],
-  [/^(?:hide|remove|clear) (?:the )?(?:numbers|labels|links|hints|badges)$/, () => ({ type: "hideNumbers" })],
+  // Flags: numbered tags on everything clickable ("flags", then "click 12" or just "12")
+  [/^(?:(?:show|display|turn on|put up|pop up|bring up) (?:the )?)?(?:flags|numbers|labels|badges)(?: on| please)?$|^(?:show|display) (?:the )?(?:links|hints|buttons)$/, () => ({ type: "showNumbers" })],
+  [/^(?:hide|remove|clear|turn off|close|no|get rid of) (?:the )?(?:flags|numbers|labels|links|hints|badges)$|^(?:flags|numbers) off$/, () => ({ type: "hideNumbers" })],
 
-  // Clicking by number: "click 12", "number 12", "press twelve"
-  [new RegExp(`^(?:click|press|tap|select|choose|hit|open)(?: on)?(?: number)? ${N}$`), (m) => {
-    const n = parseNumber(m[1]);
+  // Clicking by number: "click 12", "number 12", "flag 12", "press twelve"
+  [new RegExp(`^(?:click|press|tap|select|choose|hit|open)(?: on)?(?: number| flag)? ${N}$|^flag ${N}$`), (m) => {
+    const n = parseNumber(m[1] ?? m[2]);
     return n === null ? null : { type: "clickNumber", n };
   }],
   [new RegExp(`^number ${N}$`), (m) => {
@@ -406,7 +406,7 @@ function looseIntent(t: string): Intent | null {
 const CANONICAL = [
   "scroll down", "scroll up", "scroll to the top", "scroll to the bottom", "page down", "page up",
   "go back", "go forward", "refresh", "new tab", "close tab", "next tab", "previous tab", "reopen closed tab",
-  "show numbers", "hide numbers", "show grid", "hide grid", "go to sleep", "help", "where am i",
+  "show flags", "hide flags", "show numbers", "hide numbers", "show grid", "hide grid", "go to sleep", "help", "where am i",
   "read this page", "zoom in", "zoom out", "reset zoom", "pause", "play", "mute", "unmute",
   "what tabs are open", "press enter", "escape",
 ];

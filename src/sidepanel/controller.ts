@@ -42,7 +42,7 @@ export interface ControllerUi {
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, show numbers, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done.";
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
@@ -499,7 +499,7 @@ export class Controller {
       case "clickText": {
         const snap = await snapshot(tab);
         const match = bestMatch(intent.text, snap.elements);
-        if (!match) throw new Unhandled(`I couldn't find ${intent.text}. Say show numbers, then click a number.`);
+        if (!match) throw new Unhandled(`I couldn't find ${intent.text}. Say flags, then a flag's number.`);
         const res = await pageRequest(tab, { kind: "click", id: match.element.id, gen: snap.gen });
         await this.confirm(res.detail ?? `Clicked ${match.element.name}`);
         return;
@@ -514,7 +514,7 @@ export class Controller {
       case "hideNumbers": {
         const show = intent.type === "showNumbers";
         await this.setNumbers(show);
-        await this.confirm(show ? "Showing numbers. Say click and a number." : "Numbers hidden");
+        await this.confirm(show ? "Showing flags. Say a flag's number to click it." : "Flags hidden");
         return;
       }
       case "type": {
