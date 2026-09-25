@@ -195,11 +195,12 @@ export function scroll(direction: ScrollDirection, amount: ScrollAmount): string
   const delta = Math.round(viewport * factor);
   const scroller: Element | Window = isDoc ? window : target;
   switch (direction) {
+    // Long jumps are instant (like Home/End); page-by-page scrolling stays smooth so you can follow along.
     case "top":
-      scroller.scrollTo({ top: 0, behavior: scrollBehavior() });
+      scroller.scrollTo({ top: 0, behavior: "instant" });
       break;
     case "bottom":
-      scroller.scrollTo({ top: target.scrollHeight, behavior: scrollBehavior() });
+      scroller.scrollTo({ top: target.scrollHeight, behavior: "instant" });
       break;
     case "up":
       scroller.scrollBy({ top: -delta, behavior: scrollBehavior() });
@@ -355,7 +356,7 @@ export function findOnPage(text?: string): string {
   const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
   const el = range?.startContainer.parentElement;
   if (el) {
-    el.scrollIntoView({ block: "center", behavior: scrollBehavior() });
+    el.scrollIntoView({ block: "center", behavior: "instant" });
     flash(el);
   }
   return `found ${query}`;
