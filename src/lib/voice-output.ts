@@ -55,6 +55,9 @@ export class Speaker {
   /** Skips speech entirely (used by the benchmark runner). */
   muted = false;
 
+  /** Called when audio actually starts playing (used by the voice lab to time voices). */
+  onAudioStart?: () => void;
+
   async say(text: string): Promise<void> {
     const clean = text.replace(/[*_`#>]/g, "").trim();
     if (!clean || this.muted) return;
@@ -125,6 +128,7 @@ export class Speaker {
         source.start(playhead);
         playhead += buffer.duration;
         this.sources.push(source);
+        if (!played) this.onAudioStart?.();
         played = true;
       }
     } catch (err) {
@@ -163,6 +167,7 @@ export class Speaker {
         voiceName: voiceName || undefined,
         enqueue: false,
         onEvent: (event) => {
+          if (event.type === "start") this.onAudioStart?.();
           if (["end", "interrupted", "cancelled", "error"].includes(event.type)) done();
         },
       });

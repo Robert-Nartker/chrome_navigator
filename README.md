@@ -120,6 +120,18 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Prompt injection:** page text is marked as untrusted data, and the agent is told never to follow instructions found in it.
 - **API key:** stored in `chrome.storage.local` in your browser profile only.
 
+## Voice lab: compare voices
+
+Chrome's built-in voices can sound robotic. The voice lab (**Settings → Voice feedback → Compare voices**) lets you listen to free neural voices that run on your own computer, side by side, rate them, and pick one.
+
+- **Engines:** Chrome's own voices (marked "on this computer" or "online"), Kokoro (on the graphics chip with WebGPU, or the processor with WebAssembly), Pocket TTS by Kyutai, and Piper. With an ElevenLabs key set, its paid voice is included for comparison.
+- **First use downloads the voice model once**, from Hugging Face: Kokoro 92 MB on the processor or 326 MB on the graphics chip (one download covers all its voices), Pocket TTS about 125 MB, Piper about 63 MB per voice. After that they load from the browser's storage and work offline. **Delete downloaded voices** at the bottom of the page frees the space.
+- **Numbers for each voice:** first-load time and download size, time to first audio, total synthesis time, and real-time factor.
+- **Comparing:** tick voices and play the same phrase in each, one after another: things Navi really says, a paragraph, or your own text. Blind mode hides the names and shuffles the order. Ratings (1 to 5) are saved in the browser, and your top voices are listed.
+- **Mac tip:** download a "Premium" or "Enhanced" voice in System Settings → Accessibility → Spoken Content → System voice → Manage Voices. It then shows up under Chrome's voices.
+
+Chrome extensions can't load code from a CDN, so the engines' libraries and ONNX Runtime WebAssembly files are copied into `dist/` at build time (about 70 MB). Each engine loads only when you use it, so the rest of Navi is unchanged. The e2e tests serve tiny stand-in models (`tests/fixtures/tts/`) so they run without the real downloads.
+
 ## Development
 
 ```bash
