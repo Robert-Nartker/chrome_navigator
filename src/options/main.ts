@@ -1,7 +1,8 @@
 import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { DEFAULT_VOICE_ID, TTS_MODELS, listVoices as listElevenVoices } from "../lib/elevenlabs";
-import { MODELS, type Settings, loadSettings, saveSettings } from "../lib/settings";
+import { MODEL_CATALOG, formatCost } from "../lib/models";
+import { type Settings, loadSettings, saveSettings } from "../lib/settings";
 import { Speaker, pickVoice } from "../lib/voice-output";
 
 const form = document.getElementById("settings") as HTMLFormElement;
@@ -9,7 +10,21 @@ const saved = document.getElementById("saved") as HTMLElement;
 const field = <T extends HTMLElement>(id: keyof Settings) => document.getElementById(id) as T;
 
 const modelSelect = field<HTMLSelectElement>("model");
-for (const m of MODELS) modelSelect.add(new Option(m.label, m.id));
+const routerSelect = field<HTMLSelectElement>("routerModel");
+const price = (m: (typeof MODEL_CATALOG)[number]) => `$${m.price.input} / $${m.price.output} per M tokens`;
+for (const m of MODEL_CATALOG.filter((x) => x.roles.includes("agent"))) {
+  modelSelect.add(new Option(`${m.label} (${price(m)})`, m.id));
+}
+for (const m of MODEL_CATALOG.filter((x) => x.roles.includes("router"))) {
+  routerSelect.add(new Option(`Quick check with ${m.label} first (${price(m)})`, m.id));
+}
+routerSelect.add(new Option("Send straight to the main model", "off"));
+
+/** Keeps a stored model that isn't in the menus (e.g. an older default) selectable. */
+function selectValue(select: HTMLSelectElement, value: string) {
+  if (![...select.options].some((o) => o.value === value)) select.add(new Option(value, value));
+  select.value = value;
+}
 for (const m of TTS_MODELS) field<HTMLSelectElement>("elevenModel").add(new Option(m.label, m.id));
 
 const elevenVoice = field<HTMLSelectElement>("elevenVoiceId");
@@ -51,7 +66,8 @@ chrome.tts.getVoices((voices) => {
 async function fill() {
   const s = await loadSettings();
   field<HTMLInputElement>("apiKey").value = s.apiKey;
-  modelSelect.value = s.model;
+  field<HTMLInputElement>("openaiKey").value = s.openaiKey;
+  selectValue(modelSelect, s.model);
   field<HTMLSelectElement>("effort").value = s.effort;
   field<HTMLInputElement>("fastMode").checked = s.fastMode;
   field<HTMLInputElement>("maxAgentSteps").value = String(s.maxAgentSteps);
@@ -65,7 +81,7 @@ async function fill() {
   voice.value = s.voiceName;
   field<HTMLInputElement>("speechRate").value = String(s.speechRate);
   field<HTMLInputElement>("volume").value = String(s.volume);
-  field<HTMLSelectElement>("routerModel").value = s.routerModel;
+  selectValue(routerSelect, s.routerModel);
   field<HTMLInputElement>("allowPageText").checked = s.allowPageText;
   field<HTMLInputElement>("allowCloudSpeech").checked = s.allowCloudSpeech;
   field<HTMLInputElement>("allowScreenshots").checked = s.allowScreenshots;
@@ -91,6 +107,7 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   await saveSettings({
     apiKey: field<HTMLInputElement>("apiKey").value.trim(),
+    openaiKey: field<HTMLInputElement>("openaiKey").value.trim(),
     model: modelSelect.value,
     effort: field<HTMLSelectElement>("effort").value as Settings["effort"],
     fastMode: field<HTMLInputElement>("fastMode").checked,
@@ -103,7 +120,7 @@ form.addEventListener("submit", async (e) => {
     voiceName: field<HTMLSelectElement>("voiceName").value,
     speechRate: clamp(field<HTMLInputElement>("speechRate").value, 0.5, 3, 1),
     volume: clamp(field<HTMLInputElement>("volume").value, 0, 1, 0.6),
-    routerModel: field<HTMLSelectElement>("routerModel").value,
+    routerModel: routerSelect.value,
     allowPageText: field<HTMLInputElement>("allowPageText").checked,
     allowCloudSpeech: field<HTMLInputElement>("allowCloudSpeech").checked,
     allowScreenshots: field<HTMLInputElement>("allowScreenshots").checked,
@@ -129,7 +146,7 @@ const metricsSummary = document.getElementById("metrics-summary") as HTMLElement
 async function showMetrics() {
   const m = summarize(await loadMetrics());
   metricsSummary.textContent = m.total
-    ? `${m.total} commands: ${m.fast} fast path (median ${m.fastMedianMs} ms), ${m.ai} AI (median ${(m.aiMedianMs / 1000).toFixed(1)} s, ${m.aiMedianSteps} steps), ${m.errors} errors.`
+    ? `${m.total} commands: ${m.fast} fast path (median ${m.fastMedianMs} ms), ${m.ai} AI (median ${(m.aiMedianMs / 1000).toFixed(1)} s, ${m.aiMedianSteps} steps), ${m.errors} errors. AI cost so far: ${formatCost(m.costUsd)}.`
     : "No commands logged yet.";
 }
 

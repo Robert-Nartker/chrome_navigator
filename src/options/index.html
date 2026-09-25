@@ -40,7 +40,9 @@
           <legend>AI (for commands the fast path doesn't know)</legend>
           <label for="apiKey">Claude API key</label>
           <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…" />
-          <p class="hint">Stored only in this browser profile. Get one at console.anthropic.com.</p>
+          <label for="openaiKey">OpenAI API key (for GPT models)</label>
+          <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…" />
+          <p class="hint">You only need the key for the models you pick. Keys are stored only in this browser profile. Get them at console.anthropic.com and platform.openai.com.</p>
           <div class="row">
             <div>
               <label for="model">Model</label>
@@ -49,11 +51,12 @@
             <div>
               <label for="effort">Effort</label>
               <select id="effort">
-                <option value="low">Low (fastest)</option>
+                <option value="none">None (no reasoning; GPT-6 Sol and Luna)</option>
+                <option value="low">Low (fastest for Opus and Astra)</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
               </select>
-              <p class="hint">Ignored by Haiku.</p>
+              <p class="hint">If a model doesn't support a level, Navi uses the nearest one it does.</p>
             </div>
           </div>
           <label class="check"><input id="fastMode" type="checkbox" /> Fast mode (Opus only): faster responses at 2x the price</label>
@@ -61,11 +64,7 @@
           <label for="maxAgentSteps">Max steps per command</label>
           <input id="maxAgentSteps" type="number" min="1" max="30" />
           <label for="routerModel">When a command isn't recognized</label>
-          <select id="routerModel">
-            <option value="claude-sonnet-5">Quick check with Claude Sonnet 5 first (recommended)</option>
-            <option value="claude-haiku-4-5">Quick check with Claude Haiku 4.5 first</option>
-            <option value="off">Send straight to the main model</option>
-          </select>
+          <select id="routerModel"></select>
           <p class="hint">The quick check fixes misheard commands and ignores background noise in about half a second, before anything slower runs.</p>
         </fieldset>
 

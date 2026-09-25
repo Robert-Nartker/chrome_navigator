@@ -4,12 +4,22 @@
 // (b) a real task for the main AI, or (c) noise to ignore silently.
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Settings } from "./settings";
+import { type Usage, costOf, effortFor, modelInfo } from "./models";
+import { createResponse, outputText, usageOf } from "./openai";
+import { keyFor, type Settings } from "./settings";
 
 export type RouteDecision =
   | { route: "command"; command: string }
   | { route: "agent" }
   | { route: "ignore" };
+
+export interface RouteResult {
+  decision: RouteDecision;
+  usage: Usage;
+  costUsd: number;
+}
+
+const TIMEOUT_MS = 5000;
 
 const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assistant. The text comes from speech recognition, so it may be misheard, cut off, or not meant for Navi at all. Decide what it is:
 
@@ -50,33 +60,69 @@ export async function routeUtterance(
   context: { title?: string; personalPhrases: string[] },
   settings: Settings,
   signal: AbortSignal,
-): Promise<RouteDecision> {
-  const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 5000 });
+): Promise<RouteResult> {
+  const model = settings.routerModel;
   const personal = context.personalPhrases.length ? context.personalPhrases.join("; ") : "(none)";
+  const message = `Personal commands: ${personal}\nCurrent page: ${context.title ?? "unknown"}\nHeard: "${utterance}"`;
+  const { text, usage } =
+    modelInfo(model).provider === "openai"
+      ? await askOpenAI(model, message, settings, signal)
+      : await askClaude(model, message, settings, signal);
+  return { decision: parseDecision(text), usage, costUsd: costOf(model, usage) };
+}
+
+async function askClaude(model: string, message: string, settings: Settings, signal: AbortSignal) {
+  const client = new Anthropic({ apiKey: keyFor(settings, model), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: TIMEOUT_MS });
   const response = await client.messages.create(
     {
-      model: settings.routerModel,
+      model,
       max_tokens: 256,
       // Routing is a quick classification: skip extended thinking where the model allows it.
-      ...(settings.routerModel.startsWith("claude-sonnet-5") ? { thinking: { type: "disabled" as const } } : {}),
+      ...(model.startsWith("claude-sonnet-5") ? { thinking: { type: "disabled" as const } } : {}),
       system: SYSTEM_PROMPT,
       output_config: { format: { type: "json_schema", schema: SCHEMA } },
-      messages: [
-        {
-          role: "user",
-          content: `Personal commands: ${personal}\nCurrent page: ${context.title ?? "unknown"}\nHeard: "${utterance}"`,
-        },
-      ],
+      messages: [{ role: "user", content: message }],
     },
     { signal },
   );
-  const text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
+  return {
+    text: response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "",
+    usage: {
+      input: response.usage.input_tokens,
+      cachedInput: response.usage.cache_read_input_tokens ?? 0,
+      cacheWrite: response.usage.cache_creation_input_tokens ?? 0,
+      output: response.usage.output_tokens,
+    },
+  };
+}
+
+async function askOpenAI(model: string, message: string, settings: Settings, signal: AbortSignal) {
+  const response = await createResponse(
+    keyFor(settings, model),
+    {
+      model,
+      instructions: SYSTEM_PROMPT,
+      input: message,
+      // The lowest reasoning the model allows: routing must answer in well under a second.
+      reasoning: { effort: effortFor(model, "none") },
+      text: { format: { type: "json_schema", name: "route", schema: SCHEMA, strict: true } },
+      max_output_tokens: 256,
+      prompt_cache_key: "navi-router",
+    },
+    signal,
+    TIMEOUT_MS,
+  );
+  return { text: outputText(response).text, usage: usageOf(response) };
+}
+
+/** Anything unreadable goes to the main AI. */
+export function parseDecision(text: string): RouteDecision {
   try {
     const parsed = JSON.parse(text) as { route?: string; command?: string };
     if (parsed.route === "command" && parsed.command?.trim()) return { route: "command", command: parsed.command.trim() };
     if (parsed.route === "ignore") return { route: "ignore" };
   } catch {
-    // Unreadable answer: let the main AI handle it.
+    // Fall through.
   }
   return { route: "agent" };
 }

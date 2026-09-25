@@ -1,5 +1,6 @@
-// The AI path: Claude sees a compact list of the page's interactive elements,
+// The AI path: the model sees a compact list of the page's interactive elements,
 // calls tools to act on them, and ends with one short sentence to speak aloud.
+// The same tools and page handling work with Claude (Anthropic) and GPT (OpenAI) models.
 
 import Anthropic from "@anthropic-ai/sdk";
 import {
@@ -15,9 +16,10 @@ import {
 } from "./browser";
 import { KEYS, type Key, type PageSnapshot, type ScrollAmount, type ScrollDirection } from "./protocol";
 import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./custom-commands";
-import { isBlocked, type Settings } from "./settings";
+import { NO_USAGE, type Usage, addUsage, costOf, effortFor, modelInfo } from "./models";
+import { type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
+import { isBlocked, keyFor, type Settings } from "./settings";
 
-type Tool = Anthropic.Beta.BetaTool;
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type ToolUse = Anthropic.Beta.BetaToolUseBlock;
 type ToolResult = Anthropic.Beta.BetaToolResultBlockParam;
@@ -47,21 +49,21 @@ Personal commands: the user can create their own voice shortcuts. When they ask 
 
 const idProp = { type: "integer", description: "Element id from the most recent observation." } as const;
 
-function tool(name: string, description: string, properties: Record<string, unknown>): Tool {
+interface ToolDef {
+  name: string;
+  description: string;
+  parameters: { type: "object"; properties: Record<string, unknown>; required: string[]; additionalProperties: false };
+}
+
+function tool(name: string, description: string, properties: Record<string, unknown>): ToolDef {
   return {
     name,
     description,
-    strict: true,
-    input_schema: {
-      type: "object",
-      properties,
-      required: Object.keys(properties),
-      additionalProperties: false,
-    },
+    parameters: { type: "object", properties, required: Object.keys(properties), additionalProperties: false },
   };
 }
 
-const TOOLS: Tool[] = [
+const TOOLS: ToolDef[] = [
   tool("click", "Click an element (link, button, tab, checkbox, menu item...).", { element_id: idProp }),
   tool("type_text", "Type into a text field. Use the focused field's id when the user says 'type ...'.", {
     element_id: idProp,
@@ -121,11 +123,34 @@ const TOOLS: Tool[] = [
   tool("list_commands", "List the user's personal voice commands.", {}),
 ];
 
+const ANTHROPIC_TOOLS: Anthropic.Beta.BetaTool[] = TOOLS.map((t) => ({
+  name: t.name,
+  description: t.description,
+  strict: true,
+  input_schema: t.parameters,
+}));
+
+const OPENAI_TOOLS = TOOLS.map((t) => ({ type: "function", name: t.name, description: t.description, parameters: t.parameters, strict: true }));
+
 /** Tools that don't touch the page, so no fresh page observation is needed after them. */
 const NON_PAGE_TOOLS = new Set(["read_page", "look_at_screen", "save_command", "delete_command", "list_commands"]);
 const MAX_SHOT_WIDTH = 1280;
 
-type ToolContent = Exclude<ToolResult["content"], undefined>;
+/** What a tool returns: text, plus a JPEG (base64) for screenshots. */
+type ToolOutput = string | { text: string; image: string };
+
+interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+interface ToolOutcome {
+  id: string;
+  text: string;
+  image?: string;
+  isError?: boolean;
+}
 
 /** Screenshot of the visible tab, downscaled to at most MAX_SHOT_WIDTH, as base64 JPEG. */
 async function captureTab(tab: chrome.tabs.Tab): Promise<{ data: string; width: number; height: number }> {
@@ -156,6 +181,26 @@ export interface AgentResult {
   steps: number;
   modelMs: number;
   totalMs: number;
+  model: string;
+  usage: Usage;
+  costUsd: number;
+}
+
+/** One model reply: tool calls to run, or final text. */
+interface Turn {
+  calls: ToolCall[];
+  text: string;
+  refused: boolean;
+  usage: Usage;
+}
+
+/** A provider's conversation with the model; NaviAgent runs the tools and observes the page. */
+interface Brain {
+  readonly length: number;
+  reset(): void;
+  begin(text: string): void;
+  next(settings: Settings, hooks: AgentHooks): Promise<Turn>;
+  toolResults(outcomes: ToolOutcome[]): void;
 }
 
 const FAST_MODE_MODELS = ["claude-opus-5-5", "claude-opus-5"];
@@ -191,91 +236,70 @@ async function formatTabs(): Promise<string> {
     .join("\n");
 }
 
-export class NaviAgent {
+class AnthropicBrain implements Brain {
   private history: MessageParam[] = [];
-  private lastActivity = 0;
-  private lastSnapshot: PageSnapshot | null = null;
-  private lastShot: { width: number; viewport: PageSnapshot["viewport"] } | null = null;
+  /** Opus fast mode for this command; decided on its first call, dropped if unavailable. */
+  private fast: boolean | null = null;
 
-  constructor(private readonly getSettings: () => Settings) {}
+  get length() {
+    return this.history.length;
+  }
 
   reset() {
     this.history = [];
   }
 
-  async run(command: string, hooks: AgentHooks): Promise<AgentResult> {
-    const settings = this.getSettings();
-    if (!settings.apiKey) {
-      throw new Error("I need a Claude API key for that. Add one in Navi's settings.");
-    }
-    const client = new Anthropic({
-      apiKey: settings.apiKey,
-      dangerouslyAllowBrowser: true,
-      maxRetries: 1,
-      timeout: 60_000,
-    });
-    const started = performance.now();
-    let modelMs = 0;
+  begin(text: string) {
+    this.history.push({ role: "user", content: text });
+    this.fast = null;
+  }
 
-    if (Date.now() - this.lastActivity > HISTORY_TTL_MS || this.history.length > MAX_HISTORY_MESSAGES) {
-      this.history = [];
-    }
-
-    const tab = await targetTab();
-    if (isBlocked(tab.url, settings)) {
-      throw new Error("You've turned off Navi's AI on this site.");
-    }
-    const observation = await this.observe();
-    this.history.push({
-      role: "user",
-      content: `Command: "${command}"\n\n${observation}\n\nOpen tabs:\n${await formatTabs()}`,
-    });
-
-    let fast = settings.fastMode && FAST_MODE_MODELS.includes(settings.model);
+  async next(settings: Settings, hooks: AgentHooks): Promise<Turn> {
+    const client = new Anthropic({ apiKey: settings.apiKey, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 60_000 });
+    this.fast ??= settings.fastMode && FAST_MODE_MODELS.includes(settings.model);
+    let response: Anthropic.Beta.BetaMessage;
     try {
-      for (let step = 1; step <= settings.maxAgentSteps; step++) {
-        hooks.onStep?.(step === 1 ? "Thinking…" : `Step ${step}…`);
-        const t0 = performance.now();
-        let response: Anthropic.Beta.BetaMessage;
-        try {
-          response = await client.beta.messages.create(this.requestParams(settings, fast), { signal: hooks.signal });
-        } catch (err) {
-          // Fast mode has its own rate limit and isn't on every model: fall back to standard speed.
-          const fastUnavailable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError;
-          if (!fast || !fastUnavailable) throw err;
-          fast = false;
-          hooks.onStep?.("Fast mode unavailable, using standard speed");
-          response = await client.beta.messages.create(this.requestParams(settings, false), { signal: hooks.signal });
-        }
-        modelMs += performance.now() - t0;
-        this.history.push({ role: "assistant", content: response.content });
-
-        if (response.stop_reason === "refusal") {
-          this.history = [];
-          return this.result("Sorry, I can't help with that one.", step, modelMs, started);
-        }
-        const toolUses = response.content.filter((b): b is ToolUse => b.type === "tool_use");
-        if (response.stop_reason !== "tool_use" || toolUses.length === 0) {
-          const text = response.content
-            .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
-            .map((b) => b.text)
-            .join(" ")
-            .trim();
-          return this.result(text || "Done.", step, modelMs, started);
-        }
-
-        const results = await this.executeAll(toolUses, hooks);
-        this.history.push({ role: "user", content: results });
-      }
-      this.history = [];
-      return this.result("That's taking too many steps, so I stopped.", settings.maxAgentSteps, modelMs, started);
+      response = await client.beta.messages.create(this.requestParams(settings, this.fast), { signal: hooks.signal });
     } catch (err) {
-      // A half-finished turn (tool_use without results) can't be continued.
-      this.history = [];
-      throw err;
-    } finally {
-      this.lastActivity = Date.now();
+      // Fast mode has its own rate limit and isn't on every model: fall back to standard speed.
+      const fastUnavailable = err instanceof Anthropic.RateLimitError || err instanceof Anthropic.BadRequestError;
+      if (!this.fast || !fastUnavailable) throw err;
+      this.fast = false;
+      hooks.onStep?.("Fast mode unavailable, using standard speed");
+      response = await client.beta.messages.create(this.requestParams(settings, false), { signal: hooks.signal });
     }
+    this.history.push({ role: "assistant", content: response.content });
+    const uses = response.stop_reason === "tool_use" ? response.content.filter((b): b is ToolUse => b.type === "tool_use") : [];
+    return {
+      calls: uses.map((u) => ({ id: u.id, name: u.name, input: u.input as Record<string, unknown> })),
+      text: response.content
+        .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join(" ")
+        .trim(),
+      refused: response.stop_reason === "refusal",
+      usage: {
+        input: response.usage.input_tokens,
+        cachedInput: response.usage.cache_read_input_tokens ?? 0,
+        cacheWrite: response.usage.cache_creation_input_tokens ?? 0,
+        output: response.usage.output_tokens,
+      },
+    };
+  }
+
+  toolResults(outcomes: ToolOutcome[]) {
+    const results: ToolResult[] = outcomes.map((o) => ({
+      type: "tool_result",
+      tool_use_id: o.id,
+      content: o.image
+        ? [
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: o.image } },
+            { type: "text", text: o.text },
+          ]
+        : o.text,
+      ...(o.isError ? { is_error: true } : {}),
+    }));
+    this.history.push({ role: "user", content: results });
   }
 
   private requestParams(settings: Settings, fast: boolean): Anthropic.Beta.MessageCreateParamsNonStreaming {
@@ -284,14 +308,17 @@ export class NaviAgent {
       model: settings.model,
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
-      tools: TOOLS,
+      tools: ANTHROPIC_TOOLS,
       messages: this.history,
       cache_control: { type: "ephemeral" },
     };
     // Effort controls how long the model thinks before acting (Opus 5.5 always thinks; "low" keeps it short).
     // Haiku 4.5 doesn't take an effort setting.
-    if (!settings.model.startsWith("claude-haiku")) {
-      params.output_config = { effort: settings.effort };
+    const effort = effortFor(settings.model, settings.effort);
+    if (effort === "none") {
+      if (settings.model.startsWith("claude-sonnet-5")) params.thinking = { type: "disabled" };
+    } else if (!settings.model.startsWith("claude-haiku")) {
+      params.output_config = { effort };
     }
     // If Opus declines on safety grounds, let the API retry on its recommended fallback model.
     if (settings.model.startsWith("claude-opus-5")) {
@@ -306,9 +333,147 @@ export class NaviAgent {
     if (betas.length) params.betas = betas;
     return params;
   }
+}
 
-  private result(reply: string, steps: number, modelMs: number, started: number): AgentResult {
-    return { reply, steps, modelMs: Math.round(modelMs), totalMs: Math.round(performance.now() - started) };
+class OpenAIBrain implements Brain {
+  private items: ResponseItem[] = [];
+
+  get length() {
+    return this.items.length;
+  }
+
+  reset() {
+    this.items = [];
+  }
+
+  begin(text: string) {
+    this.items.push({ role: "user", content: text });
+  }
+
+  async next(settings: Settings, hooks: AgentHooks): Promise<Turn> {
+    const effort = effortFor(settings.model, settings.effort);
+    const response = await createResponse(
+      settings.openaiKey,
+      {
+        model: settings.model,
+        instructions: SYSTEM_PROMPT,
+        input: this.items,
+        tools: OPENAI_TOOLS,
+        parallel_tool_calls: true,
+        reasoning: { effort },
+        max_output_tokens: 16000,
+        prompt_cache_key: "navi-agent",
+        // With store:false, reasoning is carried to the next step in encrypted form.
+        ...(effort === "none" ? {} : { include: ["reasoning.encrypted_content"] }),
+      },
+      hooks.signal,
+      60_000,
+    );
+    this.items.push(...response.output);
+    const calls = functionCalls(response).map((c) => {
+      let input: Record<string, unknown> = {};
+      try {
+        input = JSON.parse(c.arguments || "{}") as Record<string, unknown>;
+      } catch {
+        // Malformed arguments: the tool reports the error back to the model.
+      }
+      return { id: c.call_id, name: c.name, input };
+    });
+    const { text, refused } = outputText(response);
+    if (!calls.length && !text && !refused && response.status === "incomplete") {
+      throw new Error(`The model stopped early (${response.incomplete_details?.reason ?? "incomplete"}).`);
+    }
+    return { calls, text, refused, usage: usageOf(response) };
+  }
+
+  toolResults(outcomes: ToolOutcome[]) {
+    for (const o of outcomes) this.items.push({ type: "function_call_output", call_id: o.id, output: o.text });
+    // Function outputs are text-only, so screenshots follow as a user image.
+    for (const o of outcomes.filter((x) => x.image)) {
+      this.items.push({
+        role: "user",
+        content: [
+          { type: "input_image", image_url: `data:image/jpeg;base64,${o.image}` },
+          { type: "input_text", text: "The screenshot from look_at_screen." },
+        ],
+      });
+    }
+  }
+}
+
+export class NaviAgent {
+  private brain: Brain | null = null;
+  private brainModel = "";
+  private lastActivity = 0;
+  private lastSnapshot: PageSnapshot | null = null;
+  private lastShot: { width: number; viewport: PageSnapshot["viewport"] } | null = null;
+
+  constructor(private readonly getSettings: () => Settings) {}
+
+  reset() {
+    this.brain?.reset();
+  }
+
+  async run(command: string, hooks: AgentHooks): Promise<AgentResult> {
+    const settings = this.getSettings();
+    const provider = modelInfo(settings.model).provider;
+    if (!keyFor(settings, settings.model)) {
+      const name = provider === "openai" ? "an OpenAI" : "a Claude";
+      throw new Error(`I need ${name} API key for that. Add one in Navi's settings.`);
+    }
+    const started = performance.now();
+    let modelMs = 0;
+    let usage = NO_USAGE;
+
+    // A different model starts a fresh conversation.
+    if (!this.brain || this.brainModel !== settings.model) {
+      this.brain = provider === "openai" ? new OpenAIBrain() : new AnthropicBrain();
+      this.brainModel = settings.model;
+    }
+    const brain = this.brain;
+    if (Date.now() - this.lastActivity > HISTORY_TTL_MS || brain.length > MAX_HISTORY_MESSAGES) brain.reset();
+
+    const tab = await targetTab();
+    if (isBlocked(tab.url, settings)) {
+      throw new Error("You've turned off Navi's AI on this site.");
+    }
+    const observation = await this.observe();
+    brain.begin(`Command: "${command}"\n\n${observation}\n\nOpen tabs:\n${await formatTabs()}`);
+
+    const result = (reply: string, steps: number): AgentResult => ({
+      reply,
+      steps,
+      modelMs: Math.round(modelMs),
+      totalMs: Math.round(performance.now() - started),
+      model: settings.model,
+      usage,
+      costUsd: costOf(settings.model, usage),
+    });
+
+    try {
+      for (let step = 1; step <= settings.maxAgentSteps; step++) {
+        hooks.onStep?.(step === 1 ? "Thinking…" : `Step ${step}…`);
+        const t0 = performance.now();
+        const turn = await brain.next(settings, hooks);
+        modelMs += performance.now() - t0;
+        usage = addUsage(usage, turn.usage);
+
+        if (turn.refused) {
+          brain.reset();
+          return result("Sorry, I can't help with that one.", step);
+        }
+        if (turn.calls.length === 0) return result(turn.text || "Done.", step);
+        brain.toolResults(await this.executeAll(turn.calls, hooks));
+      }
+      brain.reset();
+      return result("That's taking too many steps, so I stopped.", settings.maxAgentSteps);
+    } catch (err) {
+      // A half-finished turn (tool calls without results) can't be continued.
+      brain.reset();
+      throw err;
+    } finally {
+      this.lastActivity = Date.now();
+    }
   }
 
   private async observe(): Promise<string> {
@@ -331,53 +496,43 @@ export class NaviAgent {
     return el?.name ? `"${el.name}"` : `number ${id}`;
   }
 
-  private async executeAll(toolUses: ToolUse[], hooks: AgentHooks): Promise<ToolResult[]> {
-    const results: ToolResult[] = [];
+  private async executeAll(calls: ToolCall[], hooks: AgentHooks): Promise<ToolOutcome[]> {
+    const outcomes: ToolOutcome[] = [];
     const gen = this.lastSnapshot?.gen;
     const urlBefore = this.lastSnapshot?.url;
     let pageChanged = false;
     let needsObservation = false;
 
-    for (const use of toolUses) {
+    for (const call of calls) {
       if (hooks.signal.aborted) throw new DOMException("Aborted", "AbortError");
-      const input = use.input as Record<string, unknown>;
-      const usesElement = typeof input.element_id === "number";
+      const usesElement = typeof call.input.element_id === "number";
       if (pageChanged && usesElement) {
-        results.push({
-          type: "tool_result",
-          tool_use_id: use.id,
-          content: "Skipped: the page changed before this action. Re-check the new observation.",
-          is_error: true,
+        outcomes.push({
+          id: call.id,
+          text: "Skipped: the page changed before this action. Re-check the new observation.",
+          isError: true,
         });
         continue;
       }
       try {
-        const outcome = await this.execute(use.name, input, gen, hooks);
-        needsObservation ||= !NON_PAGE_TOOLS.has(use.name);
-        results.push({ type: "tool_result", tool_use_id: use.id, content: outcome });
+        const output = await this.execute(call.name, call.input, gen, hooks);
+        needsObservation ||= !NON_PAGE_TOOLS.has(call.name);
+        outcomes.push(typeof output === "string" ? { id: call.id, text: output } : { id: call.id, ...output });
       } catch (err) {
         needsObservation = true;
-        results.push({
-          type: "tool_result",
-          tool_use_id: use.id,
-          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          is_error: true,
-        });
+        outcomes.push({ id: call.id, text: `Error: ${err instanceof Error ? err.message : String(err)}`, isError: true });
       }
       const tab = await targetTab();
       if (tab.url !== urlBefore) pageChanged = true;
     }
 
-    if (needsObservation) {
+    if (needsObservation && outcomes.length) {
       const tab = await targetTab();
       if (tab.status !== "complete" && tab.id !== undefined) await waitForLoad(tab.id);
       const observation = await this.observe().catch((err: Error) => `Couldn't read the page: ${err.message}`);
-      const last = results[results.length - 1];
-      const text = `\n\nNew observation:\n${observation}`;
-      if (Array.isArray(last.content)) last.content.push({ type: "text", text });
-      else last.content = `${last.content ?? ""}${text}`;
+      outcomes[outcomes.length - 1].text += `\n\nNew observation:\n${observation}`;
     }
-    return results;
+    return outcomes;
   }
 
   private async execute(
@@ -385,7 +540,7 @@ export class NaviAgent {
     input: Record<string, unknown>,
     gen: number | undefined,
     hooks: AgentHooks,
-  ): Promise<string | ToolContent> {
+  ): Promise<ToolOutput> {
     const settings = this.getSettings();
     const tab = await targetTab();
     const id = input.element_id as number;
@@ -463,13 +618,10 @@ export class NaviAgent {
         const snap = tagged.snapshot!;
         this.lastSnapshot = snap;
         this.lastShot = { width: shot.width, viewport: snap.viewport };
-        return [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: shot.data } },
-          {
-            type: "text",
-            text: `Screenshot of the visible page, ${shot.width}x${shot.height} px. Yellow tags match these element ids:\n\n${formatSnapshot(snap)}`,
-          },
-        ];
+        return {
+          image: shot.data,
+          text: `Screenshot of the visible page, ${shot.width}x${shot.height} px. Yellow tags match these element ids:\n\n${formatSnapshot(snap)}`,
+        };
       }
       case "click_at": {
         if (!this.lastShot) throw new Error("Call look_at_screen first.");

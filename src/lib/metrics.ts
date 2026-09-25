@@ -13,6 +13,10 @@ export interface CommandMetric {
   model?: string;
   /** Time the router model took to interpret an unrecognized command. */
   routerMs?: number;
+  /** API cost of this command (router + main model), in USD. */
+  costUsd?: number;
+  tokensIn?: number;
+  tokensOut?: number;
   error?: string;
 }
 
@@ -35,7 +39,9 @@ export async function clearMetrics() {
 }
 
 export function toCsv(rows: CommandMetric[]): string {
-  const cols: (keyof CommandMetric)[] = ["t", "command", "path", "intent", "ms", "routerMs", "modelMs", "steps", "model", "error"];
+  const cols: (keyof CommandMetric)[] = [
+    "t", "command", "path", "intent", "ms", "routerMs", "modelMs", "steps", "model", "costUsd", "tokensIn", "tokensOut", "error",
+  ];
   const cell = (v: unknown) => {
     const s = v === undefined ? "" : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -59,5 +65,6 @@ export function summarize(rows: CommandMetric[]) {
     fastMedianMs: median(fast.map((r) => r.ms)),
     aiMedianMs: median(ai.map((r) => r.ms)),
     aiMedianSteps: median(ai.map((r) => r.steps ?? 0)),
+    costUsd: rows.reduce((sum, r) => sum + (Number.isFinite(r.costUsd) ? (r.costUsd as number) : 0), 0),
   };
 }

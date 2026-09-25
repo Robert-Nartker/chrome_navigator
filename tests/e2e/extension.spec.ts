@@ -493,6 +493,150 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   await expect(panel.locator("#log li.error")).toHaveCount(0);
 });
 
+/** A fake OpenAI Responses API reply. */
+function openaiReply(output: unknown[], usage = { input_tokens: 2000, output_tokens: 40, input_tokens_details: { cached_tokens: 1500 } }) {
+  return { status: 200, contentType: "application/json", body: JSON.stringify({ id: "resp_test", status: "completed", output, usage }) };
+}
+
+test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is logged", async ({ panel, site, context }) => {
+  const bodies: Record<string, unknown>[] = [];
+  const auth: string[] = [];
+  await context.route("https://api.openai.com/v1/responses", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    bodies.push(body);
+    auth.push(route.request().headers()["authorization"] ?? "");
+    const input = body.input as { role?: string; content?: unknown; type?: string }[];
+    if (bodies.length === 1) {
+      const text = String(input[0].content);
+      const id = Number(text.match(/\[(\d+)\] button "Subscribe"/)?.[1]);
+      return route.fulfill(
+        openaiReply([
+          { type: "function_call", id: "fc_1", call_id: "call_1", name: "click", arguments: JSON.stringify({ element_id: id }) },
+        ]),
+      );
+    }
+    return route.fulfill(
+      openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Subscribed." }] }]),
+    );
+  });
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+
+  await run(panel, "hit the subscribe thing for me");
+  await expect(site.locator("#subs")).toHaveText("1");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Subscribed.");
+
+  expect(bodies).toHaveLength(2);
+  expect(auth[0]).toBe("Bearer sk-openai-test");
+  const [first, second] = bodies;
+  expect(first.model).toBe("gpt-6-luna");
+  expect(first.store).toBe(false);
+  expect(first.reasoning).toEqual({ effort: "none" });
+  // No reasoning to carry over at effort none.
+  expect(first.include).toBeUndefined();
+  expect((first.tools as { type: string; name: string; strict: boolean }[]).find((t) => t.name === "click")).toMatchObject({
+    type: "function",
+    strict: true,
+  });
+  expect(String(first.instructions)).toContain("You are Navi");
+  // The second call carries the model's call, the tool result, and a fresh observation.
+  const secondInput = second.input as { type?: string; call_id?: string; output?: string }[];
+  expect(secondInput.some((i) => i.type === "function_call" && i.call_id === "call_1")).toBe(true);
+  const output = secondInput.find((i) => i.type === "function_call_output");
+  expect(output?.call_id).toBe("call_1");
+  expect(output?.output).toContain("New observation");
+
+  // Two calls x (500 uncached + 1500 cached input, 40 output) at Luna's prices, shown and logged.
+  const expected = 2 * (500 * 0.1 + 1500 * 0.01 + 40 * 0.5) / 1e6;
+  const cost = await panel.evaluate(
+    () => (window as unknown as { navi: { metrics: { costUsd?: number }[] } }).navi.metrics.at(-1)?.costUsd,
+  );
+  expect(cost).toBeCloseTo(expected, 10);
+  await expect(panel.locator("#log li.navi").last()).toContainText("$0.0002");
+});
+
+test("GPT agent: reasoning is carried between steps and screenshots are sent as images", async ({ panel, site, context }) => {
+  const bodies: Record<string, unknown>[] = [];
+  await context.route("https://api.openai.com/v1/responses", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    bodies.push(body);
+    if (bodies.length === 1) {
+      return route.fulfill(
+        openaiReply([
+          { type: "reasoning", id: "rs_1", summary: [], encrypted_content: "opaque-reasoning" },
+          { type: "function_call", id: "fc_1", call_id: "call_shot", name: "look_at_screen", arguments: "{}" },
+        ]),
+      );
+    }
+    return route.fulfill(
+      openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "I see the page." }] }]),
+    );
+  });
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", effort: "low", routerModel: "off" } }),
+  );
+  await site.bringToFront();
+  await run(panel, "what's on the screen");
+  await expect(panel.locator("#log li.navi").last()).toContainText("I see the page.");
+  expect(bodies[0].reasoning).toEqual({ effort: "low" });
+  expect(bodies[0].include).toEqual(["reasoning.encrypted_content"]);
+  const input = bodies[1].input as { type?: string; encrypted_content?: string; role?: string; content?: unknown }[];
+  expect(input.find((i) => i.type === "reasoning")?.encrypted_content).toBe("opaque-reasoning");
+  const image = input.find((i) => i.role === "user" && Array.isArray(i.content)) as { content: { type: string; image_url?: string }[] };
+  expect(image.content[0].type).toBe("input_image");
+  expect(image.content[0].image_url).toMatch(/^data:image\/jpeg;base64,/);
+});
+
+test("GPT router: a loosely worded command runs on the fast path, and its cost is logged", async ({ panel, site, context }) => {
+  const bodies: Record<string, unknown>[] = [];
+  await context.route("https://api.openai.com/v1/responses", (route) => {
+    bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+    return route.fulfill(
+      openaiReply(
+        [
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: JSON.stringify({ route: "command", command: "click subscribe" }) }],
+          },
+        ],
+        { input_tokens: 1200, output_tokens: 12, input_tokens_details: { cached_tokens: 0 } },
+      ),
+    );
+  });
+  // Main model is Claude, router is GPT-6 Luna: each uses its own key.
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", openaiKey: "sk-openai-test", routerModel: "gpt-6-luna" } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "yo can you smash that sub thingy");
+  await expect(site.locator("#subs")).toHaveText("1");
+  expect(bodies).toHaveLength(1);
+  expect(bodies[0].model).toBe("gpt-6-luna");
+  expect(bodies[0].reasoning).toEqual({ effort: "none" });
+  expect((bodies[0].text as { format: { type: string; strict: boolean } }).format).toMatchObject({ type: "json_schema", strict: true });
+  const metric = await panel.evaluate(
+    () => (window as unknown as { navi: { metrics: { path: string; costUsd?: number }[] } }).navi.metrics.at(-1),
+  );
+  expect(metric?.path).toBe("fast");
+  expect(metric?.costUsd).toBeCloseTo((1200 * 0.1 + 12 * 0.5) / 1e6, 12);
+});
+
+test("GPT: a missing OpenAI key skips the router and explains what's needed", async ({ panel, context }) => {
+  let calls = 0;
+  await context.route("https://api.openai.com/**", (route) => {
+    calls++;
+    return route.abort();
+  });
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { model: "gpt-6-sol", routerModel: "gpt-6-luna" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === false);
+  await run(panel, "which of these plans is the best deal");
+  await expect(panel.locator("#log li.step").last()).toContainText("add an AI API key");
+  expect(calls).toBe(0);
+});
+
 test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch back", async ({ panel, site, context, baseUrl }) => {
   // Auto-scroll runs until "stop".
   await run(panel, "start scrolling");

@@ -10,6 +10,7 @@ import {
   type Settings,
   loadSettings,
   onSettingsChanged,
+  keyFor,
   saveSettings,
   usesElevenInput,
   usesElevenOutput,
@@ -334,7 +335,7 @@ function applySettings(next: Settings) {
   session.configure({ mode: next.listenMode, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
   document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((r) => (r.checked = r.value === next.listenMode));
   document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));
-  ui.keyBanner.hidden = !!next.apiKey;
+  ui.keyBanner.hidden = !!keyFor(next, next.model);
   if (restart) void startListening();
   renderStatus();
 }

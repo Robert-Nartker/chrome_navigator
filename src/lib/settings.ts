@@ -1,14 +1,19 @@
 // User settings, stored locally in this browser profile (chrome.storage.local).
 
 import { DEFAULT_VOICE_ID } from "./elevenlabs";
+import { type Effort, modelInfo } from "./models";
 
 export type ListenMode = "handsfree" | "push";
 export type Feedback = "minimal" | "spoken";
 
 export interface Settings {
+  /** Anthropic (Claude) API key. */
   apiKey: string;
+  /** OpenAI API key, for GPT models. */
+  openaiKey: string;
   model: string;
-  effort: "low" | "medium" | "high";
+  /** Reasoning level for the main model; clamped to what the model supports. */
+  effort: Effort;
   /** Opus fast mode: faster output at 2x price (research preview). */
   fastMode: boolean;
   wakeName: string;
@@ -47,15 +52,9 @@ export interface Settings {
 
 export type SpeechProvider = "elevenlabs" | "chrome";
 
-export const MODELS = [
-  { id: "claude-opus-5-5", label: "Claude Opus 5.5 (recommended)" },
-  { id: "claude-opus-5", label: "Claude Opus 5" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5 (balanced)" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (fastest)" },
-] as const;
-
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
+  openaiKey: "",
   model: "claude-opus-5-5",
   effort: "low",
   fastMode: false,
@@ -80,6 +79,11 @@ export const DEFAULT_SETTINGS: Settings = {
   elevenModel: "eleven_flash_v2_5",
   filterBackgroundAudio: true,
 };
+
+/** The API key for a model's provider ("" if not set). */
+export function keyFor(s: Settings, model: string): string {
+  return modelInfo(model).provider === "openai" ? s.openaiKey : s.apiKey;
+}
 
 /** True when commands should be transcribed by ElevenLabs. */
 export function usesElevenInput(s: Settings): boolean {

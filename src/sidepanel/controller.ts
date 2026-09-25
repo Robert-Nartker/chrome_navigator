@@ -26,9 +26,10 @@ import {
 } from "../lib/custom-commands";
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
+import { formatCost } from "../lib/models";
 import { type GridCommand, type Intent, isLikelyNoise, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
 import { routeUtterance } from "../lib/router";
-import { type Settings, isBlocked, saveSettings } from "../lib/settings";
+import { type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import { Speaker, earcons } from "../lib/voice-output";
 
 export type LogKind = "user" | "navi" | "step" | "info" | "error";
@@ -59,6 +60,7 @@ export interface RunOptions {
 interface Outcome {
   intent?: string;
   routerMs?: number;
+  routerCostUsd?: number;
   /** Set when the AI handled (part of) the command. */
   agent?: AgentResult;
 }
@@ -148,17 +150,19 @@ export class Controller {
     let reply: string | null = null;
     try {
       const outcome = await this.dispatch(command, controller.signal, 0, options);
+      const routerCost = outcome.routerCostUsd ?? 0;
       if (outcome.agent) {
         const { agent } = outcome;
         metric = {
           path: "ai", intent: outcome.intent, ms: elapsed(), modelMs: agent.modelMs, steps: agent.steps,
-          model: this.getSettings().model, routerMs: outcome.routerMs,
+          model: agent.model, routerMs: outcome.routerMs, costUsd: agent.costUsd + routerCost,
+          tokensIn: agent.usage.input + agent.usage.cachedInput + agent.usage.cacheWrite, tokensOut: agent.usage.output,
         };
         reply = agent.reply;
       } else if (outcome.intent === "ignored" || outcome.intent === "unknown") {
-        metric = { path: "ignored", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs };
+        metric = { path: "ignored", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs, costUsd: routerCost };
       } else {
-        metric = { path: "fast", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs };
+        metric = { path: "fast", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs, costUsd: routerCost };
         this.ui.log("step", `${outcome.routerMs ? "Routed" : "Fast path"} · ${metric.ms} ms`);
       }
     } catch (err) {
@@ -232,7 +236,8 @@ export class Controller {
         return { intent: intent.type };
       } catch (err) {
         if (!(err instanceof Unhandled)) throw err;
-        if (!this.getSettings().apiKey && err.message) throw new Error(err.message);
+        const settings = this.getSettings();
+        if (!keyFor(settings, settings.model) && err.message) throw new Error(err.message);
       }
     }
 
@@ -244,8 +249,8 @@ export class Controller {
       this.ui.log("step", `Ignored “${command}” (sounded like noise)`);
       return { intent: "ignored" };
     }
-    if (!settings.apiKey) {
-      this.ui.log("step", `Didn't catch that. Say “what can I say” for examples, or add a Claude API key in settings.`);
+    if (!keyFor(settings, settings.model)) {
+      this.ui.log("step", `Didn't catch that. Say “what can I say” for examples, or add an AI API key in settings.`);
       earcons.unknown();
       return { intent: "unknown" };
     }
@@ -256,22 +261,25 @@ export class Controller {
 
     // Unrecognized: a fast small model decides if it's a command in other words, a real task, or noise.
     let routerMs: number | undefined;
-    if (settings.routerModel !== "off" && !options.routed && !intent) {
+    let routerCostUsd: number | undefined;
+    if (settings.routerModel !== "off" && keyFor(settings, settings.routerModel) && !options.routed && !intent) {
       const t0 = performance.now();
       this.ui.setWorking(true, "Understanding…");
-      const decision = await routeUtterance(
+      const routed = await routeUtterance(
         command,
         { title: tab?.title, personalPhrases: this.commands.flatMap((c) => c.phrases) },
         settings,
         signal,
       ).catch((err: unknown) => {
         if (signal.aborted) throw err;
-        return { route: "agent" as const };
+        return null;
       });
+      const decision = routed?.decision ?? { route: "agent" as const };
+      routerCostUsd = routed?.costUsd;
       routerMs = Math.round(performance.now() - t0);
       if (decision.route === "command") {
         this.ui.log("step", `Understood as “${decision.command}” · ${routerMs} ms`);
-        const routed = await this.dispatch(decision.command, signal, depth + 1, {
+        const fastPath = await this.dispatch(decision.command, signal, depth + 1, {
           ...options,
           routed: true,
           fastOnly: true,
@@ -279,15 +287,15 @@ export class Controller {
           if (err instanceof Unhandled) return null;
           throw err;
         });
-        if (routed) return { ...routed, routerMs };
+        if (fastPath) return { ...fastPath, routerMs, routerCostUsd };
       } else if (decision.route === "ignore" && voice) {
         this.ui.log("step", `Ignored “${command}” · ${routerMs} ms`);
         earcons.unknown();
-        return { intent: "ignored", routerMs };
+        return { intent: "ignored", routerMs, routerCostUsd };
       }
     }
     earcons.thinking();
-    return { intent: "ai", agent: await this.runAgent(command, signal), routerMs };
+    return { intent: "ai", agent: await this.runAgent(command, signal), routerMs, routerCostUsd };
   }
 
   private async runCustom(match: CommandMatch, signal: AbortSignal, depth: number): Promise<Outcome> {
@@ -323,7 +331,10 @@ export class Controller {
       },
     });
     const seconds = (result.totalMs / 1000).toFixed(1);
-    this.navi(result.reply, `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s`);
+    this.navi(
+      result.reply,
+      `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s · ${formatCost(result.costUsd)}`,
+    );
     return result;
   }
 
