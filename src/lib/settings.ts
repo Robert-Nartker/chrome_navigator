@@ -16,6 +16,10 @@ export interface Settings {
   /** "spoken" confirms every action out loud (for screen-free use). */
   feedback: Feedback;
   speechRate: number;
+  /** Navi's voice and sound volume, 0-1. */
+  volume: number;
+  /** Small fast model that interprets commands the fast path doesn't recognize ("off" sends them straight to the main model). */
+  routerModel: string;
   voiceName: string;
   lang: string;
   /** Fall back to Google's cloud speech service when on-device recognition isn't available. */
@@ -45,7 +49,9 @@ export const DEFAULT_SETTINGS: Settings = {
   listenMode: "handsfree",
   sessionTimeoutSec: 120,
   feedback: "minimal",
-  speechRate: 1.1,
+  speechRate: 1.0,
+  volume: 0.6,
+  routerModel: "claude-haiku-4-5",
   voiceName: "",
   lang: "en-US",
   allowCloudSpeech: true,

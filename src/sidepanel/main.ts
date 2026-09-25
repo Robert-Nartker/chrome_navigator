@@ -6,7 +6,7 @@ import { SITES } from "../lib/sites";
 import { WakeSession } from "../lib/session";
 import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, saveSettings } from "../lib/settings";
 import { type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
-import { Speaker, earcons } from "../lib/voice-output";
+import { Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import { Controller, HELP_TEXT, type LogKind } from "./controller";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -33,7 +33,12 @@ let micError = false;
 
 const metrics: CommandMetric[] = [];
 const session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
-const speaker = new Speaker(() => ({ rate: settings.speechRate, voiceName: settings.voiceName, lang: settings.lang }));
+const speaker = new Speaker(() => ({
+  rate: settings.speechRate,
+  voiceName: settings.voiceName,
+  lang: settings.lang,
+  volume: settings.volume,
+}));
 
 function log(kind: LogKind, text: string, meta?: string) {
   const li = document.createElement("li");
@@ -137,7 +142,7 @@ function goToSleep() {
   renderStatus();
 }
 
-function handleFinal(transcript: string) {
+function handleFinal(transcript: string, confidence = 0) {
   ui.interim.textContent = "";
   if (speaker.busy) {
     // Let "stop" interrupt a long reply; ignore anything else (likely our own voice).
@@ -151,7 +156,7 @@ function handleFinal(transcript: string) {
     if (!decision.command) log("info", "I'm listening.");
   }
   if (decision.command) {
-    void controller.run(decision.command);
+    void controller.run(decision.command, { source: "voice", confidence });
     if (settings.listenMode === "push") stopListening();
   }
   renderStatus();
@@ -227,6 +232,7 @@ function applySettings(next: Settings) {
     engine?.running &&
     (next.lang !== settings.lang || next.wakeName !== settings.wakeName || next.allowCloudSpeech !== settings.allowCloudSpeech);
   settings = next;
+  setSoundVolume(next.volume);
   session.configure({ mode: next.listenMode, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
   document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((r) => (r.checked = r.value === next.listenMode));
   document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));

@@ -3,7 +3,8 @@
 
 export interface SpeechCallbacks {
   onInterim(text: string): void;
-  onFinal(text: string): void;
+  /** confidence is 0-1, or 0 when the engine doesn't report one. */
+  onFinal(text: string, confidence: number): void;
   onRunningChange(running: boolean): void;
   onError(message: string, fatal: boolean): void;
   onInfo?(message: string): void;
@@ -19,6 +20,7 @@ export interface SpeechEngine {
 // Minimal typings: these APIs are prefixed and newer than TypeScript's DOM lib.
 interface RecognitionAlternative {
   transcript: string;
+  confidence: number;
 }
 interface RecognitionResult {
   isFinal: boolean;
@@ -39,7 +41,7 @@ interface Recognition extends EventTarget {
   maxAlternatives: number;
   processLocally?: boolean;
   phrases?: unknown[];
-  start(): void;
+  start(track?: MediaStreamTrack): void;
   stop(): void;
   abort(): void;
   onresult: ((e: RecognitionEvent) => void) | null;
@@ -98,6 +100,10 @@ export class WebSpeechEngine implements SpeechEngine {
   private active = false;
   private onDevice = false;
   private restartDelay = 250;
+  private lastError = "";
+  /** Noise-suppressed mic track handed to the recognizer (Chrome 135+), when supported. */
+  private stream: MediaStream | null = null;
+  private trackSupported = true;
   private restartTimer: number | undefined;
 
   constructor(
@@ -130,7 +136,25 @@ export class WebSpeechEngine implements SpeechEngine {
       return;
     }
     this.callbacks.onInfo?.(`Speech: ${this.label}`);
+    await this.openMic();
     this.launch(Ctor);
+  }
+
+  /** Opens the mic with noise suppression so keyboard clicks and fans are less likely to become "words". */
+  private async openMic() {
+    if (!this.trackSupported || this.stream?.getAudioTracks()[0]?.readyState === "live") return;
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
+      });
+    } catch {
+      this.stream = null;
+    }
+  }
+
+  private closeMic() {
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
   }
 
   stop() {
@@ -138,6 +162,7 @@ export class WebSpeechEngine implements SpeechEngine {
     window.clearTimeout(this.restartTimer);
     this.recognition?.abort();
     this.recognition = null;
+    this.closeMic();
     if (this.active) {
       this.active = false;
       this.callbacks.onRunningChange(false);
@@ -172,7 +197,6 @@ export class WebSpeechEngine implements SpeechEngine {
     this.applyPhrases(rec);
 
     rec.onstart = () => {
-      this.restartDelay = 250;
       if (!this.active) {
         this.active = true;
         this.callbacks.onRunningChange(true);
@@ -184,7 +208,10 @@ export class WebSpeechEngine implements SpeechEngine {
         const result = event.results[i];
         const transcript = result[0]?.transcript ?? "";
         if (result.isFinal) {
-          if (transcript.trim()) this.callbacks.onFinal(transcript.trim());
+          // Hearing speech means the mic works: reset the retry delay.
+          this.restartDelay = 250;
+          this.lastError = "";
+          if (transcript.trim()) this.callbacks.onFinal(transcript.trim(), result[0]?.confidence ?? 0);
         } else {
           interim += transcript;
         }
@@ -192,6 +219,14 @@ export class WebSpeechEngine implements SpeechEngine {
       this.callbacks.onInterim(interim.trim());
     };
     rec.onerror = (event) => {
+      // Back off on every real error so a broken mic isn't reopened several times a second.
+      if (!["no-speech", "aborted", "phrases-not-supported"].includes(event.error)) {
+        this.restartDelay = Math.min(this.restartDelay * 2, 30_000);
+      }
+      const report = (message: string) => {
+        if (message !== this.lastError) this.callbacks.onError(message, false);
+        this.lastError = message;
+      };
       switch (event.error) {
         case "no-speech":
         case "aborted":
@@ -213,17 +248,24 @@ export class WebSpeechEngine implements SpeechEngine {
           this.callbacks.onError(`Speech recognition doesn't support ${this.options.lang}.`, true);
           return;
         case "network":
-          this.restartDelay = Math.min(this.restartDelay * 2, 8000);
-          this.callbacks.onError("Speech service unreachable, retrying…", false);
+          report("Speech service unreachable. Retrying…");
+          return;
+        case "audio-capture":
+          // The mic disappeared (unplugged, in use, or the audio system hiccuped): reopen it later.
+          this.closeMic();
+          report("Can't hear the microphone. Check it's connected; retrying…");
           return;
         default:
-          this.callbacks.onError(`Speech error: ${event.error}`, false);
+          report(`Speech error: ${event.error}`);
       }
     };
     rec.onend = () => {
       // Chrome ends continuous recognition periodically; restart while we still want it.
       if (this.wanted) {
-        this.restartTimer = window.setTimeout(() => this.launch(Ctor), this.restartDelay);
+        this.restartTimer = window.setTimeout(async () => {
+          await this.openMic();
+          this.launch(Ctor);
+        }, this.restartDelay);
       } else if (this.active) {
         this.active = false;
         this.callbacks.onRunningChange(false);
@@ -231,9 +273,22 @@ export class WebSpeechEngine implements SpeechEngine {
     };
 
     this.recognition = rec;
+    const track = this.stream?.getAudioTracks()[0];
     try {
-      rec.start();
+      if (track?.readyState === "live") rec.start(track);
+      else rec.start();
     } catch (err) {
+      if (track) {
+        // Older Chrome: no start(track). Use Chrome's own mic capture instead.
+        this.trackSupported = false;
+        this.closeMic();
+        try {
+          rec.start();
+          return;
+        } catch (inner) {
+          err = inner;
+        }
+      }
       this.callbacks.onError(`Couldn't start speech recognition: ${String(err)}`, false);
     }
   }

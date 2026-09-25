@@ -282,7 +282,7 @@ test("fast mode: sends speed=fast, and falls back to standard speed if unavailab
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", fastMode: true } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", fastMode: true, routerModel: "off" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "what is on this page");
   await expect(panel.locator("#log li.navi").last()).toContainText("Standard speed works.");
@@ -317,7 +317,7 @@ test("personal commands: the AI saves one, then it runs instantly without the AI
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", routerModel: "off" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
   await site.click("h1");
@@ -416,4 +416,65 @@ test("AI vision: looks at a tagged screenshot, then clicks a spot by coordinates
   expect(toolResult).toContain('button \\"Subscribe\\"');
   // Tags were only shown for the picture.
   expect(await site.evaluate(() => document.querySelector("navi-overlay")?.shadowRoot?.querySelectorAll(".badge").length ?? 0)).toBe(0);
+});
+
+function routerOrAgent(route: (body: Record<string, unknown>) => unknown) {
+  return async (r: import("@playwright/test").Route) => {
+    const body = r.request().postDataJSON() as Record<string, unknown>;
+    const content = route(body);
+    await r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "m", type: "message", role: "assistant", model: body.model, stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
+        stop_reason: Array.isArray(content) && (content[0] as { type: string }).type === "tool_use" ? "tool_use" : "end_turn",
+        content,
+      }),
+    });
+  };
+}
+
+test("router: a loosely worded command is understood by the quick model and runs on the fast path", async ({ panel, site, context }) => {
+  const models: string[] = [];
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      models.push(String(body.model));
+      // Only the router is expected here; it answers with structured JSON.
+      return [{ type: "text", text: JSON.stringify({ route: "command", command: "click subscribe" }) }];
+    }),
+  );
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "yo can you smash that sub thingy");
+  await expect(site.locator("#subs")).toHaveText("1");
+  expect(models).toEqual(["claude-haiku-4-5"]);
+  await expect(panel.locator("#log li.step").filter({ hasText: "Understood as “click subscribe”" })).toHaveCount(1);
+});
+
+test("router: noise is ignored quietly and never reaches the main model", async ({ panel, context }) => {
+  const models: string[] = [];
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      models.push(String(body.model));
+      return [{ type: "text", text: JSON.stringify({ route: "ignore", command: "" }) }];
+    }),
+  );
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  const final = (text: string) =>
+    panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);
+  await final("hey navi");
+  // Keyboard clatter: caught locally, no API call at all.
+  await final("tiktok tiktok tiktok");
+  await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “tiktok tiktok tiktok”" })).toHaveCount(1);
+  expect(models).toEqual([]);
+  // Someone talking nearby: the quick model says ignore, the main model is never called.
+  await final("and then she told me the car was still in the shop");
+  await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “and then she told me" })).toHaveCount(1);
+  expect(models).toEqual(["claude-haiku-4-5"]);
+  // Nothing was spoken or shown as an error.
+  await expect(panel.locator("#log li.error")).toHaveCount(0);
 });

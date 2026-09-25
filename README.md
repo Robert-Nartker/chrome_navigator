@@ -101,6 +101,10 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Side panel** (`src/sidepanel/`): mic, wake-word session, command pipeline, log.
 - **Content script** (`src/content/`): builds a "snapshot" of the page's interactive elements named the way a screen reader would name them (ARIA labels, `<label>`, alt text), draws number badges, and performs clicks, typing, scrolling and reading. It also finds clickable `div`s that only have `cursor: pointer`, and scrolls inner panels (Gmail, Slack) as well as the page.
 - **Fast path** (`src/lib/parser.ts`): common commands run instantly with no AI call.
+- **Noise filter and router** (`src/lib/parser.ts`, `src/lib/router.ts`):
+  - **Forgiving matching:** looser phrasing ("scroll down further", "Navi sleep") and near-miss transcriptions ("scrawl down") are caught locally.
+  - **Noise filter:** keyboard clatter heard as words ("tiktok tiktok tiktok") and lone filler words are ignored without calling any AI.
+  - **Router:** anything else unrecognized goes to Claude Haiku 4.5, which in about half a second maps it to a command, passes it to the main AI, or ignores it as background talk.
 - **AI path** (`src/lib/agent.ts`): Claude gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. Default model is Claude Opus 5.5 at low effort, which keeps thinking short so actions start quickly. Opus 5, Sonnet 5 and Haiku 4.5 can be picked in settings, and there's an optional fast mode (Opus, 2x price).
 
 ## Privacy model

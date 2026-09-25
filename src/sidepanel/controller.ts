@@ -26,8 +26,9 @@ import {
 } from "../lib/custom-commands";
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
-import { type GridCommand, type Intent, parseCommand, parseGridCommand } from "../lib/parser";
-import type { Settings } from "../lib/settings";
+import { type GridCommand, type Intent, isLikelyNoise, parseCommand, parseGridCommand } from "../lib/parser";
+import { routeUtterance } from "../lib/router";
+import { type Settings, isBlocked } from "../lib/settings";
 import { Speaker, earcons } from "../lib/voice-output";
 
 export type LogKind = "user" | "navi" | "step" | "info" | "error";
@@ -45,8 +46,19 @@ export const HELP_TEXT =
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
 
+export interface RunOptions {
+  source: "voice" | "typed";
+  /** Speech engine confidence (0-1), when it reports one. */
+  confidence?: number;
+  /** Skip the router (already interpreted, or a step of a personal command). */
+  routed?: boolean;
+  /** Only run built-in or personal commands; never fall through to the AI. */
+  fastOnly?: boolean;
+}
+
 interface Outcome {
   intent?: string;
+  routerMs?: number;
   /** Set when the AI handled (part of) the command. */
   agent?: AgentResult;
 }
@@ -54,7 +66,7 @@ interface Outcome {
 export class Controller {
   private readonly agent: NaviAgent;
   private current: AbortController | null = null;
-  private queue: string[] = [];
+  private queue: { text: string; options: RunOptions }[] = [];
   private busy = false;
   private numbers = false;
   private commands: CustomCommand[] = [];
@@ -107,7 +119,7 @@ export class Controller {
     return res.detail ?? "";
   }
 
-  async run(text: string): Promise<void> {
+  async run(text: string, options: RunOptions = { source: "typed" }): Promise<void> {
     const command = text.trim();
     if (!command) return;
     if (parseCommand(command)?.type === "stop") {
@@ -117,7 +129,7 @@ export class Controller {
     }
     if (this.busy) {
       // Commands spoken while Navi is working run in order afterwards.
-      if (this.queue.length < 5) this.queue.push(command);
+      if (this.queue.length < 5) this.queue.push({ text: command, options });
       this.ui.log("info", `Next: “${command}”`);
       return;
     }
@@ -131,14 +143,19 @@ export class Controller {
     let metric: Omit<CommandMetric, "t" | "command"> | null = null;
     let reply: string | null = null;
     try {
-      const outcome = await this.dispatch(command, controller.signal, 0);
+      const outcome = await this.dispatch(command, controller.signal, 0, options);
       if (outcome.agent) {
         const { agent } = outcome;
-        metric = { path: "ai", intent: outcome.intent, ms: elapsed(), modelMs: agent.modelMs, steps: agent.steps, model: this.getSettings().model };
+        metric = {
+          path: "ai", intent: outcome.intent, ms: elapsed(), modelMs: agent.modelMs, steps: agent.steps,
+          model: this.getSettings().model, routerMs: outcome.routerMs,
+        };
         reply = agent.reply;
+      } else if (outcome.intent === "ignored" || outcome.intent === "unknown") {
+        metric = { path: "ignored", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs };
       } else {
-        metric = { path: "fast", intent: outcome.intent, ms: elapsed() };
-        this.ui.log("step", `Fast path · ${metric.ms} ms`);
+        metric = { path: "fast", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs };
+        this.ui.log("step", `${outcome.routerMs ? "Routed" : "Fast path"} · ${metric.ms} ms`);
       }
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
@@ -148,8 +165,9 @@ export class Controller {
         const message = err instanceof Error ? err.message : String(err);
         metric = { path: "error", ms: elapsed(), error: message };
         this.ui.log("error", message);
+        // Errors are a sound by default; the full message is in the log (and spoken in spoken mode).
         earcons.error();
-        reply = message;
+        if (this.getSettings().feedback === "spoken") reply = message;
       }
     } finally {
       if (metric) {
@@ -164,12 +182,12 @@ export class Controller {
       this.ui.setWorking(false);
       this.hooks.onActivity();
       const next = this.queue.shift();
-      if (next) void this.run(next);
+      if (next) void this.run(next.text, next.options);
     }
   }
 
   /** Personal commands first, then built-in commands, then the AI. */
-  private async dispatch(command: string, signal: AbortSignal, depth: number): Promise<Outcome> {
+  private async dispatch(command: string, signal: AbortSignal, depth: number, options: RunOptions): Promise<Outcome> {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
     if (this.gridOn) {
@@ -206,13 +224,59 @@ export class Controller {
         if (!this.getSettings().apiKey && err.message) throw new Error(err.message);
       }
     }
-    if (!this.getSettings().apiKey) {
-      throw new Error(
-        "I don't know that command yet. Say what can I say for examples, or add a Claude API key in settings for anything else.",
-      );
+
+    if (options.fastOnly) throw new Unhandled();
+    const settings = this.getSettings();
+    const voice = options.source === "voice";
+    // Keyboard clicks heard as "tiktok tiktok", lone filler words, very unsure transcripts: ignore quietly.
+    if (voice && !intent && (isLikelyNoise(command) || (options.confidence && options.confidence < 0.35))) {
+      this.ui.log("step", `Ignored “${command}” (sounded like noise)`);
+      return { intent: "ignored" };
+    }
+    if (!settings.apiKey) {
+      this.ui.log("step", `Didn't catch that. Say “what can I say” for examples, or add a Claude API key in settings.`);
+      earcons.unknown();
+      return { intent: "unknown" };
+    }
+
+    // Never send anything to an AI model from a site the user has blocked.
+    const tab = await targetTab().catch(() => undefined);
+    if (isBlocked(tab?.url, settings)) throw new Error("You've turned off Navi's AI on this site.");
+
+    // Unrecognized: a fast small model decides if it's a command in other words, a real task, or noise.
+    let routerMs: number | undefined;
+    if (settings.routerModel !== "off" && !options.routed && !intent) {
+      const t0 = performance.now();
+      this.ui.setWorking(true, "Understanding…");
+      const decision = await routeUtterance(
+        command,
+        { title: tab?.title, personalPhrases: this.commands.flatMap((c) => c.phrases) },
+        settings,
+        signal,
+      ).catch((err: unknown) => {
+        if (signal.aborted) throw err;
+        return { route: "agent" as const };
+      });
+      routerMs = Math.round(performance.now() - t0);
+      if (decision.route === "command") {
+        this.ui.log("step", `Understood as “${decision.command}” · ${routerMs} ms`);
+        const routed = await this.dispatch(decision.command, signal, depth + 1, {
+          ...options,
+          routed: true,
+          fastOnly: true,
+        }).catch((err: unknown) => {
+          if (err instanceof Unhandled) return null;
+          throw err;
+        });
+        if (routed) return { ...routed, routerMs };
+      } else if (decision.route === "ignore" && voice) {
+        this.ui.log("step", `Ignored “${command}” · ${routerMs} ms`);
+        earcons.unknown();
+        return { intent: "ignored", routerMs };
+      }
     }
     earcons.thinking();
-    return { intent: "ai", agent: await this.runAgent(command, signal) };
+    return { intent: "ai", agent: await this.runAgent(command, signal), routerMs };
   }
 
   private async runCustom(match: CommandMatch, signal: AbortSignal, depth: number): Promise<Outcome> {
@@ -226,7 +290,7 @@ export class Controller {
       if (step.type === "open") {
         lastTab = await navigate(step.url, step.newTab);
       } else {
-        const outcome = await this.dispatch(step.command, signal, depth + 1);
+        const outcome = await this.dispatch(step.command, signal, depth + 1, { source: "typed", routed: true });
         agent = outcome.agent ?? agent;
         lastTab = undefined;
       }

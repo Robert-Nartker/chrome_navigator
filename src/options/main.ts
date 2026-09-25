@@ -1,6 +1,7 @@
 import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { MODELS, type Settings, loadSettings, saveSettings } from "../lib/settings";
+import { Speaker, pickVoice } from "../lib/voice-output";
 
 const form = document.getElementById("settings") as HTMLFormElement;
 const saved = document.getElementById("saved") as HTMLElement;
@@ -34,6 +35,8 @@ async function fill() {
   voice.dataset.value = s.voiceName;
   voice.value = s.voiceName;
   field<HTMLInputElement>("speechRate").value = String(s.speechRate);
+  field<HTMLInputElement>("volume").value = String(s.volume);
+  field<HTMLSelectElement>("routerModel").value = s.routerModel;
   field<HTMLInputElement>("allowPageText").checked = s.allowPageText;
   field<HTMLInputElement>("allowCloudSpeech").checked = s.allowCloudSpeech;
   field<HTMLInputElement>("allowScreenshots").checked = s.allowScreenshots;
@@ -59,7 +62,9 @@ form.addEventListener("submit", async (e) => {
     lang: field<HTMLInputElement>("lang").value.trim() || "en-US",
     feedback: field<HTMLSelectElement>("feedback").value as Settings["feedback"],
     voiceName: field<HTMLSelectElement>("voiceName").value,
-    speechRate: clamp(field<HTMLInputElement>("speechRate").value, 0.5, 3, 1.1),
+    speechRate: clamp(field<HTMLInputElement>("speechRate").value, 0.5, 3, 1),
+    volume: clamp(field<HTMLInputElement>("volume").value, 0, 1, 0.6),
+    routerModel: field<HTMLSelectElement>("routerModel").value,
     allowPageText: field<HTMLInputElement>("allowPageText").checked,
     allowCloudSpeech: field<HTMLInputElement>("allowCloudSpeech").checked,
     allowScreenshots: field<HTMLInputElement>("allowScreenshots").checked,
@@ -158,3 +163,16 @@ document.getElementById("cmd-add")?.addEventListener("click", async () => {
 
 onCommandsChanged(() => void showCommands());
 void showCommands();
+
+document.getElementById("test-voice")?.addEventListener("click", async () => {
+  const voiceName = field<HTMLSelectElement>("voiceName").value;
+  const lang = field<HTMLInputElement>("lang").value || "en-US";
+  const speaker = new Speaker(() => ({
+    voiceName,
+    lang,
+    rate: Number(field<HTMLInputElement>("speechRate").value) || 1,
+    volume: Number(field<HTMLInputElement>("volume").value),
+  }));
+  const name = voiceName || (await pickVoice(lang)) || "the default voice";
+  await speaker.say(`Hi, I'm Navi. This is ${name}.`);
+});

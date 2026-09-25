@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalize, parseCommand, parseGridCommand, stripWakePhrase, wakeAliases } from "../../src/lib/parser";
+import { isLikelyNoise, normalize, parseCommand, parseGridCommand, stripWakePhrase, wakeAliases } from "../../src/lib/parser";
 
 describe("normalize", () => {
   it("strips filler and punctuation", () => {
@@ -149,5 +149,42 @@ describe("mouse grid commands", () => {
     expect(parseGridCommand("cancel")).toEqual({ type: "hide" });
     expect(parseGridCommand("12")).toBeNull();
     expect(parseGridCommand("scroll down")).toBeNull();
+  });
+});
+
+describe("forgiving matching (real-world phrasing and mishearings)", () => {
+  it("understands looser scroll phrasing", () => {
+    expect(parseCommand("scroll down further")).toEqual({ type: "scroll", direction: "down", amount: "page" });
+    expect(parseCommand("can you scroll up just a little bit more")).toEqual({ type: "scroll", direction: "up", amount: "small" });
+    expect(parseCommand("scroll way down")).toEqual({ type: "scroll", direction: "down", amount: "large" });
+    expect(parseCommand("keep scrolling down")).toEqual({ type: "scroll", direction: "down", amount: "page" });
+    expect(parseCommand("scroll all the way to the top")).toMatchObject({ type: "scroll", direction: "top" });
+  });
+  it("handles the name tacked onto commands and misheard names", () => {
+    expect(parseCommand("Navi sleep")).toEqual({ type: "sleep" });
+    expect(parseCommand("Havi sleep")).toEqual({ type: "sleep" });
+    expect(parseCommand("sleep navi")).toEqual({ type: "sleep" });
+    expect(parseCommand("goodnight")).toEqual({ type: "sleep" });
+    expect(parseCommand("scroll down navi")).toMatchObject({ type: "scroll", direction: "down" });
+    expect(parseCommand("don't go to sleep yet, open youtube")).not.toEqual({ type: "sleep" });
+  });
+  it("corrects near-miss transcriptions", () => {
+    expect(parseCommand("scrawl down")).toMatchObject({ type: "scroll", direction: "down" });
+    expect(parseCommand("show nombers")).toEqual({ type: "showNumbers" });
+    expect(parseCommand("close tap")).toEqual({ type: "closeTab" });
+  });
+});
+
+describe("noise filter", () => {
+  it("flags keyboard noise and filler", () => {
+    expect(isLikelyNoise("tiktok tiktok tiktok")).toBe(true);
+    expect(isLikelyNoise("click click click click")).toBe(true);
+    expect(isLikelyNoise("um")).toBe(true);
+    expect(isLikelyNoise("yeah")).toBe(true);
+  });
+  it("keeps real requests", () => {
+    expect(isLikelyNoise("open my latest email")).toBe(false);
+    expect(isLikelyNoise("what is this article about")).toBe(false);
+    expect(isLikelyNoise("wordle")).toBe(false);
   });
 });

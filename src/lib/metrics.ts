@@ -5,12 +5,14 @@ export interface CommandMetric {
   t: string;
   command: string;
   /** "fast" = handled without AI, "ai" = Claude agent. */
-  path: "fast" | "ai" | "error" | "cancelled";
+  path: "fast" | "ai" | "error" | "cancelled" | "ignored";
   intent?: string;
   ms: number;
   modelMs?: number;
   steps?: number;
   model?: string;
+  /** Time the router model took to interpret an unrecognized command. */
+  routerMs?: number;
   error?: string;
 }
 
@@ -33,7 +35,7 @@ export async function clearMetrics() {
 }
 
 export function toCsv(rows: CommandMetric[]): string {
-  const cols: (keyof CommandMetric)[] = ["t", "command", "path", "intent", "ms", "modelMs", "steps", "model", "error"];
+  const cols: (keyof CommandMetric)[] = ["t", "command", "path", "intent", "ms", "routerMs", "modelMs", "steps", "model", "error"];
   const cell = (v: unknown) => {
     const s = v === undefined ? "" : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

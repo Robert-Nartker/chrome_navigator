@@ -1,11 +1,52 @@
 // Spoken replies (chrome.tts) and short sounds ("earcons") for wake/sleep/error.
 
+/**
+ * Voices to prefer when the user hasn't picked one: calm, natural-sounding female
+ * voices first (Windows natural voices, macOS premium voices, Google), robotic ones last.
+ */
+const PREFERRED_VOICES = [
+  /Aria.*Natural/i,
+  /Jenny.*Natural/i,
+  /Ava \((Premium|Enhanced)\)/i,
+  /Zoe \((Premium|Enhanced)\)/i,
+  /Samantha \(Enhanced\)/i,
+  /^Google US English$/i,
+  /Allison|Susan \(Enhanced\)/i,
+  /^Samantha/i,
+  /Google UK English Female/i,
+  /Zira/i,
+];
+
+let voicesPromise: Promise<chrome.tts.TtsVoice[]> | null = null;
+
+export function listVoices(): Promise<chrome.tts.TtsVoice[]> {
+  voicesPromise ??= new Promise((resolve) => chrome.tts.getVoices((voices) => resolve(voices ?? [])));
+  return voicesPromise;
+}
+
+/** Picks the most pleasant available voice for the language. */
+export async function pickVoice(lang: string): Promise<string | undefined> {
+  const voices = (await listVoices()).filter((v) => !v.lang || v.lang.startsWith(lang.slice(0, 2)));
+  for (const pattern of PREFERRED_VOICES) {
+    const match = voices.find((v) => v.voiceName && pattern.test(v.voiceName));
+    if (match) return match.voiceName;
+  }
+  return voices.find((v) => v.gender === "female")?.voiceName ?? voices[0]?.voiceName;
+}
+
+export interface VoiceSettings {
+  rate: number;
+  voiceName: string;
+  lang: string;
+  volume: number;
+}
+
 export class Speaker {
   private speakingUntil = 0;
   private speaking = false;
   private utterance = 0;
 
-  constructor(private readonly getVoice: () => { rate: number; voiceName: string; lang: string }) {}
+  constructor(private readonly getVoice: () => VoiceSettings) {}
 
   /** True while speaking and briefly after, so the mic doesn't hear Navi's own voice as a command. */
   get busy(): boolean {
@@ -15,12 +56,14 @@ export class Speaker {
   /** Skips speech entirely (used by the benchmark runner). */
   muted = false;
 
-  say(text: string): Promise<void> {
+  async say(text: string): Promise<void> {
     const clean = text.replace(/[*_`#>]/g, "").trim();
-    if (!clean || this.muted) return Promise.resolve();
-    const { rate, voiceName, lang } = this.getVoice();
+    if (!clean || this.muted) return;
+    const { rate, lang, volume } = this.getVoice();
     const id = ++this.utterance;
     this.speaking = true;
+    const voiceName = this.getVoice().voiceName || (await pickVoice(lang));
+    if (id !== this.utterance) return;
     return new Promise((resolve) => {
       let finished = false;
       const done = () => {
@@ -36,6 +79,7 @@ export class Speaker {
       chrome.tts.speak(clean, {
         rate,
         lang,
+        volume,
         voiceName: voiceName || undefined,
         enqueue: false,
         onEvent: (event) => {
@@ -54,8 +98,16 @@ export class Speaker {
 }
 
 let audio: AudioContext | null = null;
+let masterVolume = 0.6;
 
-function tone(freq: number, start: number, duration: number, volume = 0.08) {
+/** Scales the sound effects with the user's volume setting. */
+export function setSoundVolume(volume: number) {
+  masterVolume = volume;
+}
+
+function tone(freq: number, start: number, duration: number, level = 0.08) {
+  const volume = level * masterVolume;
+  if (volume <= 0) return;
   audio ??= new AudioContext();
   const osc = audio.createOscillator();
   const gain = audio.createGain();
@@ -80,7 +132,13 @@ export const earcons = {
     tone(587, 0.09, 0.18);
   },
   error() {
-    tone(220, 0, 0.18, 0.1);
+    tone(330, 0, 0.12, 0.07);
+    tone(262, 0.1, 0.16, 0.07);
+  },
+  /** Soft "didn't catch that" (heard speech, but it wasn't a command). */
+  unknown() {
+    tone(523, 0, 0.09, 0.05);
+    tone(440, 0.08, 0.12, 0.05);
   },
   done() {
     tone(1175, 0, 0.08, 0.05);

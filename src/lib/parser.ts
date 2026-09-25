@@ -89,7 +89,8 @@ export function stripWakePhrase(text: string, words: WakeWords): { woke: boolean
 /** Spellings speech engines produce for a wake name ("Navi" -> "navy", "navie"...). */
 export function wakeAliases(name: string): WakeWords {
   const n = name.trim().toLowerCase();
-  const misheard = n === "navi" ? ["navy", "navie", "navvy", "nabi", "nav e", "nave", "novi", "nobby", "knavey"] : [];
+  const misheard =
+    n === "navi" ? ["navy", "navie", "navvy", "nabi", "nav e", "nave", "novi", "nobby", "knavey", "havi", "havey", "nevi"] : [];
   return { exact: [n], misheard: misheard.sort((a, b) => b.length - a.length) };
 }
 
@@ -260,9 +261,7 @@ export function parseGridCommand(text: string): GridCommand | null {
   return null;
 }
 
-export function parseCommand(text: string): Intent | null {
-  const t = normalize(text);
-  if (!t) return null;
+function matchRules(t: string): Intent | null {
   for (const [re, build] of RULES) {
     const m = t.match(re);
     if (!m) continue;
@@ -270,4 +269,113 @@ export function parseCommand(text: string): Intent | null {
     if (intent) return intent;
   }
   return null;
+}
+
+/** Words speech engines hear instead of the wake name, which people also tack onto commands ("Navi, sleep"). */
+const NAME_LIKE = /^(?:navi|navy|navie|navvy|havi|havey|nabi|novi|nobby|navi's|nav)$/;
+
+/** Handles looser phrasings of common commands ("scroll down further", "sleep navi"). */
+function looseIntent(t: string): Intent | null {
+  const words = t.split(" ");
+  if (words.length <= 5 && /\b(?:sleep|goodnight|good night|nap)\b/.test(t) && !/\bdon'?t\b|\bnot\b/.test(t)) {
+    return { type: "sleep" };
+  }
+  if (/\bscroll|^(?:go|move|page|keep going) (?:up|down)\b|^keep (?:scrolling|going)/.test(t) && words.length <= 8) {
+    const direction: ScrollDirection = /\btop\b/.test(t)
+      ? "top"
+      : /\bbottom\b/.test(t)
+        ? "bottom"
+        : /\bup\b/.test(t)
+          ? "up"
+          : /\bleft\b/.test(t)
+            ? "left"
+            : /\bright\b/.test(t)
+              ? "right"
+              : "down";
+    const amount: ScrollAmount = /\b(?:little|bit|slightly|tad|touch|smidge)\b/.test(t)
+      ? "small"
+      : /\b(?:lot|way|much|far|bunch|fast)\b/.test(t)
+        ? "large"
+        : "page";
+    return { type: "scroll", direction, amount };
+  }
+  return null;
+}
+
+/** Canonical phrasings used to catch near-misses from speech recognition ("scrawl down"). */
+const CANONICAL = [
+  "scroll down", "scroll up", "scroll to the top", "scroll to the bottom", "page down", "page up",
+  "go back", "go forward", "refresh", "new tab", "close tab", "next tab", "previous tab", "reopen closed tab",
+  "show numbers", "hide numbers", "show grid", "hide grid", "go to sleep", "help", "where am i",
+  "read this page", "zoom in", "zoom out", "reset zoom", "pause", "play", "mute", "unmute",
+  "what tabs are open", "press enter", "escape",
+];
+
+export function similarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const m = a.length;
+  const n = b.length;
+  if (!m || !n) return 0;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return 1 - prev[n] / Math.max(m, n);
+}
+
+/** The closest phrase from a list, if it's a near-certain match. */
+export function closestPhrase(t: string, phrases: string[], threshold = 0.8): string | null {
+  let best: string | null = null;
+  let bestScore = threshold;
+  for (const phrase of phrases) {
+    if (Math.abs(phrase.length - t.length) > Math.max(3, phrase.length * 0.3)) continue;
+    const score = similarity(t, phrase);
+    if (score >= bestScore) {
+      best = phrase;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+export function parseCommand(text: string): Intent | null {
+  const t = normalize(text);
+  if (!t) return null;
+  const exact = matchRules(t);
+  if (exact) return exact;
+  // "Navi, sleep" / "scroll down navi": drop a name-like word at either end.
+  const words = t.split(" ");
+  const trimmed = words
+    .slice(NAME_LIKE.test(words[0]) ? 1 : 0, NAME_LIKE.test(words[words.length - 1]) && words.length > 1 ? -1 : undefined)
+    .join(" ");
+  if (trimmed && trimmed !== t) {
+    const intent = matchRules(trimmed);
+    if (intent) return intent;
+  }
+  const target = trimmed || t;
+  const loose = looseIntent(target);
+  if (loose) return loose;
+  const near = closestPhrase(target, CANONICAL);
+  return near ? matchRules(near) : null;
+}
+
+/**
+ * True for transcripts that are almost certainly not speech meant for Navi:
+ * keyboard clicks heard as "tiktok tiktok tiktok", lone filler words, and so on.
+ */
+export function isLikelyNoise(text: string): boolean {
+  const words = normalize(text)
+    .split(" ")
+    .filter(Boolean);
+  if (words.length === 0) return true;
+  const unique = new Set(words);
+  if (words.length >= 3 && unique.size / words.length <= 0.5) return true;
+  if (words.length === 1 && (words[0].length <= 3 || /^(?:um+|uh+|hm+|mm+|ah+|oh+|huh|yeah|okay|ok|hmm+)$/.test(words[0]))) {
+    return true;
+  }
+  return false;
 }
