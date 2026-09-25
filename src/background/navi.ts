@@ -96,10 +96,11 @@ const voice: Voice = {
   },
 };
 
-function log(kind: LogKind, text: string, meta?: string) {
+/** `onPage`: also show a reply or error in the caption on the page (not for speech-service hiccups). */
+function log(kind: LogKind, text: string, meta?: string, onPage = true) {
   const entry = logBook.add(kind, text, meta);
   broadcast({ type: "view:log", entry });
-  if (kind === "navi" || kind === "error") {
+  if (onPage && (kind === "navi" || kind === "error")) {
     reply = { kind, text };
     clearTimeout(replyTimer);
     replyTimer = setTimeout(() => {
@@ -221,7 +222,8 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       pushPill();
       return false;
     case "ears:log":
-      log(msg.kind, msg.text);
+      // Retries and fallbacks go to the log only; a lasting mic problem shows on the page as the mic error.
+      log(msg.kind, msg.text, undefined, false);
       return false;
     case "ears:heartbeat":
       return false;
@@ -271,8 +273,8 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
 /** The first note in a fresh log. */
 function greeting(): string {
   const start =
-    settings.listenMode === "handsfree" ? `Turn on the mic, then say “Hey ${settings.wakeName}”.` : "Click the mic and say a command.";
-  return `Hi! ${start} Or type below. Navi keeps working when this panel is closed.`;
+    settings.listenMode === "handsfree" ? `Say “Hey ${settings.wakeName}”, then a command,` : "Click the mic and say a command,";
+  return `${start} or type one below. Navi keeps listening when this panel is closed.`;
 }
 
 /** Hooks for automated tests and the benchmark (through the side panel's window.navi). */

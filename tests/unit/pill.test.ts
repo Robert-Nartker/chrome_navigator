@@ -41,3 +41,12 @@ describe("floating pill", () => {
     expect(look({ ears: EARS_OFF, interim: "hello" })).toBeNull();
   });
 });
+
+describe("floating pill with the grid", () => {
+  it("leaves the grid's instructions to the grid, but still shows errors and speech", () => {
+    const grid = { ...base.worker, grid: true };
+    expect(look({ worker: grid, reply: { kind: "navi", text: "Grid on." } })).toBeNull();
+    expect(look({ worker: grid, reply: { kind: "error", text: "No." } })).toMatchObject({ kind: "error" });
+    expect(look({ worker: grid, interim: "five" })).toMatchObject({ kind: "hear", text: "five" });
+  });
+});

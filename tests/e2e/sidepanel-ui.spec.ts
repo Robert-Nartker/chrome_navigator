@@ -281,7 +281,7 @@ test("a command said mid-task is noted in the running card, and stop ends it", a
 
 test("fast commands and unrecognized ones stay compact; notes sit between cards", async ({ panel }) => {
   // The greeting is a standalone note, not a card.
-  await expect(panel.locator("#log > li.info").filter({ hasText: "Hi!" })).toHaveCount(1);
+  await expect(panel.locator("#log > li.info").filter({ hasText: "keeps listening" })).toHaveCount(1);
 
   await run(panel, "scroll down");
   const fast = panel.locator("#log > li.turn").last();
@@ -321,7 +321,7 @@ test("reopening the panel rebuilds the same cards", async ({ panel, site, contex
 
   const cards = reopened.locator("#log > li.turn");
   await expect(cards).toHaveCount(3);
-  await expect(reopened.locator("#log > li.info").filter({ hasText: "Hi!" })).toHaveCount(1);
+  await expect(reopened.locator("#log > li.info").filter({ hasText: "keeps listening" })).toHaveCount(1);
   const routed = cards.nth(1);
   await expect(routed.locator("li.user")).toContainText("yo smash that sub thingy");
   await expect(routed.locator("li.step").first()).toContainText("Understood as “click subscribe”");

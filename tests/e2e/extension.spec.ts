@@ -293,7 +293,7 @@ test("the log survives closing and reopening the panel", async ({ panel, context
   await expect(reopened.locator("#log li.user").filter({ hasText: "what time is it" })).toHaveCount(1);
   await expect(reopened.locator("#log li.navi").last()).toContainText(/It's \d/);
   // No second greeting when there's history.
-  await expect(reopened.locator("#log li.info").filter({ hasText: "Hi!" })).toHaveCount(1);
+  await expect(reopened.locator("#log li.info").filter({ hasText: "keeps listening" })).toHaveCount(1);
 });
 
 test("hands-free: stray words before the name still wake Navi", async ({ panel, site }) => {

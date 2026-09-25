@@ -6,48 +6,58 @@
     <title>Set up Navi</title>
     <link rel="stylesheet" href="shared.css" />
     <style>
-      main { max-width: 620px; margin: 48px auto; padding: 0 16px; }
-      h1 { font-size: 28px; margin-bottom: 4px; }
-      .lead { color: var(--muted); margin-top: 0; }
-      .step { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin: 16px 0; }
-      .step h2 { font-size: 16px; margin: 0 0 6px; }
-      .step p { margin: 6px 0; }
-      .meter { height: 10px; border-radius: 5px; background: var(--surface); overflow: hidden; margin-top: 12px; }
-      .meter div { height: 100%; width: 0; background: var(--good); transition: width 0.08s; }
-      .ok { color: var(--good); font-weight: 600; }
-      .err { color: var(--bad); font-weight: 600; }
-      kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+      main { counter-reset: step; }
+      .page .card { position: relative; padding-left: 54px; }
+      .card h2 { counter-increment: step; }
+      .card h2 .hint { font-weight: 400; }
+      /* Step numbers in small rings, beside the heading. */
+      .card h2::before {
+        content: counter(step);
+        position: absolute; left: 18px; top: 15px;
+        display: grid; place-items: center; width: 22px; height: 22px;
+        border: 1px solid var(--border-strong); border-radius: 50%;
+        color: var(--muted); font: 500 11px/1 var(--mono);
+      }
+      .card p { margin: 6px 0; color: var(--muted); }
+      .card p:last-child { margin-bottom: 0; }
+      .card button { margin-top: 8px; }
+      .meter { height: 4px; border-radius: 2px; background: var(--surface); overflow: hidden; margin-top: 12px; }
+      .meter div { height: 100%; width: 0; background: var(--accent); transition: width 0.08s; }
     </style>
   </head>
-  <body>
+  <body class="page">
+    <header class="page-header">
+      <img src="icons/icon48.png" width="28" height="28" alt="" />
+      <div>
+        <h1>Set up Navi</h1>
+        <p class="lead">Navigate Chrome with your voice. This takes about a minute.</p>
+      </div>
+    </header>
     <main>
-      <h1>Set up Navi</h1>
-      <p class="lead">Navigate Chrome with your voice. This takes about a minute.</p>
-
-      <section class="step">
-        <h2>1. Allow the microphone</h2>
+      <section class="card">
+        <h2>Allow the microphone</h2>
         <p>Chrome only lets extensions ask for the microphone from a normal tab like this one, so Navi asks once here.</p>
         <button id="grant" class="primary">Allow microphone</button>
         <p id="mic-result" role="status" aria-live="polite"></p>
         <div class="meter" aria-hidden="true"><div id="level"></div></div>
       </section>
 
-      <section class="step">
-        <h2>2. Keep your voice on this computer (recommended)</h2>
+      <section class="card">
+        <h2>Keep your voice on this computer <span class="hint">(recommended)</span></h2>
         <p>Newer versions of Chrome can recognize speech on-device, so audio never leaves your laptop, even while Navi listens for its name. Otherwise Chrome uses Google's speech service.</p>
         <button id="ondevice">Download on-device speech</button>
         <p id="ondevice-result" role="status" aria-live="polite"></p>
       </section>
 
-      <section class="step">
-        <h2>3. Open Navi</h2>
-        <p>Click the Navi icon in the toolbar (pin it from the puzzle-piece menu), or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>. Navi opens in the side panel.</p>
+      <section class="card">
+        <h2>Say “Hey Navi”</h2>
+        <p>Navi listens in the background, so you don't need to open anything. It stays awake while you keep giving commands and goes back to sleep after two quiet minutes, or when you say “go to sleep”.</p>
+        <p>A small caption at the bottom of the page shows what it hears and says. To see the full activity, click the Navi icon in the toolbar (pin it from the puzzle-piece menu) or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>N</kbd>.</p>
       </section>
 
-      <section class="step">
-        <h2>4. Say “Hey Navi”</h2>
-        <p>Navi wakes up and stays awake while you keep giving commands, so you only say its name once. It goes back to sleep after two quiet minutes, or when you say “go to sleep”.</p>
-        <p>Basic commands (scrolling, tabs, opening sites, “click 5”) work right away. For everything else, add a Claude API key in <a href="options.html">settings</a>.</p>
+      <section class="card">
+        <h2>Add an AI key <span class="hint">(optional)</span></h2>
+        <p>Basic commands (scrolling, tabs, opening sites, “click 5”) work right away. For everything else, add an OpenAI or Claude API key in <a href="options.html">settings</a>.</p>
       </section>
     </main>
     <script src="setup.js"></script>

@@ -35,6 +35,7 @@ const ui = {
   numbersButton: $<HTMLButtonElement>("toggle-numbers"),
   gridButton: $<HTMLButtonElement>("toggle-grid"),
   engine: $("engine"),
+  engineLabel: $("engine-label"),
 };
 
 let settings: Settings = DEFAULT_SETTINGS;
@@ -73,7 +74,8 @@ function renderStatus() {
   ui.mic.setAttribute("aria-label", listening ? "Stop listening" : "Start listening");
   ui.mic.dataset.awake = String(ears.awake && settings.listenMode === "handsfree");
   ui.engine.hidden = !ears.engineLabel;
-  setText(ui.engine, ears.engineLabel ? `Speech: ${ears.engineLabel}` : "");
+  setText(ui.engineLabel, ears.engineLabel);
+  ui.engine.title = ears.engineLabel ? `Speech recognition: ${ears.engineLabel}` : "";
   renderSessionBar();
   setToggle(ui.numbersButton, worker.numbers, worker.numbers ? "Hide flags" : "Flags");
   setToggle(ui.gridButton, worker.grid, worker.grid ? "Hide grid" : "Grid");
@@ -97,7 +99,7 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, STATUS_LABELS[state] ?? text);
   const hint =
     state === "off"
-      ? ears.micError || "Tap the mic to talk, or type a command below."
+      ? ears.micError || "Click the mic to talk, or type a command below."
       : state === "working"
         ? feed.activity || text
         : text;
@@ -153,6 +155,8 @@ function applySettings(next: Settings) {
   settings = next;
   document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((r) => (r.checked = r.value === next.listenMode));
   document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));
+  const handsFree = document.querySelector<HTMLElement>("label:has(input[value=handsfree])");
+  if (handsFree) handsFree.title = `Say “Hey ${next.wakeName}”, then talk.`;
   ui.keyBanner.hidden = !!keyFor(next, next.model);
   renderStatus();
 }

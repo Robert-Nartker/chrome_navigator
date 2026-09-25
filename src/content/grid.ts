@@ -28,7 +28,7 @@ const MAJOR = "M3 0V9M6 0V9M0 3H9M0 6H9";
 const MINOR = "M1 0V9M2 0V9M4 0V9M5 0V9M7 0V9M8 0V9M0 1H9M0 2H9M0 4H9M0 5H9M0 7H9M0 8H9";
 
 const STYLE = `
-  :host { all: initial; pointer-events: none; --accent: #5c7cfa; --ink: rgba(8, 12, 28, .9); --t: .24s cubic-bezier(.2, .8, .2, 1); }
+  :host { all: initial; pointer-events: none; --accent: #6b6bf0; --ink: rgba(24, 24, 27, .82); --t: .24s cubic-bezier(.2, .8, .2, 1); }
   [hidden] { display: none !important; }
   .frame, .loupe, .link, .hint, .ripple, .dot { position: fixed; z-index: 2147483647; pointer-events: none; box-sizing: border-box; }
 
@@ -53,12 +53,20 @@ const STYLE = `
   .tile { position: relative; display: grid; place-items: center; width: 100%; height: 100%; min-width: 0; min-height: 0; }
   .tile b, .preview i {
     position: relative; color: #fff; font-style: normal; line-height: 1; font-variant-numeric: tabular-nums;
-    font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    paint-order: stroke fill; -webkit-text-stroke-color: var(--ink); text-box: trim-both cap alphabetic;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     transition: font-size var(--t), opacity var(--t);
   }
-  .tile b { font-size: var(--big); font-weight: 800; -webkit-text-stroke-width: max(.12em, 3px); text-shadow: 0 .03em .18em rgba(0, 0, 0, .35); }
-  .preview i { font-size: var(--small); font-weight: 600; opacity: .62; -webkit-text-stroke-width: max(.16em, 2px); }
+  /* Each region's number on a dark tag (like macOS Voice Control); the next level's numbers stay faint. */
+  .tile b {
+    font-size: var(--big); font-weight: 600; letter-spacing: -.02em;
+    padding: .2em .42em; border-radius: .26em; background: var(--ink);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .5), 0 2px 10px rgba(0, 0, 0, .25);
+  }
+  .preview i {
+    font-size: var(--small); font-weight: 600; opacity: .75;
+    text-shadow: 0 0 2px rgba(0, 0, 0, .8), 0 0 6px rgba(0, 0, 0, .45);
+  }
   [data-labels="off"] .tile b, [data-preview]:not([data-preview="labels"]) .preview i { opacity: 0; }
   [data-preview="none"] .minor, [data-lines="off"] .lines { opacity: 0; }
   .instant, .instant * { transition: none !important; }
@@ -69,12 +77,12 @@ const STYLE = `
     box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 3px rgba(8, 12, 28, .35); }
   .loupe canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .link { inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .link path { fill: rgba(92, 124, 250, .14); stroke: rgba(150, 170, 255, .6); stroke-width: 1px; stroke-linejoin: round; }
+  .link path { fill: rgba(107, 107, 240, .14); stroke: rgba(165, 165, 255, .6); stroke-width: 1px; stroke-linejoin: round; }
 
   .hint {
     left: 50%; top: 14px; transform: translateX(-50%); max-width: calc(100vw - 32px); overflow: hidden;
     display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: 999px;
-    background: rgba(17, 20, 34, .88); color: #e6e9f5; white-space: nowrap;
+    background: rgba(24, 24, 27, .9); color: #e4e4e7; white-space: nowrap;
     font: 500 13px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: .01em;
     -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
     box-shadow: 0 8px 28px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .1);
@@ -84,7 +92,7 @@ const STYLE = `
   .hint em { font-style: normal; font-weight: 650; color: #fff; }
   .dots { display: flex; gap: 4px; }
   .dots span { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
-  .dots .on { background: var(--accent); box-shadow: 0 0 0 2px rgba(92, 124, 250, .3); }
+  .dots .on { background: var(--accent); box-shadow: 0 0 0 2px rgba(107, 107, 240, .3); }
   .path { padding: 2px 8px; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
 
   /* Where a click landed: rings (two for a double click) and a dot; amber for a right click. */
@@ -235,8 +243,8 @@ function layout(el: HTMLElement, r: Region, last: boolean, labels: boolean) {
   // Preview numbers need room: small previews keep just their lines, and the last level has none.
   el.dataset.preview = !labels || last || tile < 18 ? "none" : tile < 96 ? "lines" : "labels";
   Object.assign(el.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
-  el.style.setProperty("--big", `${clamp(tile * 0.42, Math.min(12, tile), 120)}px`);
-  el.style.setProperty("--small", `${clamp(tile * 0.075, 10, 20)}px`);
+  el.style.setProperty("--big", `${clamp(tile * 0.16, Math.min(12, tile), 40)}px`);
+  el.style.setProperty("--small", `${clamp(tile * 0.065, 10, 16)}px`);
 }
 
 /** Where the magnified view goes: beside the region, on the first side with room. */

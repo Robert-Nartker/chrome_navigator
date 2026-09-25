@@ -6,38 +6,30 @@
     <title>Navi settings</title>
     <link rel="stylesheet" href="shared.css" />
     <style>
-      main { max-width: 640px; margin: 40px auto; padding: 0 16px 40px; }
-      h1 { font-size: 26px; }
-      fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 16px; }
-      legend { font-weight: 700; padding: 0 6px; }
-      label { display: block; font-weight: 600; margin: 12px 0 4px; }
-      label:first-of-type { margin-top: 4px; }
-      .hint { font-weight: 400; color: var(--muted); font-size: 13px; margin: 2px 0 0; }
-      input[type=text], input[type=password], input[type=number], select, textarea {
-        width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
-      }
-      textarea { min-height: 70px; }
-      .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; }
-      .check input { margin-top: 4px; }
-      .row { display: flex; gap: 12px; }
-      .row > div { flex: 1; }
-      .actions { display: flex; gap: 10px; align-items: center; }
-      #saved { color: var(--good); font-weight: 600; }
-      .commands { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
-      .commands li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--surface); border-radius: 8px; }
-      .commands .what { font-size: 13px; }
-      .commands .empty { color: var(--muted); background: none; padding: 0; }
+      .commands { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
+      .commands li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--canvas); }
+      .commands .what { font-size: 12.5px; }
+      .commands .empty { color: var(--muted); border: 0; background: none; padding: 0; font-size: 12px; }
+      #saved { color: var(--good); font-size: 12.5px; }
+      #cmd-result { font-size: 12.5px; }
       #cmd-result.err { color: var(--bad); }
       #cmd-result.ok { color: var(--good); }
-      details summary { cursor: pointer; color: var(--accent); margin-top: 6px; }
+      #blockedSites { font-family: var(--mono); font-size: 12px; }
     </style>
   </head>
-  <body>
+  <body class="page">
+    <header class="page-header">
+      <img src="icons/icon48.png" width="28" height="28" alt="" />
+      <div>
+        <h1>Navi settings</h1>
+        <p class="lead">Keys, models, listening and voice. Everything is stored in this browser profile.</p>
+      </div>
+    </header>
     <main>
-      <h1>Navi settings</h1>
       <form id="settings">
         <fieldset>
-          <legend>AI (for commands the fast path doesn't know)</legend>
+          <legend>AI</legend>
+          <p class="section-hint">For commands Navi doesn't know by heart.</p>
           <label for="apiKey">Claude API key</label>
           <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…" />
           <label for="openaiKey">OpenAI API key (for GPT models)</label>
@@ -69,7 +61,8 @@
         </fieldset>
 
         <fieldset>
-          <legend>ElevenLabs (better hearing and a natural voice)</legend>
+          <legend>ElevenLabs</legend>
+          <p class="section-hint">Optional: better hearing in noisy places, and a natural voice.</p>
           <label for="elevenLabsKey">ElevenLabs API key (optional)</label>
           <input id="elevenLabsKey" type="password" autocomplete="off" placeholder="sk_…" />
           <p class="hint">
@@ -107,7 +100,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Voice feedback</legend>
+          <legend>Voice</legend>
           <label for="feedback">Confirmations</label>
           <select id="feedback">
             <option value="minimal">Minimal: speak answers and errors only</option>
@@ -184,7 +177,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Usage log (for your evaluation)</legend>
+          <legend>Usage log</legend>
           <p class="hint" id="metrics-summary">Loading…</p>
           <div class="actions">
             <button type="button" id="export-metrics">Export CSV</button>
@@ -193,7 +186,7 @@
           <p class="hint">Each command's path (fast or AI), latency, and steps. Stored only in this browser.</p>
         </fieldset>
 
-        <div class="actions">
+        <div class="actions savebar">
           <button type="submit" class="primary">Save</button>
           <span id="saved" role="status" aria-live="polite"></span>
         </div>

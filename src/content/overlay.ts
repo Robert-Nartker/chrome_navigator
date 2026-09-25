@@ -13,16 +13,18 @@ let refreshTimer: number | undefined;
 const STYLE = `
   :host { all: initial; }
   .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2147483647; }
+  /* Dark tags with a light rim: readable on light and dark pages alike. */
   .badge {
     position: fixed; transform: translate(-30%, -40%);
-    font: 700 12px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: #1a1400; background: #ffd43b; border: 1px solid #a07c00;
-    border-radius: 4px; padding: 2px 4px; min-width: 12px; text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,.35);
+    font: 600 11px/1 ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+    color: #fafafa; background: rgba(24, 24, 27, .92);
+    border-radius: 4px; padding: 3px 4px; min-width: 16px; text-align: center; box-sizing: border-box;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .75), 0 1px 4px rgba(0, 0, 0, .3);
   }
   .flash {
-    position: fixed; border: 3px solid #4c6ef5; border-radius: 6px;
-    background: rgba(76,110,245,.15); transition: opacity .5s ease; pointer-events: none;
+    position: fixed; border: 2px solid #6b6bf0; border-radius: 6px;
+    background: rgba(107, 107, 240, .12); transition: opacity .5s ease; pointer-events: none;
   }
 `;
 
