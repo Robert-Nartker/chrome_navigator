@@ -77,7 +77,7 @@ export class ScribeEngine implements SpeechEngine {
   }
 
   private async openAudio() {
-    this.stream = await openCleanMic();
+    this.stream = await openCleanMic(true);
     // The AudioContext resamples the mic to 16 kHz for us.
     this.context = new AudioContext({ sampleRate: 16000 });
     await this.context.audioWorklet.addModule(chrome.runtime.getURL("pcm-worklet.js"));

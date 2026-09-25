@@ -69,7 +69,36 @@ const speaker = new Speaker(
   },
 );
 
+interface LogEntry {
+  kind: LogKind;
+  text: string;
+  meta?: string;
+}
+
+// The log is kept for the browser session, so closing and reopening the panel doesn't wipe it.
+const LOG_KEY = "panelLog";
+let logEntries: LogEntry[] = [];
+let saveTimer: number | undefined;
+
 function log(kind: LogKind, text: string, meta?: string) {
+  logEntries = [...logEntries, { kind, text, meta }].slice(-200);
+  renderLogEntry(kind, text, meta);
+  window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => void chrome.storage.session.set({ [LOG_KEY]: logEntries }).catch(() => undefined), 300);
+}
+
+/** Shows the log from earlier in this browser session; false if there was none. */
+async function restoreLog(): Promise<boolean> {
+  const data: Record<string, unknown> = await chrome.storage.session.get(LOG_KEY).catch(() => ({}));
+  const stored = data[LOG_KEY] as LogEntry[] | undefined;
+  if (!stored?.length) return false;
+  logEntries = [...stored, ...logEntries].slice(-200);
+  ui.log.replaceChildren();
+  for (const e of logEntries) renderLogEntry(e.kind, e.text, e.meta);
+  return true;
+}
+
+function renderLogEntry(kind: LogKind, text: string, meta?: string) {
   const li = document.createElement("li");
   li.className = kind;
   li.textContent = text;
@@ -209,11 +238,15 @@ function handleInterim(text: string) {
   if (speaker.busy) return;
   const asleep = settings.listenMode === "handsfree" && session.current === "sleeping";
   // While asleep, only show speech once the wake word is heard (nothing else is acted on).
-  ui.interim.textContent = asleep && !session.hearsWakePhrase(text) ? "" : text;
+  const shown = asleep && !session.hearsWakePhrase(text) ? "" : text;
+  // Keep a runaway transcript (e.g. noise heard as words) to one readable line.
+  ui.interim.textContent = shown.length > 120 ? `…${shown.slice(-120)}` : shown;
 }
 
 function buildEngine(): SpeechEngine {
-  const phrases = [settings.wakeName, `Hey ${settings.wakeName}`, ...Object.keys(SITES).slice(0, 40)];
+  // Only the wake name is boosted, gently. Boosting site names made Chrome "hear" them in background
+  // noise ("testing" came out as "hey navi wikipedia tiktok").
+  const phrases = [settings.wakeName, `Hey ${settings.wakeName}`];
   return new WebSpeechEngine(
     { lang: settings.lang, preferOnDevice: true, allowCloud: settings.allowCloudSpeech, phrases },
     {
@@ -280,22 +313,32 @@ function stopScribe() {
   scribe = null;
 }
 
+let listenGeneration = 0;
+
 async function startListening() {
   if (!speechSupported()) {
     log("error", "Speech recognition isn't available in this browser.");
     return;
   }
   micError = false;
+  const generation = ++listenGeneration;
   stopScribe();
   engine?.stop();
-  engine = buildEngine();
-  await engine.start();
+  const next = buildEngine();
+  engine = next;
+  await next.start();
+  // A newer start or a stop happened meanwhile: never leave two recognizers running.
+  if (generation !== listenGeneration) {
+    next.stop();
+    return;
+  }
   if (settings.listenMode === "push") session.wake();
   if (settings.listenMode === "push" || session.current === "awake") startScribe();
   renderStatus();
 }
 
 function stopListening() {
+  listenGeneration++;
   stopScribe();
   engine?.stop();
   engine = null;
@@ -437,10 +480,13 @@ async function init() {
     devStatus.hidden = false;
     void startDevReload((text) => (devStatus.textContent = text));
   }
+  const restored = await restoreLog();
   applySettings(await loadSettings());
   onSettingsChanged(applySettings);
   const granted = await checkMicPermission();
-  log("info", `Hi! ${settings.listenMode === "handsfree" ? `Turn on the mic, then say “Hey ${settings.wakeName}”.` : "Click the mic and say a command."} Or type below.`);
+  if (!restored) {
+    log("info", `Hi! ${settings.listenMode === "handsfree" ? `Turn on the mic, then say “Hey ${settings.wakeName}”.` : "Click the mic and say a command."} Or type below.`);
+  }
   if (granted && settings.listenMode === "handsfree") void startListening();
 }
 

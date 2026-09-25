@@ -220,6 +220,28 @@ test("AI path: Claude picks the element, extension clicks it, reply is logged", 
   expect(JSON.stringify(secondReq.body.messages)).toContain("New observation");
 });
 
+test("the log survives closing and reopening the panel", async ({ panel, context }) => {
+  await run(panel, "what time is it");
+  await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
+  const url = panel.url();
+  await panel.waitForTimeout(500); // the log is saved shortly after each entry
+  await panel.close();
+  const reopened = await context.newPage();
+  await reopened.goto(url);
+  await reopened.waitForFunction(() => "navi" in window);
+  await expect(reopened.locator("#log li.user").filter({ hasText: "what time is it" })).toHaveCount(1);
+  await expect(reopened.locator("#log li.navi").last()).toContainText(/It's \d/);
+  // No second greeting when there's history.
+  await expect(reopened.locator("#log li.info").filter({ hasText: "Hi!" })).toHaveCount(1);
+});
+
+test("hands-free: stray words before the name still wake Navi", async ({ panel, site }) => {
+  const final = (text: string) =>
+    panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);
+  await final("uh tiktok hey navi click sign in");
+  await expect(site.locator("#result")).toHaveText("signed in");
+});
+
 test("voice session: ignores speech until 'Hey Navi', then takes commands without the name", async ({ panel, site }) => {
   const final = (text: string) =>
     panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);

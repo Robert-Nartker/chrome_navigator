@@ -91,11 +91,16 @@ export interface WakeWords {
 }
 
 /** Strips the wake phrase ("hey navi", "navi,") from the start of an utterance. */
-export function stripWakePhrase(text: string, words: WakeWords): { woke: boolean; rest: string } {
+/**
+ * Finds the wake name at the start of an utterance. `lenient` (used while asleep) also accepts
+ * up to three stray words before it, which speech engines often add ("uh tiktok Navi open…").
+ */
+export function stripWakePhrase(text: string, words: WakeWords, lenient = false): { woke: boolean; rest: string } {
   const lower = text.toLowerCase().trim();
+  const lead = lenient ? "^(?:[\\w']+\\s+){0,3}?" : "^";
   const patterns = [
-    ...words.exact.map((w) => `^(?:(?:hey|hi|ok(?:ay)?|yo)\\s+)?${escapeRegExp(w)}\\b`),
-    ...words.misheard.map((w) => `^(?:hey|hi|ok(?:ay)?|yo)\\s+${escapeRegExp(w)}\\b`),
+    ...words.exact.map((w) => `${lead}(?:(?:hey|hi|ok(?:ay)?|yo)\\s+)?${escapeRegExp(w)}\\b`),
+    ...words.misheard.map((w) => `${lead}(?:hey|hi|ok(?:ay)?|yo)\\s+${escapeRegExp(w)}\\b`),
   ];
   for (const pattern of patterns) {
     const m = lower.match(new RegExp(`${pattern}[\\s,.!?]*`, "i"));

@@ -251,3 +251,16 @@ describe("everyday phrasings", () => {
     }
   });
 });
+
+describe("wake phrase with stray words", () => {
+  const words = wakeAliases("Navi");
+  it("tolerates up to three stray words before the name only when asked (asleep)", () => {
+    expect(stripWakePhrase("I tiktok tiktok Navi open wikipedia", words, true)).toEqual({ woke: true, rest: "open wikipedia" });
+    expect(stripWakePhrase("uh hey navi scroll down", words, true)).toEqual({ woke: true, rest: "scroll down" });
+    expect(stripWakePhrase("I tiktok tiktok Navi open wikipedia", words).woke).toBe(false);
+    expect(stripWakePhrase("one two three four navi scroll down", words, true).woke).toBe(false);
+  });
+  it("leaves the name alone mid-command once awake", () => {
+    expect(stripWakePhrase("open navi settings", words)).toEqual({ woke: false, rest: "open navi settings" });
+  });
+});

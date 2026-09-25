@@ -47,16 +47,17 @@ export class WakeSession {
 
   /** True if interim (partial) speech starts with the wake name, for instant visual feedback. */
   hearsWakePhrase(interim: string): boolean {
-    return stripWakePhrase(interim, this.aliases).woke;
+    return stripWakePhrase(interim, this.aliases, true).woke;
   }
 
   /** Decides what to do with a finished utterance. */
   handle(utterance: string): SessionDecision {
-    const { woke, rest } = stripWakePhrase(utterance, this.aliases);
+    this.expireIfIdle();
+    // While asleep, stray words before the name are tolerated; once awake, only a leading name is removed.
+    const { woke, rest } = stripWakePhrase(utterance, this.aliases, this.options.mode === "handsfree" && this.state === "sleeping");
     if (this.options.mode === "push") {
       return { command: rest || null, woke: false };
     }
-    this.expireIfIdle();
     if (this.state === "sleeping") {
       if (!woke) return { command: null, woke: false };
       this.wake();

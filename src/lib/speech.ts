@@ -81,11 +81,12 @@ export async function installOnDevice(lang: string): Promise<boolean> {
 }
 
 /**
- * Asks for the strongest echo cancellation available: "all" (Chrome 141+) also removes
- * audio the computer itself is playing, such as a podcast or video.
+ * Opens the mic with noise suppression. With `systemAudio`, asks for echo cancellation "all"
+ * (Chrome 141+), which also removes audio the computer itself is playing, such as a podcast.
  */
-export async function openCleanMic(): Promise<MediaStream> {
+export async function openCleanMic(systemAudio = false): Promise<MediaStream> {
   const base = { noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+  if (!systemAudio) return navigator.mediaDevices.getUserMedia({ audio: { ...base, echoCancellation: true } });
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: { ...base, echoCancellation: "all" as unknown as boolean },
@@ -152,6 +153,7 @@ export class WebSpeechEngine implements SpeechEngine {
     }
     this.callbacks.onInfo?.(`Speech: ${this.label}`);
     await this.openMic();
+    if (!this.wanted) return this.closeMic();
     this.launch(Ctor);
   }
 
@@ -312,7 +314,7 @@ export class WebSpeechEngine implements SpeechEngine {
     // Chrome only supports phrase boosting on-device; setting it otherwise is an error.
     if (!this.onDevice || !Phrase || !("phrases" in rec) || this.options.phrases.length === 0) return;
     try {
-      rec.phrases = this.options.phrases.map((p) => new Phrase(p, 5));
+      rec.phrases = this.options.phrases.map((p) => new Phrase(p, 1.5));
     } catch {
       // Phrase biasing is optional.
     }
