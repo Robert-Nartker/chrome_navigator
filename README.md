@@ -60,9 +60,19 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Media | "pause", "play", "skip ahead 30 seconds", "mute" |
 | Reading | "read this page", "where am I", "zoom in" |
 | Anything else (AI) | "open the first video", "reply to this email saying thanks", "what's this article about?", "add this to my cart" |
+| Your own commands | "add a command open wordle", "make study mode open Canvas and play lofi on YouTube", "what are my commands", "delete the wordle command" |
 | Control | "stop" (interrupts speech or a running task), "what can I say" |
 
 You can also type commands in the side panel.
+
+## Personal voice commands
+
+Ask Navi to make shortcuts for things you do a lot:
+- "add a command open wordle": opens the Wordle URL. Navi fills in the URL itself.
+- "make a command study mode that opens Canvas in a new tab and plays lofi on YouTube": runs several steps in order.
+- "add play {song} on spotify": `{song}` is filled in from what you say.
+
+Personal commands run instantly, with no AI call. Each step either opens a web address or runs something you could have said yourself, so a personal command can't do anything you couldn't already do by voice. The AI can't change settings, privacy options, blocked sites, your API key, or built-in commands like "stop" and "go to sleep". Commands are stored in `chrome.storage.sync`, so they follow you to every computer signed into the same Chrome profile. You can also view, add and delete them in **Settings → Your voice commands**.
 
 ## How it works
 

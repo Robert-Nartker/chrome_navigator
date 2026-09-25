@@ -289,3 +289,63 @@ test("fast mode: sends speed=fast, and falls back to standard speed if unavailab
   expect(speeds).toEqual(["fast", undefined]);
   void site;
 });
+
+test("personal commands: the AI saves one, then it runs instantly without the AI", async ({ panel, site, context, baseUrl }) => {
+  const aboutUrl = `${baseUrl}/about.html`;
+  let calls = 0;
+  await context.route("https://api.anthropic.com/**", async (route) => {
+    calls++;
+    const body = route.request().postDataJSON() as { model: string; messages: unknown[] };
+    const first = body.messages.length === 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: `msg_${calls}`, type: "message", role: "assistant", model: body.model, stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 },
+        stop_reason: first ? "tool_use" : "end_turn",
+        content: first
+          ? [{
+              type: "tool_use", id: "toolu_save", name: "save_command",
+              input: {
+                phrases: ["open the about page", "about page"],
+                steps: [{ type: "open", value: aboutUrl, new_tab: false }],
+                description: "Opens the About page.",
+              },
+            }]
+          : [{ type: "text", text: "Done. Say open the about page anytime." }],
+      }),
+    });
+  });
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+
+  await site.click("h1");
+  await run(panel, "add a command called open the about page that takes me to the about page");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Say open the about page anytime");
+  expect(calls).toBe(2);
+
+  // Now it's a personal command: runs on the fast path, no API call.
+  await run(panel, "Open the about page.");
+  await expect(site).toHaveURL(/about\.html/);
+  expect(calls).toBe(2);
+  await run(panel, "what are my commands");
+  await expect(panel.locator("#log li.navi").last()).toContainText("open the about page");
+});
+
+test("personal commands: placeholders and chaining other commands", async ({ panel, site }) => {
+  await panel.evaluate(() =>
+    chrome.storage.sync.set({
+      "cmd:find": {
+        id: "find",
+        phrases: ["find {thing} here"],
+        steps: [{ type: "run", command: "search this site for {thing}" }],
+        description: "",
+        updatedAt: "",
+      },
+    }),
+  );
+  await panel.waitForTimeout(200);
+  await run(panel, "find blue shoes here");
+  await expect(site).toHaveURL(/search\.html\?q=blue\+shoes/);
+});

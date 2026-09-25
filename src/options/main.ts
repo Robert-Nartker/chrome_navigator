@@ -1,3 +1,4 @@
+import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { MODELS, type Settings, loadSettings, saveSettings } from "../lib/settings";
 
@@ -96,3 +97,62 @@ document.getElementById("clear-metrics")?.addEventListener("click", async () => 
 });
 
 void showMetrics();
+
+const commandList = document.getElementById("commands") as HTMLUListElement;
+const cmdResult = document.getElementById("cmd-result") as HTMLElement;
+
+async function showCommands() {
+  const commands = await loadCommands();
+  commandList.replaceChildren();
+  if (!commands.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "No commands yet.";
+    commandList.append(li);
+    return;
+  }
+  for (const command of commands) {
+    const li = document.createElement("li");
+    const what = document.createElement("span");
+    what.className = "what";
+    what.textContent = describeCommand(command);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.textContent = "Delete";
+    del.setAttribute("aria-label", `Delete command ${command.phrases[0]}`);
+    del.addEventListener("click", async () => {
+      await deleteCommand(command.id);
+      await showCommands();
+    });
+    li.append(what, del);
+    commandList.append(li);
+  }
+}
+
+document.getElementById("cmd-add")?.addEventListener("click", async () => {
+  const phrases = (document.getElementById("cmd-phrases") as HTMLInputElement).value.split(",");
+  const type = (document.getElementById("cmd-type") as HTMLSelectElement).value;
+  const value = (document.getElementById("cmd-value") as HTMLTextAreaElement).value;
+  const steps: Step[] =
+    type === "open"
+      ? [{ type: "open", url: value.trim(), newTab: false }]
+      : value
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((command) => ({ type: "run", command }));
+  try {
+    const { command } = await saveCommand({ phrases, steps });
+    cmdResult.className = "ok";
+    cmdResult.textContent = `Saved ${describeCommand(command)}`;
+    (document.getElementById("cmd-phrases") as HTMLInputElement).value = "";
+    (document.getElementById("cmd-value") as HTMLTextAreaElement).value = "";
+  } catch (err) {
+    cmdResult.className = "err";
+    cmdResult.textContent = err instanceof Error ? err.message : String(err);
+  }
+  await showCommands();
+});
+
+onCommandsChanged(() => void showCommands());
+void showCommands();

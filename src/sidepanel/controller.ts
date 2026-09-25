@@ -14,6 +14,16 @@ import {
   waitForLoad,
   zoom,
 } from "../lib/browser";
+import {
+  type CommandMatch,
+  type CustomCommand,
+  MAX_DEPTH,
+  fillStep,
+  isListCommandsRequest,
+  loadCommands,
+  matchCommand,
+  onCommandsChanged,
+} from "../lib/custom-commands";
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
 import { type Intent, parseCommand } from "../lib/parser";
@@ -29,10 +39,16 @@ export interface ControllerUi {
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, show numbers, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. Say go to sleep when you're done.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, show numbers, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done.";
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
+
+interface Outcome {
+  intent?: string;
+  /** Set when the AI handled (part of) the command. */
+  agent?: AgentResult;
+}
 
 export class Controller {
   private readonly agent: NaviAgent;
@@ -40,6 +56,7 @@ export class Controller {
   private queue: string[] = [];
   private busy = false;
   private numbers = false;
+  private commands: CustomCommand[] = [];
 
   constructor(
     private readonly getSettings: () => Settings,
@@ -48,6 +65,12 @@ export class Controller {
     private readonly hooks: { onSleep(): void; onActivity(): void; onMetric?(metric: CommandMetric): void },
   ) {
     this.agent = new NaviAgent(getSettings);
+    const refresh = () =>
+      void loadCommands()
+        .then((commands) => (this.commands = commands))
+        .catch(() => undefined);
+    refresh();
+    onCommandsChanged(refresh);
   }
 
   get isBusy() {
@@ -69,8 +92,7 @@ export class Controller {
   async run(text: string): Promise<void> {
     const command = text.trim();
     if (!command) return;
-    const intent = parseCommand(command);
-    if (intent?.type === "stop") {
+    if (parseCommand(command)?.type === "stop") {
       this.ui.log("user", command);
       this.cancel();
       return;
@@ -91,28 +113,13 @@ export class Controller {
     let metric: Omit<CommandMetric, "t" | "command"> | null = null;
     let reply: string | null = null;
     try {
-      let handled = false;
-      if (intent) {
-        try {
-          await this.execute(intent);
-          handled = true;
-        } catch (err) {
-          if (!(err instanceof Unhandled)) throw err;
-          if (!this.getSettings().apiKey && err.message) throw new Error(err.message);
-        }
-      }
-      if (!handled && !this.getSettings().apiKey) {
-        throw new Error(
-          "I don't know that command yet. Say what can I say for examples, or add a Claude API key in settings for anything else.",
-        );
-      }
-      if (!handled) {
-        earcons.thinking();
-        const result = await this.runAgent(command, controller.signal);
-        metric = { path: "ai", ms: result.totalMs, modelMs: result.modelMs, steps: result.steps, model: this.getSettings().model };
-        reply = result.reply;
+      const outcome = await this.dispatch(command, controller.signal, 0);
+      if (outcome.agent) {
+        const { agent } = outcome;
+        metric = { path: "ai", intent: outcome.intent, ms: elapsed(), modelMs: agent.modelMs, steps: agent.steps, model: this.getSettings().model };
+        reply = agent.reply;
       } else {
-        metric = { path: "fast", intent: intent?.type, ms: elapsed() };
+        metric = { path: "fast", intent: outcome.intent, ms: elapsed() };
         this.ui.log("step", `Fast path · ${metric.ms} ms`);
       }
     } catch (err) {
@@ -121,7 +128,7 @@ export class Controller {
         this.ui.log("info", "Cancelled.");
       } else {
         const message = err instanceof Error ? err.message : String(err);
-        metric = { path: "error", intent: intent?.type, ms: elapsed(), error: message };
+        metric = { path: "error", ms: elapsed(), error: message };
         this.ui.log("error", message);
         earcons.error();
         reply = message;
@@ -141,6 +148,66 @@ export class Controller {
       const next = this.queue.shift();
       if (next) void this.run(next);
     }
+  }
+
+  /** Personal commands first, then built-in commands, then the AI. */
+  private async dispatch(command: string, signal: AbortSignal, depth: number): Promise<Outcome> {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+    const custom = matchCommand(command, this.commands);
+    if (custom) return this.runCustom(custom, signal, depth);
+
+    if (isListCommandsRequest(command)) {
+      const text = this.commands.length
+        ? `You have ${this.commands.length} command${this.commands.length === 1 ? "" : "s"}: ${this.commands
+            .map((c) => c.phrases[0])
+            .join(", ")}.`
+        : "You don't have any commands yet. Try saying: add a command open wordle.";
+      this.ui.log("navi", text);
+      await this.say(text);
+      return { intent: "listCommands" };
+    }
+
+    const intent = parseCommand(command);
+    if (intent) {
+      try {
+        await this.execute(intent);
+        return { intent: intent.type };
+      } catch (err) {
+        if (!(err instanceof Unhandled)) throw err;
+        if (!this.getSettings().apiKey && err.message) throw new Error(err.message);
+      }
+    }
+    if (!this.getSettings().apiKey) {
+      throw new Error(
+        "I don't know that command yet. Say what can I say for examples, or add a Claude API key in settings for anything else.",
+      );
+    }
+    earcons.thinking();
+    return { intent: "ai", agent: await this.runAgent(command, signal) };
+  }
+
+  private async runCustom(match: CommandMatch, signal: AbortSignal, depth: number): Promise<Outcome> {
+    const { command, params } = match;
+    if (depth >= MAX_DEPTH) throw new Error(`“${command.phrases[0]}” runs other commands too many levels deep.`);
+    this.ui.log("step", `Your command: ${command.phrases[0]}`);
+    let agent: AgentResult | undefined;
+    let lastTab: chrome.tabs.Tab | undefined;
+    for (const step of command.steps.map((s) => fillStep(s, params))) {
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (step.type === "open") {
+        lastTab = await navigate(step.url, step.newTab);
+      } else {
+        const outcome = await this.dispatch(step.command, signal, depth + 1);
+        agent = outcome.agent ?? agent;
+        lastTab = undefined;
+      }
+    }
+    if (depth === 0 && !agent) {
+      if (lastTab) await this.announcePage(lastTab, "Opened");
+      else await this.confirm(`Done: ${command.phrases[0]}`);
+    }
+    return { intent: "custom", agent };
   }
 
   private async runAgent(command: string, signal: AbortSignal): Promise<AgentResult> {

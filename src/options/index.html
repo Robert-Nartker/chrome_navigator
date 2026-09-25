@@ -23,6 +23,13 @@
       .row > div { flex: 1; }
       .actions { display: flex; gap: 10px; align-items: center; }
       #saved { color: var(--good); font-weight: 600; }
+      .commands { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+      .commands li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--surface); border-radius: 8px; }
+      .commands .what { font-size: 13px; }
+      .commands .empty { color: var(--muted); background: none; padding: 0; }
+      #cmd-result.err { color: var(--bad); }
+      #cmd-result.ok { color: var(--good); }
+      details summary { cursor: pointer; color: var(--accent); margin-top: 6px; }
     </style>
   </head>
   <body>
@@ -98,6 +105,28 @@
           <p class="hint">Otherwise the AI only ever sees the names of buttons, links, and fields. “Read this page” always reads aloud locally.</p>
           <label for="blockedSites">Never use the AI on these sites (one per line)</label>
           <textarea id="blockedSites" placeholder="chase.com&#10;mychart"></textarea>
+        </fieldset>
+
+        <fieldset>
+          <legend>Your voice commands</legend>
+          <p class="hint">Easiest: just tell Navi, e.g. “add a command open wordle” or “make study mode open Canvas and play lofi on YouTube”. Commands sync to every computer signed into this Chrome profile.</p>
+          <ul id="commands" class="commands"></ul>
+          <details>
+            <summary>Add one here</summary>
+            <label for="cmd-phrases">Say (comma-separated; use {name} for a variable part)</label>
+            <input id="cmd-phrases" type="text" placeholder="open wordle, play wordle" />
+            <label for="cmd-type">Action</label>
+            <select id="cmd-type">
+              <option value="open">Open a website</option>
+              <option value="run">Run other commands (one per line)</option>
+            </select>
+            <label for="cmd-value">Website or commands</label>
+            <textarea id="cmd-value" placeholder="https://www.nytimes.com/games/wordle/index.html"></textarea>
+            <div class="actions" style="margin-top:10px">
+              <button type="button" id="cmd-add">Add command</button>
+              <span id="cmd-result" role="status" aria-live="polite"></span>
+            </div>
+          </details>
         </fieldset>
 
         <fieldset>

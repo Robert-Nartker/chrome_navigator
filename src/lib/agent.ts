@@ -14,6 +14,7 @@ import {
   waitForLoad,
 } from "./browser";
 import { KEYS, type Key, type PageSnapshot, type ScrollAmount, type ScrollDirection } from "./protocol";
+import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./custom-commands";
 import { isBlocked, type Settings } from "./settings";
 
 type Tool = Anthropic.Beta.BetaTool;
@@ -34,7 +35,14 @@ Rules:
 - The user may be blind or unable to use their hands. Never tell them to click or look at something themselves.
 - Commands come from speech recognition and may contain transcription errors; interpret them sensibly (for example "get hub" means GitHub).
 - To open a website, call navigate with its URL. To search the web, navigate to a search URL.
-- When the task is done, stop calling tools and reply with the spoken sentence: plain text, no markdown, no element ids, under 25 words unless you are reading content the user asked for.`;
+- When the task is done, stop calling tools and reply with the spoken sentence: plain text, no markdown, no element ids, under 25 words unless you are reading content the user asked for.
+
+Personal commands: the user can create their own voice shortcuts. When they ask to add, change, or remove one, use save_command, delete_command, or list_commands.
+- A command is one or more phrases plus steps. Use an "open" step with the exact URL for websites (use your knowledge of the right URL, e.g. Wordle is https://www.nytimes.com/games/wordle/index.html). Use a "run" step with a plain spoken command for anything else, exactly as the user would say it (e.g. "search youtube for lofi beats", "click sign in", or a natural request like "open my latest unread email").
+- Put variable parts in braces, like phrase "play {song} on spotify" with step run "search spotify for {song}".
+- Include natural variants of the phrase if the user didn't give exact wording (e.g. "open wordle" and "play wordle").
+- Saving is fine without confirmation; say what the command will do in one short sentence. Ask before deleting a command.
+- You cannot change Navi's settings, privacy options, blocked sites, API key, or built-in commands. If asked, say so briefly.`;
 
 const idProp = { type: "integer", description: "Element id from the most recent observation." } as const;
 
@@ -83,7 +91,32 @@ const TOOLS: Tool[] = [
   tool("wait", "Wait for slow content to load, then observe again.", {
     seconds: { type: "integer", enum: [1, 2, 3, 5] },
   }),
+  tool("save_command", "Create or update one of the user's personal voice commands. Replaces an existing command that uses any of the same phrases.", {
+    phrases: { type: "array", items: { type: "string" }, description: "What the user says, lowercase, e.g. [\"open wordle\", \"play wordle\"]. Use {name} for variable parts." },
+    steps: {
+      type: "array",
+      description: "Run in order.",
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["open", "run"] },
+          value: { type: "string", description: "For open: the full https URL. For run: a spoken command." },
+          new_tab: { type: "boolean", description: "For open steps: open in a new tab." },
+        },
+        required: ["type", "value", "new_tab"],
+        additionalProperties: false,
+      },
+    },
+    description: { type: "string", description: "One short sentence describing what it does." },
+  }),
+  tool("delete_command", "Delete one of the user's personal voice commands (only after they confirm).", {
+    phrase: { type: "string", description: "Any phrase of the command to delete." },
+  }),
+  tool("list_commands", "List the user's personal voice commands.", {}),
 ];
+
+/** Tools that don't touch the page, so no fresh page observation is needed after them. */
+const NON_PAGE_TOOLS = new Set(["read_page", "save_command", "delete_command", "list_commands"]);
 
 export interface AgentHooks {
   signal: AbortSignal;
@@ -291,7 +324,7 @@ export class NaviAgent {
       }
       try {
         const outcome = await this.execute(use.name, input, gen, hooks);
-        needsObservation ||= use.name !== "read_page";
+        needsObservation ||= !NON_PAGE_TOOLS.has(use.name);
         results.push({ type: "tool_result", tool_use_id: use.id, content: outcome });
       } catch (err) {
         needsObservation = true;
@@ -394,6 +427,30 @@ export class NaviAgent {
         const seconds = Math.min(5, Math.max(1, Number(input.seconds) || 1));
         await new Promise((r) => setTimeout(r, seconds * 1000));
         return `waited ${seconds}s`;
+      }
+      case "save_command": {
+        const steps = (input.steps as { type: string; value: string; new_tab: boolean }[]).map((st) =>
+          st.type === "open"
+            ? { type: "open" as const, url: st.value, newTab: !!st.new_tab }
+            : { type: "run" as const, command: st.value },
+        );
+        const { command, replaced } = await saveCommand({
+          phrases: input.phrases as string[],
+          steps,
+          description: String(input.description ?? ""),
+        });
+        hooks.onStep?.(`${replaced ? "Updated" : "Saved"} command ${describeCommand(command)}`);
+        return `${replaced ? "Updated" : "Saved"}: ${describeCommand(command)}`;
+      }
+      case "delete_command": {
+        const removed = await deleteCommand(String(input.phrase));
+        if (!removed) return `No personal command matches "${input.phrase}".`;
+        hooks.onStep?.(`Deleted command “${removed.phrases[0]}”`);
+        return `Deleted: ${describeCommand(removed)}`;
+      }
+      case "list_commands": {
+        const commands = await loadCommands();
+        return commands.length ? commands.map(describeCommand).join("\n") : "The user has no personal commands yet.";
       }
       default:
         throw new Error(`Unknown tool ${name}`);
