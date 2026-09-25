@@ -34,7 +34,7 @@ go back; go back <n> pages; go forward; refresh; go home (site home page); next 
 new tab; new window; close tab; close other tabs; duplicate tab; pin tab; next tab; previous tab; first tab; last tab; switch back; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
 find <text> (on this page); find next; select all; undo; clear it; new line; print
 what did you say; talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
-open <site or URL> (optionally "in a new tab"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query>; search this site for <query>
+open <site or URL> (optionally "in a new tab"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
 show numbers; hide numbers; click <number>; click <button or link name>
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
@@ -43,7 +43,7 @@ zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
 go to sleep; stop
 
-Prefer "command" when the intent clearly matches one. Prefer "ignore" over guessing when the text doesn't sound like an instruction.`;
+Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Prefer "ignore" over guessing when the text doesn't sound like an instruction.`;
 
 const SCHEMA = {
   type: "object",

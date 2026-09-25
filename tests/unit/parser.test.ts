@@ -63,6 +63,13 @@ describe("parseCommand fast path", () => {
     expect(parseCommand("go to github dot com")).toMatchObject({ type: "open", url: "https://github.com" });
     expect(parseCommand("take me to docs.python.org")).toMatchObject({ type: "open", url: "https://docs.python.org" });
     expect(parseCommand("open gmail in a new tab")).toMatchObject({ type: "open", url: "https://mail.google.com", newTab: true });
+    expect(parseCommand("search youtube for lofi beats in a new tab")).toMatchObject({
+      type: "search",
+      engine: "youtube",
+      query: "lofi beats",
+      newTab: true,
+    });
+    expect(parseCommand("search for cats")).toMatchObject({ type: "search", query: "cats", newTab: false });
     expect(parseCommand("pull up my email")).toMatchObject({ type: "open", url: "https://mail.google.com" });
   });
 

@@ -21,6 +21,7 @@
 //   --mock                   fake API replies (no keys, no cost) to test the harness
 //   --headed                 show the browser
 import { chromium } from "@playwright/test";
+import { execSync } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -109,12 +110,25 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://localhost:${server.address().port}`;
 
 const sandboxChromium = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-const context = await chromium.launchPersistentContext(await mkdtemp(path.join(tmpdir(), "navibench-")), {
-  executablePath: process.env.NAVI_CHROMIUM ?? (existsSync(sandboxChromium) ? sandboxChromium : undefined),
-  headless: !args.headed,
-  viewport: { width: 1280, height: 800 },
-  args: [`--disable-extensions-except=${path.resolve("dist")}`, `--load-extension=${path.resolve("dist")}`],
-});
+const executablePath = process.env.NAVI_CHROMIUM ?? (existsSync(sandboxChromium) ? sandboxChromium : undefined);
+// Regular Chrome no longer loads unpacked extensions from the command line, so the benchmark uses
+// Playwright's own Chromium ("chromium" channel: full browser, which extensions need, even headless).
+const launch = async () =>
+  chromium.launchPersistentContext(await mkdtemp(path.join(tmpdir(), "navibench-")), {
+    ...(executablePath ? { executablePath } : { channel: "chromium" }),
+    headless: !args.headed,
+    viewport: { width: 1280, height: 800 },
+    args: [`--disable-extensions-except=${path.resolve("dist")}`, `--load-extension=${path.resolve("dist")}`],
+  });
+let context;
+try {
+  context = await launch();
+} catch (err) {
+  if (!/Executable doesn't exist/.test(String(err))) throw err;
+  console.log("First run: downloading the test browser (about 150 MB, once)...");
+  execSync("npx playwright install chromium", { stdio: "inherit" });
+  context = await launch();
+}
 if (mock) await installMocks(context);
 
 let [worker] = context.serviceWorkers();

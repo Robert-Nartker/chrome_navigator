@@ -149,7 +149,7 @@ The e2e suite covers clicking by label and by number, badges, scrolling, typing 
 
 NaviBench compares models on cost, accuracy and speed, and ends with what 20 hours of use would cost. It runs through the real extension in a test browser.
 
-- **Router suite:** `bench/router-cases.json` has 60 labeled phrases. That's 28 loosely worded or misheard commands ("Havi go to sleep", "scroll down a smidge more"), 18 real tasks for the AI, and 14 bits of background chatter to ignore ("mom I'm on a call", song lyrics, YouTuber intros). It scores the route, the exact command, latency, and cost per call.
+- **Router suite:** `bench/router-cases.json` has 62 labeled phrases. That's 29 loosely worded or misheard commands ("Havi go to sleep", "scroll down a smidge more"), 19 real tasks for the AI, and 14 bits of background chatter to ignore ("mom I'm on a call", song lyrics, YouTuber intros). It scores the route, the exact command, latency, and cost per call.
 - **Agent suite:** `bench/sites/` has small, realistic web apps: an inbox, a shop, a video site, a signup form, and an article containing a prompt-injection line. `bench/tasks.json` has 17 spoken tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must not send without a yes, and the summary must not repeat the injected instruction. By default 8 core tasks run; pass `--tasks all` for all 17.
 
 **Setup:** put your keys in a `.env` file in the repo root. It's git-ignored. You only need the providers you want to test:

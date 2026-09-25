@@ -27,6 +27,7 @@
   { "heard": "type in hello world and then hit enter", "expect": "command", "command": "type hello world and press enter" },
   { "heard": "pause it real quick", "expect": "command", "command": "pause" },
   { "heard": "keep scrolling for me", "expect": "command", "command": "start scrolling" },
+  { "heard": "throw some cat videos up on youtube in a new tab", "expect": "command", "command": "search youtube for cat videos in a new tab" },
 
   { "heard": "reply to Sarah saying I'll be late", "expect": "agent" },
   { "heard": "what's this article about", "expect": "agent" },
@@ -46,6 +47,7 @@
   { "heard": "delete all the emails from Chipotle", "expect": "agent" },
   { "heard": "open the email about my internship", "expect": "agent" },
   { "heard": "like this video and then go to the channel", "expect": "agent" },
+  { "heard": "play a funny video in a new tab", "expect": "agent" },
 
   { "heard": "tiktok tiktok tiktok", "expect": "ignore" },
   { "heard": "and then she told me the car was still in the shop", "expect": "ignore" },

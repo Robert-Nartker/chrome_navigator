@@ -13,14 +13,34 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "update") void reinjectContentScripts();
 });
 
+/** Side panels that are open, by window: each panel keeps a port connected while it's open. */
+const openPanels = new Map<number, chrome.runtime.Port>();
+
+chrome.runtime.onConnect.addListener((port) => {
+  const match = port.name.match(/^navi-panel:(\d+)$/);
+  if (!match) return;
+  const windowId = Number(match[1]);
+  openPanels.set(windowId, port);
+  port.onDisconnect.addListener(() => {
+    if (openPanels.get(windowId) === port) openPanels.delete(windowId);
+  });
+});
+
+// Alt+Shift+N (Option+Shift+N on a Mac) opens the panel, or closes it if it's open.
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "open-navi") return;
   const windowId = tab?.windowId;
   if (windowId === undefined) return;
+  const open = openPanels.get(windowId);
+  if (open) {
+    // sidePanel.close() is Chrome 141+; older versions: the panel closes itself.
+    const close = (chrome.sidePanel as { close?: (o: { windowId: number }) => Promise<void> }).close;
+    if (close) close({ windowId }).catch(() => open.postMessage({ type: "navi:close-panel" }));
+    else open.postMessage({ type: "navi:close-panel" });
+    return;
+  }
   // Opening must happen synchronously within the shortcut's user gesture.
   chrome.sidePanel.open({ windowId }).catch(() => undefined);
-  // If the panel is already open, toggle listening instead.
-  void chrome.runtime.sendMessage({ type: "navi:toggle-listening" }).catch(() => undefined);
 });
 
 if (__DEV__) {

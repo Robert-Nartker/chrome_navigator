@@ -417,9 +417,17 @@ export function closestPhrase(t: string, phrases: string[], threshold = 0.8): st
   return best;
 }
 
+const IN_NEW_TAB = / (?:in|on) (?:a )?new tab$/;
+
 export function parseCommand(text: string): Intent | null {
   const t = normalize(text);
   if (!t) return null;
+  // "search youtube for lofi in a new tab" (opening sites handles this in its own rule).
+  const newTab = IN_NEW_TAB.exec(t);
+  if (newTab) {
+    const base = matchRules(t.slice(0, newTab.index));
+    if (base?.type === "search") return { ...base, newTab: true };
+  }
   const exact = matchRules(t);
   if (exact) return exact;
   // "Navi, sleep" / "scroll down navi": drop a name-like word at either end.

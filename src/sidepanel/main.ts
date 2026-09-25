@@ -379,12 +379,9 @@ ui.numbersButton.addEventListener("click", () => {
   controller.setNumbers(!controller.numbersShown).catch((err: Error) => log("error", err.message));
 });
 
-// Messages from the background worker (keyboard shortcut) and the setup page.
+// Messages from the setup page.
 chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
-  if (msg.type === "navi:toggle-listening") {
-    if (engine?.running) stopListening();
-    else void startListening();
-  } else if (msg.type === "navi:mic-granted") {
+  if (msg.type === "navi:mic-granted") {
     micError = false;
     ui.micBanner.hidden = true;
     renderStatus();
@@ -422,7 +419,19 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
   },
 };
 
+/** Tells the background worker this panel is open, so the shortcut can close it. */
+async function registerPanel() {
+  const { id } = await chrome.windows.getCurrent();
+  const port = chrome.runtime.connect({ name: `navi-panel:${id}` });
+  port.onMessage.addListener((msg: { type?: string }) => {
+    if (msg.type === "navi:close-panel") window.close();
+  });
+  // The worker restarts after being idle; reconnect so the shortcut keeps working.
+  port.onDisconnect.addListener(() => window.setTimeout(() => void registerPanel(), 1000));
+}
+
 async function init() {
+  void registerPanel().catch(() => undefined);
   if (__DEV__) {
     const devStatus = $("dev-status");
     devStatus.hidden = false;
