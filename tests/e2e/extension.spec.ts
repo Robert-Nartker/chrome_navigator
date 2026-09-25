@@ -159,6 +159,39 @@ test("navigates, goes back, and manages tabs", async ({ panel, site, baseUrl, co
   await expect.poll(() => context.pages().length).toBe(before);
 });
 
+test("closing a tab by name closes only that tab, and asks when unsure", async ({ panel, site, baseUrl, context }) => {
+  const port = new URL(baseUrl).port;
+  await run(panel, `open localhost:${port}/about.html in a new tab`);
+  await expect.poll(() => context.pages().some((p) => p.url().includes("about.html"))).toBe(true);
+  await site.bringToFront();
+  const count = () => context.pages().filter((p) => p.url().startsWith(baseUrl)).length;
+  expect(count()).toBe(2);
+
+  // A name that matches no tab: nothing is closed.
+  await run(panel, "close the recipes tab");
+  await expect(panel.locator("#log li.navi").last()).toContainText("couldn't find a tab called");
+  expect(count()).toBe(2);
+
+  // The named tab closes, and the current one stays open.
+  await run(panel, "close the about navi tab");
+  await expect.poll(count).toBe(1);
+  expect(site.isClosed()).toBe(false);
+});
+
+test("router: a close command rebuilt from loose speech is not run without confirmation", async ({ panel, site, context }) => {
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent(() => [{ type: "text", text: JSON.stringify({ route: "command", command: "close tab" }) }]),
+  );
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "clothes the red it tap");
+  await expect(panel.locator("#log li.navi").last()).toContainText("didn't do it, to be safe");
+  expect(site.isClosed()).toBe(false);
+});
+
 test("reports restricted pages instead of failing silently", async ({ panel, site }) => {
   await site.goto("chrome://version");
   await run(panel, "scroll down");

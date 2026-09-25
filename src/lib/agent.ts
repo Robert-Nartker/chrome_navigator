@@ -31,6 +31,7 @@ How you see the page: each observation lists the page's interactive elements as 
 Rules:
 - Be fast: every second you spend is a second the user waits. For simple steps, act without deliberating. Take the most direct action; don't ask for confirmation for ordinary browsing (opening sites, clicking links, typing into search boxes, scrolling).
 - Before anything irreversible or that affects other people (sending a message or email, posting, commenting, buying, deleting, submitting payment or personal details), stop and ask one short yes/no question. Only continue after the user says yes.
+- Speech recognition mishears names. When the user names what to act on (a tab, email, file, contact) and you can't find a clear match, ask which one. Never act on a different target instead, especially when closing or deleting.
 - If the target isn't in the list, scroll or navigate to find it. If you still can't find it after a few tries, say so briefly.
 - For questions about the page's content (read, summarize, what does it say), call read_page, then answer in 1-3 spoken sentences.
 - If the element list isn't enough (unlabeled icons, the user describes something visually like "the red one" or "the second picture", maps or canvas apps, or you can't find the target), call look_at_screen. The screenshot shows yellow number tags matching element ids: use click with the id when there is one, otherwise click_at with pixel coordinates in the screenshot. Don't take screenshots when the list already covers the task.
@@ -86,6 +87,9 @@ const TOOLS: ToolDef[] = [
   tool("go_back", "Go back to the previous page in this tab.", {}),
   tool("switch_tab", "Switch to an open tab by its tab id from the tab list.", {
     tab_id: { type: "integer" },
+  }),
+  tool("close_tabs", "Close tabs by tab id from the tab list. Only tabs the user clearly asked to close; if unsure which, ask instead.", {
+    tab_ids: { type: "array", items: { type: "integer" } },
   }),
   tool("press_key", "Press a key on the focused element.", {
     key: { type: "string", enum: [...KEYS] },
@@ -597,6 +601,14 @@ export class NaviAgent {
         hooks.onStep?.(`Switching to ${target.title ?? "tab"}`);
         await activateTab(target);
         return `switched to ${target.title}`;
+      }
+      case "close_tabs": {
+        const ids = (input.tab_ids as number[]).filter((n) => Number.isInteger(n));
+        if (!ids.length) throw new Error("No tab ids given.");
+        const tabs = await Promise.all(ids.map((n) => chrome.tabs.get(n)));
+        hooks.onStep?.(`Closing ${tabs.length === 1 ? (tabs[0].title ?? "a tab") : `${tabs.length} tabs`}`);
+        await chrome.tabs.remove(ids);
+        return `closed: ${tabs.map((t) => t.title).join("; ")}`;
       }
       case "press_key": {
         const res = await pageRequest(tab, { kind: "pressKey", key: input.key as Key });

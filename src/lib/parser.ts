@@ -15,6 +15,7 @@ export type Intent =
   | { type: "reload" }
   | { type: "newTab" }
   | { type: "closeTab" }
+  | { type: "closeNamedTab"; query: string; saidTab: boolean }
   | { type: "nextTab" }
   | { type: "prevTab" }
   | { type: "reopenTab" }
@@ -232,6 +233,13 @@ const RULES: Rule[] = [
   [/^switch back$|^(?:the )?other tab$|^(?:go |switch )?back to (?:the )?(?:other|previous|last) tab$/, () => ({ type: "switchBack" })],
   [/^how many tabs(?: do i have)?(?: open)?$/, () => ({ type: "listTabs" })],
   [/^close (?:this |the |current )?tab$/, () => ({ type: "closeTab" })],
+  // "close the reddit tab", "close youtube": only a tab matching the name is closed, never the current one instead.
+  [/^close (?:the |my |that |this )?(.+?)( tabs?)?$/, (m) =>
+    /^(?:it|this|that|them|everything|all|other tabs?|the other tabs?|window|this window|the window|popup|the popup|dialog|menu|ad)$/.test(m[1]) ||
+    // "close tap" is a mishearing of "close tab", not a tab named "tap".
+    (!m[2] && similarity(m[1], "tab") >= 0.6)
+      ? null
+      : { type: "closeNamedTab", query: m[1], saidTab: !!m[2] }],
   [/^(?:go to |switch to )?(?:the )?(?:next|right) tab$/, () => ({ type: "nextTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:previous|left) tab$/, () => ({ type: "prevTab" })],
   [/^(?:reopen|restore|undo close|bring back)(?: (?:the )?(?:last |closed |last closed )?tab)?$/, () => ({ type: "reopenTab" })],

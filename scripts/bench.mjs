@@ -319,7 +319,9 @@ async function runCheck() {
       continue;
     }
     const wanted = [...new Set([...routerModels, ...agentConfigs.map((a) => a.model)])].filter((m) => providerOf(m) === provider);
-    for (const m of wanted) console.log(`${provider}: ${m} ${ids.includes(m) ? "is available" : "NOT FOUND (check the exact model name)"}`);
+    // Accounts may list a dated ID (claude-haiku-4-5-20251001) for an alias that works (claude-haiku-4-5).
+    const listed = (m) => ids.includes(m) || ids.some((id) => id.startsWith(`${m}-`));
+    for (const m of wanted) console.log(`${provider}: ${m} ${listed(m) ? "is available" : "NOT FOUND (check the exact model name)"}`);
     const similar = ids.filter((id) => /gpt-6|opus-5|sonnet-5|haiku/.test(id));
     if (similar.length) console.log(`${provider}: related models on your account: ${similar.join(", ")}`);
   }

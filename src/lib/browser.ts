@@ -148,6 +148,19 @@ export async function findTab(query: string): Promise<chrome.tabs.Tab | undefine
   );
 }
 
+/** All tabs whose title or site matches the name (for actions that must not guess). */
+export async function matchingTabs(query: string): Promise<chrome.tabs.Tab[]> {
+  const q = query.toLowerCase().replace(/\s+/g, " ").trim();
+  const compact = q.replace(/\s+/g, "");
+  if (!compact) return [];
+  return (await listTabs()).filter(
+    (t) =>
+      (t.title ?? "").toLowerCase().includes(q) ||
+      hostOf(t.url).includes(compact) ||
+      (t.title ?? "").toLowerCase().replace(/\s+/g, "").includes(compact),
+  );
+}
+
 export function hostOf(url?: string): string {
   try {
     return new URL(url ?? "").hostname.replace(/^www\./, "");

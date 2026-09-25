@@ -287,3 +287,16 @@ describe("fuzzy wake word", () => {
     expect(stripWakePhrase("the navy ship", words, true).woke).toBe(false);
   });
 });
+
+describe("closing tabs by name", () => {
+  it("names a tab without ever meaning the current one", () => {
+    expect(parseCommand("close the reddit tab")).toEqual({ type: "closeNamedTab", query: "reddit", saidTab: true });
+    expect(parseCommand("close youtube")).toEqual({ type: "closeNamedTab", query: "youtube", saidTab: false });
+    expect(parseCommand("close the tab")).toEqual({ type: "closeTab" });
+    expect(parseCommand("close this tab")).toEqual({ type: "closeTab" });
+    expect(parseCommand("close other tabs")).toEqual({ type: "closeOtherTabs" });
+    expect(parseCommand("close it")).toBeNull();
+    expect(parseCommand("close tap")).toEqual({ type: "closeTab" });
+    expect(parseCommand("close the popup")).not.toMatchObject({ type: "closeNamedTab" });
+  });
+});

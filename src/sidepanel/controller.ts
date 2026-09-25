@@ -5,6 +5,7 @@ import {
   activateTab,
   cycleTab,
   findTab,
+  matchingTabs,
   hostOf,
   listTabs,
   navigate,
@@ -46,6 +47,16 @@ export const HELP_TEXT =
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
+
+/** Commands that close or clear something. */
+function isDestructive(intent: Intent): boolean {
+  return (
+    intent.type === "closeTab" ||
+    intent.type === "closeOtherTabs" ||
+    intent.type === "closeNamedTab" ||
+    (intent.type === "edit" && intent.action === "clear")
+  );
+}
 
 export interface RunOptions {
   source: "voice" | "typed";
@@ -230,6 +241,14 @@ export class Controller {
     }
 
     const intent = parseCommand(command);
+    // A command the router reconstructed from loose (possibly misheard) speech never closes or
+    // clears anything on its own: the user confirms by saying it plainly.
+    if (intent && options.fastOnly && isDestructive(intent)) {
+      const text = `I heard “${command}” but didn't do it, to be safe. Say “${command}” if that's right.`;
+      this.navi(text);
+      await this.say(text);
+      return { intent: "confirm" };
+    }
     if (intent) {
       try {
         await this.execute(intent);
@@ -435,6 +454,26 @@ export class Controller {
         await chrome.tabs.remove(tab.id!);
         await this.confirm("Closed the tab");
         return;
+      case "closeNamedTab": {
+        // Close only a tab that clearly matches the name; never fall back to the current tab.
+        const matches = await matchingTabs(intent.query);
+        if (matches.length === 1 && matches[0].id !== undefined) {
+          await chrome.tabs.remove(matches[0].id);
+          await this.confirm(`Closed ${matches[0].title || intent.query}`);
+          return;
+        }
+        // "close the popup" and the like may be about the page, not a tab: let the AI look.
+        if (!matches.length && !intent.saidTab) throw new Unhandled();
+        const text = matches.length
+          ? `Which one? ${matches.length} tabs match “${intent.query}”: ${matches
+              .slice(0, 4)
+              .map((t) => t.title || hostOf(t.url))
+              .join("; ")}.`
+          : `I couldn't find a tab called “${intent.query}”, so I didn't close anything.`;
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
       case "nextTab":
       case "prevTab": {
         const next = await cycleTab(intent.type === "nextTab" ? 1 : -1);
