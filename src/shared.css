@@ -10,6 +10,12 @@
   --warn: #c77700;
   --bad: #c92a2a;
   --radius: 10px;
+  /* Layered surfaces (side panel): page canvas, raised cards, faint text, soft shadow. */
+  --canvas: #f4f5f9;
+  --elevated: #ffffff;
+  --faint: #8a90a1;
+  --shadow: 0 1px 2px rgb(20 24 40 / 0.05), 0 2px 8px rgb(20 24 40 / 0.05);
+  --radius-lg: 14px;
   color-scheme: light dark;
 }
 
@@ -25,6 +31,10 @@
     --good: #69db7c;
     --warn: #ffc078;
     --bad: #ff8787;
+    --canvas: #111319;
+    --elevated: #1b1e27;
+    --faint: #6f7688;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 10px rgb(0 0 0 / 0.2);
   }
 }
 

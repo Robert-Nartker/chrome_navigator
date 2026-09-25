@@ -20,6 +20,7 @@ import {
 import { type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import { Controller, HELP_TEXT, type LogKind } from "./controller";
+import { Feed, type LogEntry } from "./feed";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -68,20 +69,15 @@ const speaker = new Speaker(
   },
 );
 
-interface LogEntry {
-  kind: LogKind;
-  text: string;
-  meta?: string;
-}
-
 // The log is kept for the browser session, so closing and reopening the panel doesn't wipe it.
+// The feed groups it into one card per command (what you said, the steps, the result).
 const LOG_KEY = "panelLog";
+const feed = new Feed(ui.log, $("announcer"));
 let logEntries: LogEntry[] = [];
 let saveTimer: number | undefined;
 
 function log(kind: LogKind, text: string, meta?: string) {
-  logEntries = [...logEntries, { kind, text, meta }].slice(-200);
-  renderLogEntry(kind, text, meta);
+  logEntries = [...logEntries, feed.add(kind, text, meta)].slice(-200);
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => void chrome.storage.session.set({ [LOG_KEY]: logEntries }).catch(() => undefined), 300);
 }
@@ -92,24 +88,8 @@ async function restoreLog(): Promise<boolean> {
   const stored = data[LOG_KEY] as LogEntry[] | undefined;
   if (!stored?.length) return false;
   logEntries = [...stored, ...logEntries].slice(-200);
-  ui.log.replaceChildren();
-  for (const e of logEntries) renderLogEntry(e.kind, e.text, e.meta);
+  feed.restore(logEntries);
   return true;
-}
-
-function renderLogEntry(kind: LogKind, text: string, meta?: string) {
-  const li = document.createElement("li");
-  li.className = kind;
-  li.textContent = text;
-  if (meta) {
-    const span = document.createElement("span");
-    span.className = "meta";
-    span.textContent = meta;
-    li.append(span);
-  }
-  ui.log.append(li);
-  while (ui.log.children.length > 200) ui.log.firstElementChild?.remove();
-  ui.log.scrollTop = ui.log.scrollHeight;
 }
 
 const controller = new Controller(
@@ -121,10 +101,10 @@ const controller = new Controller(
       renderStatus(detail);
     },
     numbersShown(shown) {
-      ui.numbersButton.textContent = shown ? "Hide numbers" : "Show numbers";
+      setToggle(ui.numbersButton, shown, shown ? "Hide flags" : "Flags");
     },
     gridShown(shown) {
-      ui.gridButton.textContent = shown ? "Hide grid" : "Grid";
+      setToggle(ui.gridButton, shown, shown ? "Hide grid" : "Grid");
     },
   },
   speaker,
@@ -156,13 +136,43 @@ function renderStatus(detail?: string) {
       text = `Say “Hey ${settings.wakeName}”`;
     }
   }
-  ui.status.dataset.state = state;
-  ui.statusText.textContent = text;
+  showStatus(state, text, detail);
   const listening = !!engine?.running;
   ui.mic.setAttribute("aria-pressed", String(listening));
   ui.mic.setAttribute("aria-label", listening ? "Stop listening" : "Start listening");
   ui.mic.dataset.awake = String(listening && session.current === "awake" && settings.listenMode === "handsfree");
   renderSessionBar();
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  off: "Mic off",
+  error: "Mic unavailable",
+  working: "Working",
+  awake: "Listening",
+  sleeping: "Asleep",
+};
+const voiceCard = $("voice");
+const captionHint = $("caption-hint");
+
+/** Header pill (short, announced), the voice card's look, and the hint shown while nothing is being heard. */
+function showStatus(state: string, text: string, detail?: string) {
+  feed.setWorking(working, detail);
+  ui.status.dataset.state = state;
+  voiceCard.dataset.state = state;
+  setText(ui.statusText, STATUS_LABELS[state] ?? text);
+  const hint =
+    state === "off" ? "Tap the mic to talk, or type a command below." : state === "working" ? feed.activity || text : text;
+  setText(captionHint, hint);
+}
+
+/** Only touches the DOM on a change, so live regions don't repeat themselves. */
+function setText(el: HTMLElement, text: string) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+function setToggle(button: HTMLButtonElement, on: boolean, label: string) {
+  button.dataset.on = String(on);
+  setText(button.querySelector<HTMLElement>(".label") ?? button, label);
 }
 
 function renderSessionBar() {
@@ -238,8 +248,9 @@ function handleInterim(text: string) {
   const asleep = settings.listenMode === "handsfree" && session.current === "sleeping";
   // While asleep, only show speech once the wake word is heard (nothing else is acted on).
   const shown = asleep && !session.hearsWakePhrase(text) ? "" : text;
-  // Keep a runaway transcript (e.g. noise heard as words) to one readable line.
+  // Keep a runaway transcript (e.g. noise heard as words) to a few readable lines, newest words in view.
   ui.interim.textContent = shown.length > 120 ? `…${shown.slice(-120)}` : shown;
+  ui.interim.scrollTop = ui.interim.scrollHeight;
 }
 
 let lastSpeechInfo = "";
@@ -470,10 +481,7 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
   metrics,
   speaker,
   resetConversation: () => controller.resetConversation(),
-  lastReply: () => {
-    const replies = ui.log.querySelectorAll("li.navi");
-    return replies[replies.length - 1]?.firstChild?.textContent ?? "";
-  },
+  lastReply: () => feed.lastReply(),
   get busy() {
     return controller.isBusy;
   },
