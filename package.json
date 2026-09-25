@@ -12,6 +12,8 @@
     "check": "npm run typecheck && npm test && npm run test:e2e",
     "bench": "npm run build && node scripts/bench.mjs",
     "bench:mock": "npm run build && node scripts/bench.mjs --mock",
+    "bench:check": "npm run build && node scripts/bench.mjs --check",
+    "bench:estimate": "npm run build && node scripts/bench.mjs --dry-run",
     "dev": "node scripts/dev.mjs"
   },
   "dependencies": {

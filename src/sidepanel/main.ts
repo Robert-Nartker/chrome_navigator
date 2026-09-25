@@ -2,6 +2,9 @@
 
 import { startDevReload } from "../lib/dev-reload";
 import type { CommandMetric } from "../lib/metrics";
+import { MODEL_CATALOG } from "../lib/models";
+import { parseCommand } from "../lib/parser";
+import { routeUtterance } from "../lib/router";
 import { SITES } from "../lib/sites";
 import { WakeSession } from "../lib/session";
 import { ScribeEngine } from "../lib/scribe";
@@ -393,6 +396,14 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
   run: (text: string) => controller.run(text),
   handleFinal,
   chromeFinal: handleChromeFinal,
+  // For the router benchmark: one routing call with the current settings, timed.
+  async route(text: string) {
+    const t0 = performance.now();
+    const result = await routeUtterance(text, { personalPhrases: [] }, settings, new AbortController().signal);
+    return { ...result, ms: Math.round(performance.now() - t0) };
+  },
+  parse: (text: string) => parseCommand(text),
+  models: MODEL_CATALOG,
   startListening,
   stopListening,
   get scribeLive() {

@@ -135,14 +135,41 @@ The e2e suite covers clicking by label and by number, badges, scrolling, typing 
 
 ## Benchmark (NaviBench)
 
-`bench/sites/` has small, realistic web apps: an email inbox, a shop, a video site, a signup form, and a news article that contains a prompt-injection line. `bench/tasks.json` has 17 spoken-command tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must draft the reply but not send it without a yes, and the article summary must not repeat the injected instruction.
+NaviBench compares models on cost, accuracy and speed, and ends with what 20 hours of use would cost. It runs through the real extension in a test browser.
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-... npm run bench -- --models claude-opus-5,claude-sonnet-5,claude-haiku-4-5 --repeat 3
-npm run bench:mock        # checks the harness without API calls
+- **Router suite:** `bench/router-cases.json` has 60 labeled phrases. That's 28 loosely worded or misheard commands ("Havi go to sleep", "scroll down a smidge more"), 18 real tasks for the AI, and 14 bits of background chatter to ignore ("mom I'm on a call", song lyrics, YouTuber intros). It scores the route, the exact command, latency, and cost per call.
+- **Agent suite:** `bench/sites/` has small, realistic web apps: an inbox, a shop, a video site, a signup form, and an article containing a prompt-injection line. `bench/tasks.json` has 17 spoken tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must not send without a yes, and the summary must not repeat the injected instruction. By default 8 core tasks run; pass `--tasks all` for all 17.
+
+**Setup:** put your keys in a `.env` file in the repo root. It's git-ignored. You only need the providers you want to test:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 ```
 
-It prints per-task PASS/FAIL, then a table of success rate, median latency and AI steps per model, and saves the raw results to `bench-results/`. Real usage is logged too: **Settings → Usage log → Export CSV** gives every command's path (fast or AI), latency and steps.
+**Run:**
+
+```bash
+npm run bench:estimate    # what a run will cost; no API calls
+npm run bench:check       # checks your keys and model names (about a cent)
+npm run bench             # full run: router and agent suites (default set is about $2-3)
+npm run bench:mock        # checks the harness with fake API replies (free)
+```
+
+**Default models:**
+- Routers: GPT-6 Luna, GPT-6 Sol, Claude Haiku 4.5, Claude Sonnet 5.
+- Agents: Opus 5.5 at low effort, GPT-6 Astra at low, GPT-6 Sol with reasoning off and at low, GPT-6 Luna with reasoning off.
+
+**Options:**
+- Change models with `--routers a,b` and `--agents model@effort,...`, e.g. `--agents claude-opus-5-5@medium`.
+- `--budget` stops testing a model once it has spent that much. The default is $1.50 per model.
+
+**Output:**
+- Tables of accuracy, latency and cost per call or per task.
+- A projection for 20 hours of light, typical and heavy use.
+- Everything is saved to `bench-results/`.
+
+Real usage is logged too: **Settings → Usage log** shows the running AI cost. **Export CSV** gives every command's path (fast path or AI), latency, steps, tokens and cost.
 
 ## Roadmap
 
