@@ -22,17 +22,19 @@ npm run build          # outputs the extension to dist/
 
 For day-to-day testing, use the live-reload setup below instead of rebuilding by hand.
 
-## Testing on your Mac with live reload (recommended)
+## Testing with live reload on Mac or Windows (recommended)
 
-Set this up once. After that, new changes appear in your Chrome on their own.
+Set this up once per computer. After that, new changes appear in your Chrome on their own. Navi is a Chrome extension, so it works the same on macOS and Windows; only the install commands differ.
 
-1. Install Node.js 20+ (`brew install node`, or the installer from nodejs.org).
+1. Install Node.js 20+ and git:
+   - macOS: `brew install node git` (or the installer from nodejs.org)
+   - Windows (PowerShell): `winget install OpenJS.NodeJS.LTS Git.Git`, then open a new terminal
 2. Clone the repo and install dependencies:
    ```bash
    git clone https://github.com/Robert-Nartker/chrome_navigator && cd chrome_navigator
    git checkout claude/sleepy-hypatia-gt7x80 && npm install
    ```
-3. Start the dev loop and **leave this Terminal window open**:
+3. Start the dev loop and **leave this terminal window open**:
    ```bash
    npm run dev
    ```
@@ -40,7 +42,7 @@ Set this up once. After that, new changes appear in your Chrome on their own.
 
 From then on, `npm run dev` checks GitHub every 10 seconds. When new commits land on the branch, it pulls them, rebuilds, and the open Navi panel reloads itself. The panel footer shows `dev build #N · <latest commit>`, so you can tell you're on the newest version. Your settings and API key are kept across reloads.
 
-- **Core changes:** changes to `background.ts` or the manifest restart the whole extension, which closes the side panel. Reopen it with Alt+Shift+N. If Navi ever disappears from the toolbar, click ↻ on `chrome://extensions`.
+- **Core changes:** changes to `background.ts` or the manifest restart the whole extension, which closes the side panel. Reopen it with Alt+Shift+N (Option+Shift+N on a Mac). If Navi ever disappears from the toolbar, click ↻ on `chrome://extensions`.
 - **Local edits:** if you edit files yourself, auto-pull pauses (the Terminal says so) until you commit or discard them.
 
 ## What you can say

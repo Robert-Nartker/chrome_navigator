@@ -138,7 +138,8 @@ async function pull() {
     log(`Pulled ${behind} commit${behind === 1 ? "" : "s"}:\n${subjects}`);
     if (/^package(-lock)?\.json$/m.test(changed)) {
       log("Dependencies changed, running npm install…");
-      await run("npm", ["install", "--no-audit", "--no-fund"]);
+      // npm is a .cmd script on Windows, which Node can only start through a shell.
+      await run("npm", ["install", "--no-audit", "--no-fund"], { shell: process.platform === "win32" });
     }
     // The file watcher rebuilds automatically; this covers watchers that miss git's writes.
     await rebuild("pulled from GitHub");

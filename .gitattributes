@@ -1,0 +1,4 @@
+# Same line endings on Mac and Windows, so git never sees phantom changes
+# (which would pause the dev loop's auto-pull).
+* text=auto eol=lf
+*.png binary
