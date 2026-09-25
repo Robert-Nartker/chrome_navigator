@@ -55,10 +55,14 @@ export type Intent =
   | { type: "time" }
   | { type: "date" };
 
-/** Commands understood while the mouse grid is showing. */
+/**
+ * Commands understood while the mouse grid is showing. Cells are keypad numbers 1-9,
+ * one per level: zoom [5, 3] goes into block 5, then block 3 inside it.
+ */
 export type GridCommand =
-  | { type: "zoom"; cell: number }
-  | { type: "click"; cell?: number }
+  | { type: "zoom"; cells: number[] }
+  /** Clicks the center of the current block, or of the block the cells lead to. */
+  | { type: "click" | "doubleClick" | "rightClick"; cells?: number[] }
   | { type: "back" }
   | { type: "hide" }
   | { type: "show" };
@@ -223,8 +227,8 @@ const RULES: Rule[] = [
   [/^(?:what|which) tabs (?:are|do i have) open$|^list (?:my |the )?tabs$|^read (?:me )?(?:my |the )?tabs$/, () => ({ type: "listTabs" })],
 
   // Mouse grid
-  [/^(?:show |open |display )?(?:the )?(?:mouse )?grid$/, () => ({ type: "showGrid" })],
-  [/^(?:hide|close|remove|clear) (?:the )?(?:mouse )?grid$/, () => ({ type: "hideGrid" })],
+  [/^(?:show |open |display |turn on )?(?:the )?(?:mouse )?grid(?: on)?$/, () => ({ type: "showGrid" })],
+  [/^(?:hide|close|remove|clear|turn off) (?:the )?(?:mouse )?grid$|^(?:the )?(?:mouse )?grid off$/, () => ({ type: "hideGrid" })],
 
   // Badges
   [/^(?:show|display) (?:the )?(?:numbers|labels|links|hints|badges|buttons)$|^numbers$/, () => ({ type: "showNumbers" })],
@@ -309,20 +313,49 @@ function search(query: string, engine: string): Intent {
   return { type: "search", query: q, engine, url: searchUrl(q, engine), newTab: false };
 }
 
+// Mouse grid: one keypad number (1-9) per level. Said on their own, the numbers
+// include the words speech engines hear instead ("to" for two, "for" for four).
+const CELL_WORDS = new Map(
+  Object.entries({ one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, four: 4, for: 4, fore: 4, five: 5, six: 6, seven: 7, eight: 8, ate: 8, nine: 9 }),
+);
+/** Four levels deep, plus one more number to click inside the last one. */
+const MAX_GRID_CELLS = 4;
+
+/** "5", "five three", "5 and 3", "53" -> the cells; null unless every word is a cell. */
+function parseCells(text: string): number[] | null {
+  const cells: number[] = [];
+  for (const word of text.split(/[\s.-]+/)) {
+    if (word === "and" || word === "then") continue;
+    // Speech engines often merge digits said in a row: "five three" arrives as "53".
+    if (/^[1-9]+$/.test(word)) cells.push(...Array.from(word, Number));
+    else if (CELL_WORDS.has(word)) cells.push(CELL_WORDS.get(word)!);
+    else return null;
+  }
+  return cells.length > 0 && cells.length <= MAX_GRID_CELLS ? cells : null;
+}
+
+const GRID_CLICK = "(?:(double|right|left)[ -]?)?(?:click|tap|press|select|choose)";
+const clickType = (kind?: string) => (kind === "double" ? "doubleClick" : kind === "right" ? "rightClick" : "click");
+
 const GRID_RULES: [RegExp, (m: RegExpMatchArray) => GridCommand | null][] = [
-  [new RegExp(`^(?:zoom (?:in(?:to)? )?(?:on )?|number |go (?:to )?|cell |block |square |box )?${N}$`), (m) => {
-    const cell = parseNumber(m[1]);
-    return cell !== null && cell >= 1 && cell <= 9 ? { type: "zoom", cell } : null;
+  // "5", "5 3", "five three seven", "53", "zoom into 3", "go to 5"
+  [/^(?:zoom(?: in)?(?: (?:into|to|on))? |go (?:to )?|number |cell |block |square |box |tile )?(.+)$/, (m) => {
+    const cells = parseCells(m[1]);
+    return cells && { type: "zoom", cells };
   }],
-  [new RegExp(`^(?:click|tap|press|select|choose)(?: (?:on )?(?:number |cell |block |square )?${N})?(?: here| there| it| that)?$`), (m) => {
-    if (!m[1]) return { type: "click" };
-    const cell = parseNumber(m[1]);
-    return cell !== null && cell >= 1 && cell <= 9 ? { type: "click", cell } : null;
+  // "click", "click here", "double click", "right click"
+  [new RegExp(`^${GRID_CLICK}(?: (?:on )?(?:it|here|there|that|(?:the )?(?:center|centre|middle)))?$`), (m) => ({ type: clickType(m[1]) })],
+  // "click 7", "click 5 3", "double click 4". Anything else ("click sign in") isn't for the grid.
+  [new RegExp(`^${GRID_CLICK}(?: on)?(?: (?:number|cell|block|square|tile|box))? (.+)$`), (m) => {
+    const cells = parseCells(m[2]);
+    return cells && { type: clickType(m[1]), cells };
   }],
-  [/^(?:click|tap) (?:here|there|it|that|center|the center|the middle)$/, () => ({ type: "click" })],
-  [/^(?:back|go back|zoom out|out|up|undo)$/, () => ({ type: "back" })],
-  [/^(?:hide|close|cancel|exit|stop|never ?mind|done)(?: (?:the )?(?:mouse )?grid)?$|^(?:hide|close) it$/, () => ({ type: "hide" })],
-  [/^(?:show |reset |restart )?(?:the )?(?:mouse )?grid$/, () => ({ type: "show" })],
+  [/^(?:back|go back|back up|zoom out|zoom back out|out|up|go up|undo)$/, () => ({ type: "back" })],
+  [
+    /^(?:hide|close|cancel|exit|stop|never ?mind|done|quit|dismiss)(?: (?:the )?(?:mouse )?grid)?$|^(?:hide|close) it$|^(?:remove|clear|turn off) (?:the )?(?:mouse )?grid$|^(?:the )?(?:mouse )?grid off$/,
+    () => ({ type: "hide" }),
+  ],
+  [/^(?:show |reset |restart |open |turn on )?(?:the )?(?:mouse )?grid(?: on)?$|^start over$/, () => ({ type: "show" })],
 ];
 
 /** "12", "twelve", "number 12" -> 12 (used while number tags are showing). */
@@ -336,7 +369,8 @@ export function parseGridCommand(text: string): GridCommand | null {
   const t = normalize(text);
   for (const [re, build] of GRID_RULES) {
     const m = t.match(re);
-    if (m) return build(m);
+    const command = m && build(m);
+    if (command) return command;
   }
   return null;
 }

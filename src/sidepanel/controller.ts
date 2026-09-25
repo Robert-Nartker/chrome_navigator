@@ -114,15 +114,35 @@ export class Controller {
     return this.gridOn;
   }
 
-  /** Mouse grid: show, zoom into a block, zoom out, click, or hide. */
+  /** Mouse grid: show, zoom into blocks, zoom out, click, or hide. */
   async grid(command: GridCommand): Promise<string> {
     const tab = await targetTab();
-    const action = command.type === "show" ? "show" : command.type;
-    const cell = "cell" in command ? command.cell : undefined;
-    const res = await pageRequest(tab, { kind: "grid", action, cell });
-    this.gridOn = !!res.gridActive;
-    this.ui.gridShown?.(this.gridOn);
-    return res.detail ?? "";
+    let image: string | undefined;
+    if (command.type === "show") {
+      // Number tags and the grid both answer to numbers, so only one shows at a time.
+      if (this.numbers) {
+        await this.setNumbers(false);
+        await new Promise((r) => setTimeout(r, 60)); // let the page repaint before the picture
+      }
+      if (!this.gridOn) image = await this.gridPicture(tab);
+    }
+    let shown = false;
+    try {
+      const cells = "cells" in command ? command.cells : undefined;
+      const res = await pageRequest(tab, { kind: "grid", action: command.type, cells, image });
+      shown = !!res.gridActive;
+      return res.detail ?? "";
+    } finally {
+      // On failure (the page reloaded, or can't show a grid) numbers stop going to the grid.
+      this.gridOn = shown;
+      this.ui.gridShown?.(shown);
+    }
+  }
+
+  /** A picture of the visible tab for the grid's magnifier. It only goes to that tab, never to an AI. */
+  private async gridPicture(tab: chrome.tabs.Tab): Promise<string | undefined> {
+    if (!tab.active) return undefined; // Chrome can only picture the tab on screen
+    return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }).catch(() => undefined);
   }
 
   async run(text: string, options: RunOptions = { source: "typed" }): Promise<void> {
@@ -202,8 +222,9 @@ export class Controller {
       const gridCommand = parseGridCommand(command);
       if (gridCommand) {
         const detail = await this.grid(gridCommand);
-        if (gridCommand.type === "click") await this.confirm(detail);
-        else this.navi(detail);
+        // Zooming just updates the log; clicking or closing the grid is confirmed like any action.
+        if (this.gridOn) this.navi(detail);
+        else await this.confirm(detail);
         return { intent: `grid:${gridCommand.type}` };
       }
     }
@@ -382,6 +403,7 @@ export class Controller {
   }
 
   async setNumbers(show: boolean) {
+    if (show && this.gridOn) await this.grid({ type: "hide" });
     const tab = await targetTab();
     await pageRequest(tab, { kind: show ? "showBadges" : "hideBadges" });
     this.numbers = show;
@@ -506,8 +528,7 @@ export class Controller {
       }
       case "showGrid":
       case "hideGrid": {
-        const detail = await this.grid({ type: intent.type === "showGrid" ? "show" : "hide" });
-        await this.confirm(intent.type === "showGrid" ? "Grid on. Say a number to zoom in, then say click." : detail);
+        await this.confirm(await this.grid({ type: intent.type === "showGrid" ? "show" : "hide" }));
         return;
       }
       case "showNumbers":

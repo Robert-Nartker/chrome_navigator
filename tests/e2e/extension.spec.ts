@@ -382,33 +382,191 @@ test("personal commands: placeholders and chaining other commands", async ({ pan
   await expect(site).toHaveURL(/search\.html\?q=blue\+shoes/);
 });
 
-test("mouse grid: zoom in by numbers and click an exact spot", async ({ panel, site }) => {
-  const target = await site.evaluate(() => {
-    const r = document.getElementById("signin")!.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: innerWidth, h: innerHeight };
-  });
-  // Work out which blocks a person would say to reach the button.
-  const path: number[] = [];
-  let region = { x: 0, y: 0, w: target.w, h: target.h };
-  for (let level = 0; level < 4; level++) {
-    const col = Math.min(2, Math.floor(((target.x - region.x) / region.w) * 3));
-    const row = Math.min(2, Math.floor(((target.y - region.y) / region.h) * 3));
-    path.push(row * 3 + col + 1);
-    region = { x: region.x + (col * region.w) / 3, y: region.y + (row * region.h) / 3, w: region.w / 3, h: region.h / 3 };
+type Region = { x: number; y: number; w: number; h: number };
+
+/** Block n (keypad layout) of a region. */
+function cellOf(r: Region, n: number): Region {
+  const col = (n - 1) % 3;
+  const row = Math.floor((n - 1) / 3);
+  return { x: r.x + (col * r.w) / 3, y: r.y + (row * r.h) / 3, w: r.w / 3, h: r.h / 3 };
+}
+
+/** The keypad numbers a person would say to reach a point, one per level. */
+function cellsTo(point: { x: number; y: number }, screen: Region, levels: number): number[] {
+  const cells: number[] = [];
+  let r = screen;
+  for (let i = 0; i < levels; i++) {
+    const col = Math.min(2, Math.floor(((point.x - r.x) / r.w) * 3));
+    const row = Math.min(2, Math.floor(((point.y - r.y) / r.h) * 3));
+    cells.push(row * 3 + col + 1);
+    r = cellOf(r, row * 3 + col + 1);
   }
+  return cells;
+}
+
+/** What the grid shows on the page right now, or null when it's hidden. */
+async function gridState(site: Page) {
+  return site.evaluate(() => {
+    const root = document.querySelector("navi-grid")?.shadowRoot;
+    const frame = root?.querySelector<HTMLElement>(".frame");
+    if (!root || !frame) return null;
+    const box = (el: HTMLElement) => ({
+      x: parseFloat(el.style.left), y: parseFloat(el.style.top), w: parseFloat(el.style.width), h: parseFloat(el.style.height),
+    });
+    const loupe = root.querySelector<HTMLElement>(".loupe")!;
+    const canvas = loupe.querySelector("canvas")!;
+    // The magnified view is drawn from a picture of the page: check it isn't blank.
+    const pixels = canvas.width ? canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data : new Uint8ClampedArray();
+    return {
+      screen: { x: 0, y: 0, w: document.documentElement.clientWidth, h: document.documentElement.clientHeight },
+      region: box(frame),
+      numbers: Array.from(frame.querySelectorAll(".tile b"), (b) => b.textContent).join(""),
+      labels: frame.dataset.labels,
+      preview: frame.dataset.preview,
+      previewNumbers: Array.from(frame.querySelectorAll(".preview i"), (i) => i.textContent).join(""),
+      magnified: !loupe.hidden,
+      loupe: loupe.hidden ? null : { ...box(loupe), painted: pixels.some((v, i) => i % 4 === 3 && v > 0) },
+      hint: root.querySelector(".hint")?.textContent ?? "",
+    };
+  });
+}
+
+function expectRegion(actual: Region | undefined, expected: Region) {
+  for (const k of ["x", "y", "w", "h"] as const) expect(actual?.[k]).toBeCloseTo(expected[k], 1);
+}
+
+test("mouse grid: nested preview, zooming by one or several numbers, back and hide", async ({ panel, site }) => {
   await run(panel, "show grid");
-  expect(await site.evaluate(() => !!document.querySelector("navi-grid"))).toBe(true);
-  for (const n of path) await run(panel, String(n));
-  await run(panel, "click");
-  await expect(site.locator("#result")).toHaveText("signed in");
-  expect(await site.evaluate(() => !!document.querySelector("navi-grid"))).toBe(false);
-  // "go back" after the grid closes means browser back again, not zoom out.
-  await run(panel, "show grid");
+  let grid = (await gridState(site))!;
+  const screen = grid.screen;
+  expectRegion(grid.region, screen);
+  expect(grid.numbers).toBe("123456789");
+  // Each block previews the next level: 8 small numbers around its big one.
+  expect(grid.preview).toBe("labels");
+  expect(grid.previewNumbers).toBe("12346789".repeat(9));
+  expect(grid.hint).toContain("click");
+
+  // One number zooms one level; "back" goes up again.
   await run(panel, "5");
+  grid = (await gridState(site))!;
+  expectRegion(grid.region, cellOf(screen, 5));
+  expect(grid.hint).toContain("5");
+  await run(panel, "back");
+  expectRegion((await gridState(site))?.region, screen);
+
+  // Several numbers at once, spoken apart or merged by the speech engine.
+  await run(panel, "5 3");
+  expectRegion((await gridState(site))?.region, cellOf(cellOf(screen, 5), 3));
+  await run(panel, "show grid");
+  expectRegion((await gridState(site))?.region, screen);
+  await run(panel, "53");
+  grid = (await gridState(site))!;
+  expectRegion(grid.region, cellOf(cellOf(screen, 5), 3));
+  expect(grid.hint).toContain("5 › 3");
+  // The page's tab isn't on screen here, so there's no picture to magnify: numbers stay on the spot.
+  expect(grid.magnified).toBe(false);
+  expect(grid.labels).toBe("on");
+  await run(panel, "seven two"); // one level left: the extra number is ignored
+  expectRegion((await gridState(site))?.region, [5, 3, 7].reduce(cellOf, screen));
+
+  // While the grid is up, "go back" zooms out instead of leaving the page.
+  await run(panel, "zoom out");
   await run(panel, "go back");
+  expectRegion((await gridState(site))?.region, cellOf(screen, 5));
   await expect(site).toHaveURL(/index\.html/);
   await run(panel, "hide grid");
-  expect(await site.evaluate(() => !!document.querySelector("navi-grid"))).toBe(false);
+  expect(await gridState(site)).toBeNull();
+
+  // Number tags and the grid take turns, since both answer to numbers.
+  const badges = () => site.evaluate(() => document.querySelector("navi-overlay")?.shadowRoot?.querySelectorAll(".badge").length ?? 0);
+  await run(panel, "show numbers");
+  await run(panel, "grid on");
+  expect(await gridState(site)).not.toBeNull();
+  expect(await badges()).toBe(0);
+  await run(panel, "show numbers");
+  expect(await gridState(site)).toBeNull();
+  expect(await badges()).toBeGreaterThan(0);
+  await run(panel, "hide numbers");
+
+  // The side panel's Grid button toggles it too.
+  await panel.locator("#toggle-grid").click();
+  await expect.poll(() => gridState(site)).not.toBeNull();
+  await expect(panel.locator("#toggle-grid")).toHaveText("Hide grid");
+  await panel.locator("#toggle-grid").click();
+  await expect.poll(() => gridState(site)).toBeNull();
+  await expect(panel.locator("#toggle-grid")).toHaveText("Grid");
+
+  // Zooming animates, unless the user asked for reduced motion.
+  const motion = () =>
+    site.evaluate(() => {
+      const style = getComputedStyle(document.querySelector("navi-grid")!.shadowRoot!.querySelector(".frame")!);
+      return { transition: style.transitionDuration, animation: style.animationName };
+    });
+  await run(panel, "show grid");
+  expect((await motion()).transition).toContain("0.24s");
+  await run(panel, "hide grid");
+  await site.emulateMedia({ reducedMotion: "reduce" });
+  await run(panel, "show grid");
+  expect(await motion()).toEqual({ transition: "0s", animation: "none" });
+  await run(panel, "hide grid");
+});
+
+test("mouse grid: magnifies small blocks and clicks an exact spot", async ({ panel, site }) => {
+  // Chrome only takes the grid's picture of the tab on screen (the real side panel isn't a tab).
+  await site.bringToFront();
+  const centers = await site.evaluate(() =>
+    Object.fromEntries(
+      ["signin", "subscribe", "card"].map((id) => {
+        const r = document.getElementById(id)!.getBoundingClientRect();
+        return [id, { x: r.left + r.width / 2, y: r.top + r.height / 2 }];
+      }),
+    ),
+  );
+  await run(panel, "show grid");
+  const screen = (await gridState(site))!.screen;
+
+  // Three levels in, the blocks are too small to read, so they're shown magnified beside the spot.
+  const subscribe = cellsTo(centers.subscribe, screen, 4);
+  await run(panel, subscribe.slice(0, 3).join(" "));
+  const grid = (await gridState(site))!;
+  expectRegion(grid.region, subscribe.slice(0, 3).reduce(cellOf, screen));
+  expect(grid.magnified).toBe(true);
+  expect(grid.labels).toBe("off");
+  expect(grid.loupe!.painted).toBe(true);
+  expect(grid.loupe!.w).toBeGreaterThan(grid.region.w * 3);
+  expect(grid.loupe!.x).toBeGreaterThanOrEqual(0);
+  expect(grid.loupe!.x + grid.loupe!.w).toBeLessThanOrEqual(screen.w);
+  // "click 7" clicks the middle of block 7 of the current region: the exact button, not its neighbor.
+  await run(panel, `click ${subscribe[3]}`);
+  await expect(site.locator("#subs")).toHaveText("1");
+  await expect(site.locator("#result")).toHaveText("idle");
+  expect(await gridState(site)).toBeNull();
+  await expect(panel.locator("#log li.navi").last()).toContainText("Clicked Subscribe");
+
+  // Zoom and click in one go.
+  await run(panel, "show grid");
+  await run(panel, `click ${cellsTo(centers.signin, screen, 4).join(" ")}`);
+  await expect(site.locator("#result")).toHaveText("signed in");
+
+  // Double and right clicks.
+  await site.evaluate(() => {
+    const result = document.getElementById("result")!;
+    const card = document.getElementById("card")!;
+    card.addEventListener("dblclick", () => (result.textContent = "card double-clicked"));
+    card.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      result.textContent = "card menu";
+    });
+  });
+  const card = cellsTo(centers.card, screen, 3);
+  await run(panel, "show grid");
+  await run(panel, `double click ${card.join(" ")}`);
+  await expect(site.locator("#result")).toHaveText("card double-clicked");
+  await run(panel, "show grid");
+  await run(panel, card.join(" "));
+  await run(panel, "right click");
+  await expect(site.locator("#result")).toHaveText("card menu");
+  expect(await gridState(site)).toBeNull();
 });
 
 test("AI vision: looks at a tagged screenshot, then clicks a spot by coordinates", async ({ panel, site, context }) => {
