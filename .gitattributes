@@ -2,3 +2,4 @@
 # (which would pause the dev loop's auto-pull).
 * text=auto eol=lf
 *.png binary
+*.onnx binary

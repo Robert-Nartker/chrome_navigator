@@ -17,7 +17,13 @@
     "dev": "node scripts/dev.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.128.0"
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@diffusionstudio/piper-wasm": "^1.0.0",
+    "@mintplex-labs/piper-tts-web": "^1.0.5",
+    "kokoro-js": "^1.2.1",
+    "onnxruntime-web": "1.18.0",
+    "onnxruntime-web-1-20": "npm:onnxruntime-web@1.20.0",
+    "pocket-tts-js": "^0.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

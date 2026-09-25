@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Navi voice lab</title>
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      [hidden] { display: none !important; }
+      main { max-width: 860px; margin: 32px auto; padding: 0 16px 48px; }
+      h1 { font-size: 26px; margin-bottom: 4px; }
+      h2 { font-size: 18px; margin: 28px 0 8px; }
+      .lead { color: var(--muted); margin-top: 0; }
+      .hint { color: var(--muted); font-size: 13px; margin: 4px 0; }
+      fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin: 0 0 14px; min-width: 0; }
+      legend { font-weight: 700; padding: 0 6px; }
+      .phrases { display: grid; gap: 4px; }
+      .phrases label, .check { display: flex; gap: 8px; align-items: flex-start; }
+      .phrases input, .check input { margin-top: 4px; }
+      textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+      select { max-width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+      .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
+      .badge.free { color: var(--good); }
+      .badge.paid { color: var(--warn); }
+      .voices { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+      .voices li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 10px; background: var(--surface); border-radius: 8px; }
+      .voices .pick { display: flex; gap: 8px; align-items: center; font-weight: 600; min-width: 150px; }
+      .voices .detail { color: var(--muted); font-size: 13px; flex: 1; min-width: 160px; }
+      .voices .empty { color: var(--muted); background: none; padding: 0; }
+      .voice-note { flex-basis: 100%; font-size: 13px; margin: 0; }
+      .progress { display: flex; gap: 10px; align-items: center; margin: 8px 0; font-size: 13px; }
+      .progress progress { flex: 0 0 220px; }
+      .status.err, .voice-note.err { color: var(--bad); }
+      .status.ok { color: var(--good); }
+      #status { font-weight: 600; min-height: 1.4em; }
+      .table-wrap { overflow-x: auto; }
+      table { border-collapse: collapse; width: 100%; font-size: 13px; }
+      th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+      th { color: var(--muted); font-weight: 600; }
+      td.num { font-variant-numeric: tabular-nums; }
+      /* Blind mode: nothing that names the voices until they're revealed. */
+      body.blind:not(.revealed) #voices, body.blind:not(.revealed) .pick-note { display: none; }
+      #blind-panel { margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Voice lab</h1>
+      <p class="lead">
+        Listen to voices side by side, rate them, and pick the one Navi should use. The free neural engines run on
+        this computer: each downloads its voice model once, then works offline.
+      </p>
+
+      <section aria-labelledby="say-heading">
+        <h2 id="say-heading">What to say</h2>
+        <fieldset>
+          <legend>Phrase</legend>
+          <div id="phrases" class="phrases"></div>
+          <label for="custom-text" class="hint">Or type your own (selects “Your text”)</label>
+          <textarea id="custom-text" rows="2" placeholder="Type anything…"></textarea>
+        </fieldset>
+      </section>
+
+      <section aria-labelledby="compare-heading">
+        <h2 id="compare-heading">Compare</h2>
+        <p class="hint pick-note">Tick the voices you want to compare below, then play the phrase in each of them, one after another.</p>
+        <div class="actions">
+          <button type="button" id="play-all" class="primary">Play this phrase in all selected voices</button>
+          <button type="button" id="stop">Stop</button>
+        </div>
+        <label class="check"><input type="checkbox" id="blind" /> Blind mode: hide the names and shuffle the order of the selected voices</label>
+        <div id="blind-panel" hidden>
+          <ul id="blind-list" class="voices" aria-label="Voices to compare blind"></ul>
+          <div class="actions"><button type="button" id="reveal">Reveal names</button></div>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <p class="hint" id="volume-note"></p>
+      </section>
+
+      <section id="voices" aria-labelledby="voices-heading">
+        <h2 id="voices-heading">Voices</h2>
+
+        <fieldset class="engine" data-engine="system">
+          <legend>Chrome and this computer <span class="badge free">Free</span></legend>
+          <p class="hint">
+            The voices Chrome can use right now. “On this computer” voices work offline; “online” voices send the
+            text to an online service to speak it.
+          </p>
+          <p class="hint">
+            On a Mac you can add much better ones: System Settings → Accessibility → Spoken Content → System voice →
+            Manage Voices, then download a “Premium” or “Enhanced” voice. Restart Chrome and it appears here.
+          </p>
+          <label class="check"><input type="checkbox" id="all-languages" /> Show all languages</label>
+          <ul class="voices"></ul>
+        </fieldset>
+
+        <fieldset class="engine" data-engine="kokoro">
+          <legend>Kokoro <span class="badge free">Free · on this computer</span></legend>
+          <p class="hint">A small, natural-sounding neural model with many voices. One download covers all of them.</p>
+          <div class="actions">
+            <label for="kokoro-device">Run on</label>
+            <select id="kokoro-device">
+              <option value="webgpu">Graphics chip (WebGPU): faster, 326 MB download</option>
+              <option value="wasm">Processor (WebAssembly): works everywhere, 92 MB download</option>
+            </select>
+            <button type="button" class="load">Download and load</button>
+          </div>
+          <div class="progress" hidden><progress max="1" aria-label="Kokoro download"></progress><span></span></div>
+          <p class="status" role="status"></p>
+          <ul class="voices"></ul>
+        </fieldset>
+
+        <fieldset class="engine" data-engine="pocket">
+          <legend>Pocket TTS by Kyutai <span class="badge free">Free · on this computer</span></legend>
+          <p class="hint">A newer model that streams its speech, so it starts talking quickly. About 125 MB, downloaded once; its voices appear once it's loaded.</p>
+          <div class="actions"><button type="button" class="load">Download and load</button></div>
+          <div class="progress" hidden><progress max="1" aria-label="Pocket TTS download"></progress><span></span></div>
+          <p class="status" role="status"></p>
+          <ul class="voices"></ul>
+        </fieldset>
+
+        <fieldset class="engine" data-engine="piper">
+          <legend>Piper <span class="badge free">Free · on this computer</span></legend>
+          <p class="hint">Light, fast voices made for offline assistants. Each voice is its own download (about 63 MB), fetched the first time you play it.</p>
+          <div class="progress" hidden><progress max="1" aria-label="Piper download"></progress><span></span></div>
+          <p class="status" role="status"></p>
+          <ul class="voices"></ul>
+        </fieldset>
+
+        <fieldset class="engine" data-engine="eleven" hidden>
+          <legend>ElevenLabs <span class="badge paid">Paid</span></legend>
+          <p class="hint">For comparison: the premium online voice from your Navi settings. Each play uses your ElevenLabs credits.</p>
+          <p class="status" role="status"></p>
+          <ul class="voices"></ul>
+        </fieldset>
+      </section>
+
+      <section aria-labelledby="results-heading">
+        <h2 id="results-heading">Results</h2>
+        <p class="hint">
+          <strong>Time to first audio</strong> is how long you'd wait before Navi starts talking.
+          <strong>Real-time factor</strong> is synthesis time divided by the length of the speech; under 1× means it
+          generates speech faster than it plays. Chrome's and ElevenLabs' voices don't report synthesis time.
+        </p>
+        <div class="table-wrap">
+          <table id="results">
+            <thead>
+              <tr>
+                <th scope="col">Voice</th>
+                <th scope="col">Engine</th>
+                <th scope="col">First load</th>
+                <th scope="col">Download</th>
+                <th scope="col">Time to first audio</th>
+                <th scope="col">Synthesis</th>
+                <th scope="col">Real-time factor</th>
+                <th scope="col">Rating</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint" id="results-empty">Play a voice to see its numbers here.</p>
+      </section>
+
+      <section aria-labelledby="top-heading">
+        <h2 id="top-heading">Your top voices</h2>
+        <ol id="top"></ol>
+        <p class="hint" id="top-empty">Rate voices from 1 to 5 as you listen; your favorites show up here.</p>
+      </section>
+
+      <section aria-labelledby="storage-heading">
+        <h2 id="storage-heading">Downloaded voices</h2>
+        <p class="hint" id="storage"></p>
+        <div class="actions"><button type="button" id="clear-downloads">Delete downloaded voices</button></div>
+      </section>
+    </main>
+    <script type="module" src="tts-lab.js"></script>
+  </body>
+</html>

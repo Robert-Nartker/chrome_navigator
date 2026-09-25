@@ -12,7 +12,7 @@ import { watch } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { promisify } from "node:util";
-import { copyStatic, esbuildOptions } from "./build-config.mjs";
+import { copyStatic, esbuildOptions, labEsbuildOptions } from "./build-config.mjs";
 
 const run = promisify(execFile);
 const argv = process.argv.slice(2);
@@ -70,7 +70,10 @@ async function lastCommit() {
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
-const ctx = await esbuild.context(esbuildOptions({ outdir, dev: true }));
+const contexts = await Promise.all([
+  esbuild.context(esbuildOptions({ outdir, dev: true })),
+  esbuild.context(labEsbuildOptions({ outdir, dev: true })),
+]);
 
 let building = false;
 let queued = false;
@@ -82,8 +85,8 @@ async function rebuild(reason) {
   building = true;
   try {
     const started = Date.now();
-    const result = await ctx.rebuild().catch((err) => err);
-    if (result?.errors?.length) {
+    const results = await Promise.all(contexts.map((ctx) => ctx.rebuild().catch((err) => err)));
+    if (results.some((result) => result?.errors?.length)) {
       log(`Build failed (fix the error above; the extension keeps the last good build)`);
       return;
     }
