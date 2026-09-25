@@ -12,11 +12,12 @@
 //
 // Options:
 //   --suite router,agent     which suites to run (default: both)
-//   --routers a,b            router models (default: gpt-6-luna,gpt-6-sol,claude-haiku-4-5,claude-sonnet-5)
-//   --agents model@effort,…  agent models (default: claude-opus-5-5@low,gpt-6-astra@low,gpt-6-sol@none,gpt-6-sol@low,gpt-6-luna@none)
+//   --routers a,b            router models (default: gpt-6-luna,gpt-6-sol,claude-haiku-4-5)
+//   --agents model@effort,…  agent models (default: gpt-6-sol@none,gpt-6-sol@low,gpt-6-luna@none,claude-opus-5-5@low;
+//                            add gpt-6-astra@low explicitly, it costs ~5x more than the rest together)
 //   --tasks core|all|id,…    agent tasks (default: core, 8 tasks)
 //   --repeat N               runs per task and router phrase (default 1)
-//   --budget USD             stop testing a model once it has spent this much (default 1.50)
+//   --budget USD             stop testing a model once it has spent this much (default 1.00)
 //   --mock                   fake API replies (no keys, no cost) to test the harness
 //   --headed                 show the browser
 import { chromium } from "@playwright/test";
@@ -35,10 +36,10 @@ const args = Object.fromEntries(
 const mock = !!args.mock;
 const suites = new Set(String(args.suite ?? "router,agent").split(","));
 const repeat = Number(args.repeat ?? 1);
-const budget = Number(args.budget ?? 1.5);
+const budget = Number(args.budget ?? 1);
 const list = (value, fallback) => String(value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean);
-const routerModels = list(args.routers, "gpt-6-luna,gpt-6-sol,claude-haiku-4-5,claude-sonnet-5");
-const agentConfigs = list(args.agents, "claude-opus-5-5@low,gpt-6-astra@low,gpt-6-sol@none,gpt-6-sol@low,gpt-6-luna@none").map(
+const routerModels = list(args.routers, "gpt-6-luna,gpt-6-sol,claude-haiku-4-5");
+const agentConfigs = list(args.agents, "gpt-6-sol@none,gpt-6-sol@low,gpt-6-luna@none,claude-opus-5-5@low").map(
   (spec) => {
     const [model, effort = "low"] = spec.split("@");
     return { model, effort, label: `${model}@${effort}` };

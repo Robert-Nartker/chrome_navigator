@@ -164,17 +164,18 @@ OPENAI_API_KEY=sk-...
 ```bash
 npm run bench:estimate    # what a run will cost; no API calls
 npm run bench:check       # checks your keys and model names (about a cent)
-npm run bench             # full run: router and agent suites (default set is about $2-3)
+npm run bench             # full run: router and agent suites (default set: about $0.55 with an OpenAI key only)
 npm run bench:mock        # checks the harness with fake API replies (free)
 ```
 
-**Default models:**
-- Routers: GPT-6 Luna, GPT-6 Sol, Claude Haiku 4.5, Claude Sonnet 5.
-- Agents: Opus 5.5 at low effort, GPT-6 Astra at low, GPT-6 Sol with reasoning off and at low, GPT-6 Luna with reasoning off.
+**Default models** (any without a key are skipped):
+- Routers: GPT-6 Luna, GPT-6 Sol, Claude Haiku 4.5.
+- Agents: GPT-6 Sol with reasoning off and at low, GPT-6 Luna with reasoning off, Opus 5.5 at low effort.
+- GPT-6 Astra costs about 5x more than the rest together, so add it on purpose: `--agents gpt-6-astra@low`.
 
 **Options:**
 - Change models with `--routers a,b` and `--agents model@effort,...`, e.g. `--agents claude-opus-5-5@medium`.
-- `--budget` stops testing a model once it has spent that much. The default is $1.50 per model.
+- `--budget` stops testing a model once it has spent that much. The default is $1.00 per model.
 
 **Output:**
 - Tables of accuracy, latency and cost per call or per task.

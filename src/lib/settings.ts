@@ -55,7 +55,8 @@ export type SpeechProvider = "elevenlabs" | "chrome";
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
   openaiKey: "",
-  model: "claude-opus-5-5",
+  // Cheap and fast by default; Opus 5.5 and GPT-6 Astra are options in settings.
+  model: "gpt-6-sol",
   effort: "low",
   fastMode: false,
   wakeName: "Navi",
@@ -64,7 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   feedback: "minimal",
   speechRate: 1.0,
   volume: 0.6,
-  routerModel: "claude-sonnet-5",
+  routerModel: "gpt-6-luna",
   voiceName: "",
   lang: "en-US",
   allowCloudSpeech: true,

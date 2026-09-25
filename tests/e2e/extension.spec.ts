@@ -200,7 +200,7 @@ test("AI path: Claude picks the element, extension clicks it, reply is logged", 
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
   await run(panel, "hit the subscribe thing for me");
@@ -251,7 +251,7 @@ test("privacy: blocked sites never reach the AI", async ({ panel, context }) => 
     return route.abort();
   });
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", blockedSites: ["localhost"] } }),
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5", blockedSites: ["localhost"] } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "what is this page about");
@@ -292,7 +292,7 @@ test("fast mode: sends speed=fast, and falls back to standard speed if unavailab
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", fastMode: true, routerModel: "off" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", fastMode: true, routerModel: "off" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "what is on this page");
   await expect(panel.locator("#log li.navi").last()).toContainText("Standard speed works.");
@@ -327,7 +327,7 @@ test("personal commands: the AI saves one, then it runs instantly without the AI
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", routerModel: "off" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "off" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
   await site.click("h1");
@@ -414,7 +414,7 @@ test("AI vision: looks at a tagged screenshot, then clicks a spot by coordinates
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "click the second button in that row");
   await expect(site.locator("#subs")).toHaveText("1");
@@ -457,7 +457,7 @@ test("router: a loosely worded command is understood by the quick model and runs
       return [{ type: "text", text: JSON.stringify({ route: "command", command: "click subscribe" }) }];
     }),
   );
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "yo can you smash that sub thingy");
   // The router runs without extended thinking so it stays fast.
@@ -476,7 +476,7 @@ test("router: noise is ignored quietly and never reaches the main model", async 
       return [{ type: "text", text: JSON.stringify({ route: "ignore", command: "" }) }];
     }),
   );
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   const final = (text: string) =>
     panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);
@@ -608,7 +608,7 @@ test("GPT router: a loosely worded command runs on the fast path, and its cost i
   });
   // Main model is Claude, router is GPT-6 Luna: each uses its own key.
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", openaiKey: "sk-openai-test", routerModel: "gpt-6-luna" } }),
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", openaiKey: "sk-openai-test", routerModel: "gpt-6-luna" } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "yo can you smash that sub thingy");
