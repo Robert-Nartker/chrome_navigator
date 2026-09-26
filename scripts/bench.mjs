@@ -261,7 +261,7 @@ async function runAgentTask(task) {
   try {
     for (const command of task.commands) {
       await Promise.race([
-        panel.evaluate((c) => window.navi.run(c), command),
+        panel.evaluate((c) => window.navi.run(c, "voice"), command),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 120_000)),
       ]);
       await panel.waitForFunction(() => !window.navi.busy, null, { timeout: 120_000 });

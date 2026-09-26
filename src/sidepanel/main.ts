@@ -5,6 +5,7 @@
 import { startDevReload } from "../lib/dev-reload";
 import {
   EARS_OFF,
+  type EarsEvent,
   type EarsRequest,
   type EarsState,
   type LogEntry,
@@ -35,6 +36,7 @@ const ui = {
   numbersButton: $<HTMLButtonElement>("toggle-numbers"),
   gridButton: $<HTMLButtonElement>("toggle-grid"),
   engine: $("engine"),
+  dictate: $<HTMLButtonElement>("dictate"),
   engineLabel: $("engine-label"),
 };
 
@@ -50,9 +52,13 @@ const toWorker = <T = unknown>(request: WorkerRequest) => chrome.runtime.sendMes
 function renderStatus() {
   let state = "off";
   let text = "Mic off";
-  if (ears.micError) {
+  const problem = ears.micError || worker.problem;
+  if (problem) {
     state = "error";
     text = "Mic unavailable";
+  } else if (ears.dictating) {
+    state = "awake";
+    text = "Dictating into the chat box…";
   } else if (worker.working) {
     state = "working";
     text = worker.detail ?? "Working…";
@@ -67,9 +73,15 @@ function renderStatus() {
       state = "sleeping";
       text = `Say “Hey ${settings.wakeName}”`;
     }
+  } else if (worker.listening) {
+    // Asked to listen; the mic is still opening.
+    state = "starting";
+    text = "Starting the mic…";
   }
   showStatus(state, text, worker.detail);
-  const listening = worker.listening || ears.listening;
+  const listening = worker.listening;
+  ui.dictate.setAttribute("aria-pressed", String(ears.dictating));
+  ui.dictate.setAttribute("aria-label", ears.dictating ? "Stop dictating" : "Dictate a message");
   ui.mic.setAttribute("aria-pressed", String(listening));
   ui.mic.setAttribute("aria-label", listening ? "Stop listening" : "Start listening");
   ui.mic.dataset.awake = String(ears.awake && settings.listenMode === "handsfree");
@@ -87,6 +99,7 @@ const STATUS_LABELS: Record<string, string> = {
   working: "Working",
   awake: "Listening",
   sleeping: "Asleep",
+  starting: "Starting",
 };
 const voiceCard = $("voice");
 const captionHint = $("caption-hint");
@@ -99,10 +112,12 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, STATUS_LABELS[state] ?? text);
   const hint =
     state === "off"
-      ? ears.micError || "Click the mic to talk, or type a command below."
-      : state === "working"
-        ? feed.activity || text
-        : text;
+      ? "Click the mic to talk, or type below."
+      : state === "error"
+        ? ears.micError || worker.problem || text
+        : state === "working"
+          ? feed.activity || text
+          : text;
   setText(captionHint, hint);
 }
 
@@ -174,8 +189,30 @@ document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((radio) 
   radio.addEventListener("change", () => void saveSettings({ listenMode: radio.value as Settings["listenMode"] })),
 );
 
+/** What was in the chat box when dictation started; dictated words go after it. */
+let dictationBase: string | null = null;
+
+function showDictation(text: string, final: boolean) {
+  dictationBase ??= ui.input.value;
+  const base = dictationBase.trimEnd();
+  ui.input.value = base && text ? `${base} ${text}` : base || text;
+  if (final) {
+    dictationBase = null;
+    ui.input.focus();
+    ui.input.setSelectionRange(ui.input.value.length, ui.input.value.length);
+  }
+}
+
+ui.dictate.addEventListener("click", () => {
+  const on = !ears.dictating;
+  dictationBase = on ? ui.input.value : null;
+  void toWorker({ type: "navi:dictate", on });
+});
+
 ui.form.addEventListener("submit", (e) => {
   e.preventDefault();
+  if (ears.dictating) void toWorker({ type: "navi:dictate", on: false });
+  dictationBase = null;
   const text = ui.input.value;
   ui.input.value = "";
   // Typed commands skip the wake word.
@@ -191,7 +228,10 @@ ui.numbersButton.addEventListener("click", () => void toWorker({ type: "navi:tog
 
 // Live updates from the worker and the ears.
 chrome.runtime.onMessage.addListener((message: unknown) => {
-  const msg = message as ViewEvent | { type: "ears:state"; state: EarsState } | { type: "ears:interim"; text: string } | { type: "navi:mic-granted" };
+  const msg = message as
+    | ViewEvent
+    | Extract<EarsEvent, { type: "ears:state" | "ears:interim" | "ears:dictation" }>
+    | { type: "navi:mic-granted" };
   switch (msg.type) {
     case "view:log":
       feed.push(msg.entry);
@@ -210,6 +250,9 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
     case "ears:interim":
       showInterim(msg.text);
       break;
+    case "ears:dictation":
+      showDictation(msg.text, msg.final);
+      break;
     case "navi:mic-granted":
       ui.micBanner.hidden = true;
       renderStatus();
@@ -224,8 +267,9 @@ const earsTest = <T = unknown>(ears: Extract<EarsRequest, { type: "ears:test" }>
 
 // Exposed for automated tests, the benchmark, and debugging from DevTools.
 const navi = {
-  async run(text: string) {
-    const result = await toWorker<{ metrics: CommandMetric[]; worker?: WorkerState } | undefined>({ type: "navi:run", text });
+  /** Runs a typed message, or with source "voice" a command as if spoken (tests, benchmark). */
+  async run(text: string, source: "typed" | "voice" = "typed") {
+    const result = await toWorker<{ metrics: CommandMetric[]; worker?: WorkerState } | undefined>({ type: "navi:run", text, source });
     if (result?.metrics) metrics.splice(0, metrics.length, ...result.metrics);
   },
   handleFinal: (text: string, confidence = 0) => earsTest({ type: "ears:test", action: "final", text, confidence }),

@@ -125,7 +125,7 @@ const test = base.extend<Fixtures>({
 
 type Hooks = {
   navi: {
-    run(t: string): Promise<void>;
+    run(t: string, source?: "typed" | "voice"): Promise<void>;
     lastReply(): string;
     startListening(): Promise<void>;
     stopListening(): void;
@@ -133,8 +133,9 @@ type Hooks = {
   };
 };
 
+/** A command as if spoken (these cards come from the voice pipeline: router, then the AI). */
 async function run(panel: Page, command: string) {
-  await panel.evaluate((text) => (window as unknown as Hooks).navi.run(text), command);
+  await panel.evaluate((text) => (window as unknown as Hooks).navi.run(text, "voice"), command);
 }
 
 /** Navi's background page (offscreen document), where the mic and recognizer run. */
@@ -442,6 +443,37 @@ test.describe("live caption", () => {
       ).length,
     );
     expect(moving).toBe(0);
+  });
+
+  test("dictation: the chat box's mic types what you say instead of running it", async ({ panel }) => {
+    const input = panel.locator("#command-input");
+    const dictate = panel.locator("#dictate");
+    // Listening for the name: dictation borrows the mic, then Navi goes back to waiting for its name.
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    await input.fill("remind me to");
+    await dictate.click();
+    await expect(dictate).toHaveAttribute("aria-pressed", "true");
+    await expect(panel.locator("#caption-hint")).toHaveText("Dictating into the chat box…");
+    await hear(panel, "scroll down");
+    await expect(input).toHaveValue("remind me to scroll down");
+    await hear(panel, "scroll down the page", true);
+    await expect(input).toHaveValue("remind me to scroll down the page");
+    await expect(dictate).toHaveAttribute("aria-pressed", "false");
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    // Nothing ran: dictated words aren't commands.
+    await expect(panel.locator("#log li.user")).toHaveCount(0);
+
+    // Mic off: dictation turns it on for one phrase, then off again.
+    await panel.evaluate(() => (window as unknown as Hooks).navi.stopListening());
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "off");
+    await input.fill("");
+    await dictate.click();
+    await expect(dictate).toHaveAttribute("aria-pressed", "true");
+    await hear(panel, "what is on this page", true);
+    await expect(input).toHaveValue("what is on this page");
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "off");
+    await expect(input).toBeFocused();
+    await expect(panel.locator("#log li.user")).toHaveCount(0);
   });
 
   test("with the panel closed, Navi still listens, and a pill on the page shows what it hears and says", async ({

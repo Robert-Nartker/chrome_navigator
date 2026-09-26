@@ -112,8 +112,16 @@ const test = base.extend<Fixtures>({
   },
 });
 
+type RunHook = { navi: { run(t: string, source?: "typed" | "voice"): Promise<void> } };
+
+/** A command as if spoken (the voice pipeline: router, then the AI with the page's element list). */
 async function run(panel: Page, command: string) {
-  await panel.evaluate((text) => (window as unknown as { navi: { run(t: string): Promise<void> } }).navi.run(text), command);
+  await panel.evaluate((text) => (window as unknown as RunHook).navi.run(text, "voice"), command);
+}
+
+/** A message typed in the panel's chat box. */
+async function type(panel: Page, message: string) {
+  await panel.evaluate((text) => (window as unknown as RunHook).navi.run(text, "typed"), message);
 }
 
 async function snapshotFromPanel(panel: Page) {
@@ -796,6 +804,103 @@ test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is 
   );
   expect(cost).toBeCloseTo(expected, 10);
   await expect(panel.locator("#log li.navi").last()).toContainText("$0.0002");
+});
+
+test("typed: a message goes straight to the main model as chat, with the tabs but not the page, and isn't spoken", async ({
+  panel,
+  context,
+}) => {
+  const bodies: Record<string, unknown>[] = [];
+  let routerCalls = 0;
+  const spoken: string[] = [];
+  await context.route("https://api.openai.com/v1/responses", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    if (body.text) {
+      routerCalls++;
+      return route.abort();
+    }
+    bodies.push(body);
+    return route.fulfill(
+      openaiReply([
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "You have one tab open:\n- Navi Test Page" }] },
+      ]),
+    );
+  });
+  await context.route("https://api.elevenlabs.io/**", (route) => {
+    spoken.push(String((route.request().postDataJSON() as { text?: string } | null)?.text ?? ""));
+    return route.abort();
+  });
+  await panel.evaluate(() =>
+    chrome.storage.local.set({
+      settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", routerModel: "gpt-6-luna", elevenLabsKey: "el-test" },
+    }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+
+  await type(panel, "which of my tabs is the test page?");
+  const reply = panel.locator("#log li.navi").last();
+  await expect(reply).toContainText("You have one tab open:");
+  // A short list keeps its lines.
+  expect(await reply.locator(".text").evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("pre-line");
+
+  // No router: typing is for questions, chat and tasks.
+  expect(routerCalls).toBe(0);
+  expect(bodies).toHaveLength(1);
+  const first = String((bodies[0].input as { content?: unknown }[])[0].content);
+  expect(first).toContain('Typed message: "which of my tabs is the test page?"');
+  expect(first).toMatch(/\(tab \d+\) Navi Test Page - localhost \[current\]/);
+  // The page itself isn't sent unless the user turns that on; the model can look when it needs to.
+  expect(first).not.toContain('button "Subscribe"');
+  expect((bodies[0].tools as { name: string }[]).map((t) => t.name)).toEqual(
+    expect.arrayContaining(["look_at_page", "list_tabs", "read_tab"]),
+  );
+  // The answer is read on screen, not spoken.
+  await panel.waitForTimeout(300);
+  expect(spoken.filter((t) => t.includes("one tab"))).toHaveLength(0);
+});
+
+test("typed: a task looks at the page first, then acts, and knows what happened recently", async ({ panel, site, context }) => {
+  const bodies: Record<string, unknown>[] = [];
+  await context.route("https://api.openai.com/v1/responses", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    bodies.push(body);
+    const input = body.input as { type?: string; output?: string }[];
+    if (bodies.length === 1) {
+      return route.fulfill(
+        openaiReply([{ type: "function_call", id: "fc_1", call_id: "call_1", name: "look_at_page", arguments: "{}" }]),
+      );
+    }
+    if (bodies.length === 2) {
+      const page = input.find((i) => i.type === "function_call_output")?.output ?? "";
+      const id = Number(page.match(/\[(\d+)\] button "Subscribe"/)?.[1]);
+      return route.fulfill(
+        openaiReply([
+          { type: "function_call", id: "fc_2", call_id: "call_2", name: "click", arguments: JSON.stringify({ element_id: id }) },
+        ]),
+      );
+    }
+    return route.fulfill(
+      openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Subscribed." }] }]),
+    );
+  });
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", routerModel: "off" } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+
+  // Built-in commands still run instantly when typed.
+  await type(panel, "click sign in");
+  await expect(site.locator("#result")).toHaveText("signed in");
+  expect(bodies).toHaveLength(0);
+
+  await type(panel, "subscribe to this channel for me");
+  await expect(site.locator("#subs")).toHaveText("1");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Subscribed.");
+  expect(bodies).toHaveLength(3);
+  const first = String((bodies[0].input as { content?: unknown }[])[0].content);
+  expect(first).toContain("Recent activity");
+  expect(first).toContain('typed "click sign in" → Clicked Sign in');
+  await expect(panel.locator("#log > li.turn").last().locator("li.step").nth(1)).toHaveText("Looking at the page");
 });
 
 test("GPT agent: reasoning is carried between steps and screenshots are sent as images", async ({ panel, site, context }) => {

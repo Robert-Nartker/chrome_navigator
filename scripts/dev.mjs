@@ -6,7 +6,7 @@
 //   npm run dev              (load dist/ in chrome://extensions once; after that, nothing to click)
 //   npm run dev -- --no-pull (rebuild and reload only, no git)
 import * as esbuild from "esbuild";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { watch } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -33,7 +33,7 @@ const log = (msg) => console.log(`[${time()}] ${msg}`);
 const clients = new Set();
 let state = { buildId: 0, fullHash: "", commit: "", at: "" };
 
-createServer((req, res) => {
+const server = createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.url === "/events") {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
@@ -46,7 +46,7 @@ createServer((req, res) => {
 }).listen(port, "127.0.0.1", () => log(`Live reload server on http://localhost:${port}`));
 
 // Keep connections open through idle periods.
-setInterval(() => clients.forEach((c) => c.write(": ping\n\n")), 20_000);
+const pingTimer = setInterval(() => clients.forEach((c) => c.write(": ping\n\n")), 20_000);
 
 function broadcast() {
   clients.forEach((c) => c.write(`data: ${JSON.stringify(state)}\n\n`));
@@ -110,7 +110,7 @@ async function rebuild(reason) {
 await rebuild("startup");
 
 let debounce;
-watch("src", { recursive: true }, (_event, file) => {
+const watcher = watch("src", { recursive: true }, (_event, file) => {
   clearTimeout(debounce);
   debounce = setTimeout(() => void rebuild(`changed ${file}`), 120);
 });
@@ -153,6 +153,8 @@ async function pull() {
       // npm is a .cmd script on Windows, which Node can only start through a shell.
       await run("npm", ["install", "--no-audit", "--no-fund"], { shell: process.platform === "win32" });
     }
+    // This process built its build setup (entry points, copied files) at startup; a new setup needs a fresh start.
+    if (/^(scripts\/|package(-lock)?\.json$)/m.test(changed)) return restart("The build setup changed");
     // The file watcher rebuilds automatically; this covers watchers that miss git's writes.
     await rebuild("pulled from GitHub");
   } catch (err) {
@@ -160,7 +162,22 @@ async function pull() {
   }
 }
 
+let pullTimer;
 if (!flag("no-pull")) {
   log(`Auto-pulling from GitHub every ${pullEverySec}s`);
-  setInterval(() => void pull(), pullEverySec * 1000);
+  pullTimer = setInterval(() => void pull(), pullEverySec * 1000);
+}
+
+/** Starts a fresh copy of this script (same terminal, same options) and hands over to it. */
+async function restart(why) {
+  log(`${why}; restarting the dev loop…`);
+  clearInterval(pullTimer);
+  clearInterval(pingTimer);
+  watcher.close();
+  await Promise.all(contexts.map((ctx) => ctx.dispose()));
+  clients.forEach((c) => c.end());
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+  const child = spawn(process.execPath, process.argv.slice(1), { stdio: "inherit" });
+  child.on("exit", (code) => process.exit(code ?? 0));
 }

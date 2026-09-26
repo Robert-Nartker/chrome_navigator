@@ -77,22 +77,54 @@ async function setListening(on: boolean) {
   worker = { ...worker, listening: on };
   broadcastWorker();
   await chrome.storage.local.set({ listening: on });
-  if (on) await ensureEars();
+  if (on && !(await earsOrProblem())) {
+    worker = { ...worker, listening: false };
+    broadcastWorker();
+    await chrome.storage.local.set({ listening: false });
+    return;
+  }
   if (on || (await earsExist())) await sendEars({ type: "ears:listen", on });
+}
+
+/** Opens the background page; if it can't, says why (once) and returns false. */
+async function earsOrProblem(): Promise<boolean> {
+  try {
+    await ensureEars();
+    if (worker.problem) {
+      worker = { ...worker, problem: undefined };
+      broadcastWorker();
+    }
+    return true;
+  } catch (err) {
+    const problem = earsProblem(err);
+    if (problem !== worker.problem) log("error", problem);
+    worker = { ...worker, problem };
+    broadcastWorker();
+    return false;
+  }
+}
+
+/** Why the background page (mic and voice) couldn't open, in words the user can act on. */
+function earsProblem(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/page failed to load/i.test(message)) {
+    return "Navi's mic and voice page is missing from this build. Rebuild Navi (restart npm run dev), then reload it on chrome://extensions.";
+  }
+  return `Navi couldn't start its mic and voice: ${message}`;
 }
 
 // ---------- The controller ----------
 
 const voice: Voice = {
   async say(text) {
-    await ensureEars();
-    await sendEars({ type: "ears:say", text });
+    // Without a voice the reply is still in the log; the problem is reported once.
+    if (await earsOrProblem()) await sendEars({ type: "ears:say", text });
   },
   stop() {
     void sendEars({ type: "ears:stop-speaking" });
   },
   sound(name) {
-    void ensureEars().then(() => sendEars({ type: "ears:sound", name }));
+    void earsOrProblem().then((ok) => ok && sendEars({ type: "ears:sound", name }));
   },
 };
 
@@ -234,10 +266,20 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       });
       return true;
     case "navi:run":
-      void controller.run(msg.text).then(() => sendResponse({ metrics }));
+      void controller.run(msg.text, { source: msg.source ?? "typed" }).then(() => sendResponse({ metrics }));
       return true;
+    case "navi:dictate":
+      void (async () => {
+        if (await earsOrProblem()) await sendEars({ type: "ears:dictate", on: msg.on });
+      })().finally(() => sendResponse(true));
+      return true;
+    case "ears:dictation":
+      // For the side panel's chat box, which hears it directly.
+      return false;
     case "navi:listen":
-      void setListening(msg.on).then(() => sendResponse(true));
+      void setListening(msg.on)
+        .catch((err: unknown) => log("error", `Couldn't turn the mic ${msg.on ? "on" : "off"}: ${String(err)}`))
+        .finally(() => sendResponse(true));
       return true;
     case "navi:toggle": {
       const done = () => sendResponse(true);
@@ -273,8 +315,8 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
 /** The first note in a fresh log. */
 function greeting(): string {
   const start =
-    settings.listenMode === "handsfree" ? `Say “Hey ${settings.wakeName}”, then a command,` : "Click the mic and say a command,";
-  return `${start} or type one below. Navi keeps listening when this panel is closed.`;
+    settings.listenMode === "handsfree" ? `Say “Hey ${settings.wakeName}”, then a command.` : "Click the mic and say a command.";
+  return `${start} Or type below to ask Navi anything. Navi keeps listening when this panel is closed.`;
 }
 
 /** Hooks for automated tests and the benchmark (through the side panel's window.navi). */
@@ -291,7 +333,7 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       return { ...result, ms: Math.round(performance.now() - t0) };
     }
     case "ears":
-      await ensureEars();
+      if (!(await earsOrProblem())) return undefined;
       return sendEars(msg.ears!);
   }
 }
@@ -318,7 +360,7 @@ export function startNavi() {
     });
     const stored = await chrome.storage.local.get("listening");
     if (stored.listening) await setListening(true);
-    else if (await earsExist()) await ensureEars();
+    else if (await earsExist()) await earsOrProblem();
     void updateBadge();
   })();
 }

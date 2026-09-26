@@ -9,10 +9,8 @@
   </head>
   <body>
     <header class="top">
-      <div class="brand">
-        <img src="icons/icon32.png" alt="" width="16" height="16" />
-        <h1>Navi</h1>
-      </div>
+      <!-- Chrome's side panel frame already shows Navi's name and icon. -->
+      <h1 class="sr-only">Navi</h1>
       <div id="status" class="status" data-state="off" role="status" aria-live="polite">
         <span class="dot" aria-hidden="true"></span><span id="status-text">Mic off</span>
       </div>
@@ -82,7 +80,7 @@
     <div id="announcer" class="sr-only" aria-live="polite" aria-relevant="additions"></div>
 
     <form id="command-form" class="composer">
-      <input id="command-input" type="text" placeholder="Type a command…" autocomplete="off" aria-label="Command" />
+      <input id="command-input" type="text" placeholder="Ask Navi, or type a command…" autocomplete="off" aria-label="Command" />
       <div class="composer-bar">
         <button type="button" id="toggle-numbers" class="chip" title="Number every clickable thing (“show flags”)">
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
@@ -97,6 +95,12 @@
           <span class="label">Grid</span>
         </button>
         <span class="spacer"></span>
+        <button type="button" id="dictate" class="dictate" aria-pressed="false" aria-label="Dictate a message" title="Dictate a message">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M3.5 7.75a4.5 4.5 0 0 0 9 0M8 12.25v2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button type="submit" class="send" aria-label="Go">
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
             <path d="M8 13V3.5M3.75 7.5 8 3.25l4.25 4.25" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>

@@ -19,9 +19,13 @@ export interface EarsOutput {
   /** What the recognizer is hearing right now ("" to clear). */
   interim(text: string): void;
   log(kind: Extract<LogKind, "info" | "error">, text: string): void;
+  /** Dictation for the chat box: words heard so far, then the finished phrase. */
+  dictation(text: string, final: boolean): void;
 }
 
 const STOP_WORDS = /\b(stop|cancel|quiet)\b/i;
+/** Dictation ends by itself after this long without hearing anything. */
+const DICTATION_IDLE_MS = 8000;
 
 export class Ears {
   private settings: Settings = DEFAULT_SETTINGS;
@@ -42,6 +46,11 @@ export class Ears {
   readonly session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
   readonly speaker: Speaker;
   private lastVoiceError = "";
+  /** Dictating into the chat box: the next phrase is typed there instead of run. */
+  private dictating = false;
+  /** The mic was off, so it was turned on just to dictate. */
+  private dictationOnly = false;
+  private dictationTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly out: EarsOutput) {
     this.speaker = new Speaker(
@@ -110,6 +119,25 @@ export class Ears {
     earcons[name]();
   }
 
+  /** Dictates one phrase into the chat box (turning the mic on for it if it's off), or stops. */
+  async dictate(on: boolean) {
+    clearTimeout(this.dictationTimer);
+    if (on) {
+      this.speaker.stop();
+      if (!this.dictating) {
+        this.dictating = true;
+        this.dictationOnly = !this.listening;
+        if (this.dictationOnly) await this.start();
+      }
+      this.dictationTimer = setTimeout(() => void this.dictate(false), DICTATION_IDLE_MS);
+    } else if (this.dictating) {
+      this.dictating = false;
+      if (this.dictationOnly) this.stop();
+      this.dictationOnly = false;
+    }
+    this.emit();
+  }
+
   /** "Go to sleep" (hands-free): back to waiting for the name. */
   sleep() {
     this.session.sleep();
@@ -127,6 +155,11 @@ export class Ears {
   /** A finished phrase from whichever recognizer is transcribing (also used by tests). */
   final(transcript: string, confidence = 0) {
     this.out.interim("");
+    if (this.dictating) {
+      this.out.dictation(transcript, true);
+      void this.dictate(false);
+      return;
+    }
     if (this.speaker.busy) {
       // Let "stop" interrupt a long reply; ignore anything else (likely Navi's own voice).
       if (STOP_WORDS.test(transcript)) this.out.cancel();
@@ -166,6 +199,7 @@ export class Ears {
       engineLabel: this.listening ? eleven || this.chromeLabel : "",
       remainingMs: this.listening && this.settings.listenMode === "handsfree" ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
+      dictating: this.dictating,
     };
   }
 
@@ -192,6 +226,13 @@ export class Ears {
   }
 
   private interim(text: string) {
+    if (this.dictating) {
+      this.out.dictation(text, false);
+      // Still talking: keep dictating.
+      clearTimeout(this.dictationTimer);
+      this.dictationTimer = setTimeout(() => void this.dictate(false), DICTATION_IDLE_MS);
+      return;
+    }
     if (this.speaker.busy) return;
     const asleep = this.settings.listenMode === "handsfree" && this.session.current === "sleeping";
     // While asleep, only show speech once the wake word is heard (nothing else is acted on).

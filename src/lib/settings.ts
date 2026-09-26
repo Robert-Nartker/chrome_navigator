@@ -36,6 +36,8 @@ export interface Settings {
   allowPageText: boolean;
   /** Whether the AI may take a screenshot when the element list isn't enough. */
   allowScreenshots: boolean;
+  /** Send the current page's element list with typed messages (otherwise the AI looks when it needs to). */
+  typedPageContext: boolean;
   /** Hostname fragments where Navi never sends anything to the AI. */
   blockedSites: string[];
   maxAgentSteps: number;
@@ -72,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   allowCloudSpeech: true,
   allowPageText: true,
   allowScreenshots: true,
+  typedPageContext: false,
   blockedSites: [],
   maxAgentSteps: 12,
   elevenLabsKey: "",

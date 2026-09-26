@@ -14,6 +14,7 @@ const ears = new Ears({
   state: (state) => send({ type: "ears:state", state }),
   interim: (text) => send({ type: "ears:interim", text }),
   log: (kind, text) => send({ type: "ears:log", kind, text }),
+  dictation: (text, final) => send({ type: "ears:dictation", text, final }),
 });
 
 // (Other parts' messages arrive here too; anything that isn't an ears request falls to `default`.)
@@ -39,6 +40,9 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       if (msg.action === "sleep") ears.sleep();
       else ears.touch();
       return false;
+    case "ears:dictate":
+      void ears.dictate(msg.on).then(() => sendResponse(true));
+      return true;
     case "ears:test":
       sendResponse(test(msg));
       return false;

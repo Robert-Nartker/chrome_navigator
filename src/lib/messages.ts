@@ -33,9 +33,19 @@ export interface EarsState {
   remainingMs: number;
   /** Navi is talking. */
   speaking: boolean;
+  /** Speech goes into the chat box instead of running as commands. */
+  dictating: boolean;
 }
 
-export const EARS_OFF: EarsState = { listening: false, awake: false, micError: "", engineLabel: "", remainingMs: 0, speaking: false };
+export const EARS_OFF: EarsState = {
+  listening: false,
+  awake: false,
+  micError: "",
+  engineLabel: "",
+  remainingMs: 0,
+  speaking: false,
+  dictating: false,
+};
 
 /** What the worker tells views about the command controller. */
 export interface WorkerState {
@@ -45,6 +55,8 @@ export interface WorkerState {
   grid: boolean;
   /** The user wants Navi listening (mic on). */
   listening: boolean;
+  /** Why Navi's background page (mic and voice) couldn't start, if it couldn't. */
+  problem?: string;
 }
 
 /** Ears -> worker (views may listen in on state and interim). */
@@ -55,6 +67,8 @@ export type EarsEvent =
   | { type: "ears:state"; state: EarsState }
   | { type: "ears:interim"; text: string }
   | { type: "ears:log"; kind: "info" | "error"; text: string }
+  /** Dictated words for the chat box: what's heard so far, then the finished phrase. */
+  | { type: "ears:dictation"; text: string; final: boolean }
   | { type: "ears:heartbeat" };
 
 /** Worker -> ears. `say` and `test` get a response. */
@@ -65,6 +79,7 @@ export type EarsRequest =
   | { type: "ears:stop-speaking" }
   | { type: "ears:sound"; name: EarconName }
   | { type: "ears:session"; action: "sleep" | "touch" }
+  | { type: "ears:dictate"; on: boolean }
   | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; level?: number; chunks?: number; muted?: boolean };
 
 export type EarsTestAction = "final" | "chromeFinal" | "feedScribe" | "state" | "scribeLive" | "session" | "speakerBusy" | "mute";
@@ -77,8 +92,11 @@ export type ViewEvent =
 
 /** Views -> worker; each gets a response. */
 export type WorkerRequest =
-  | { type: "navi:run"; text: string }
+  /** A typed message (or, for tests and the benchmark, a command as if spoken). */
+  | { type: "navi:run"; text: string; source?: "typed" | "voice" }
   | { type: "navi:listen"; on: boolean }
+  /** Dictate one phrase into the chat box. */
+  | { type: "navi:dictate"; on: boolean }
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }

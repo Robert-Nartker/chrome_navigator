@@ -60,7 +60,8 @@ function isDestructive(intent: Intent): boolean {
 }
 
 export interface RunOptions {
-  source: "voice" | "typed";
+  /** Spoken, typed in the chat box, or a step of a personal command. */
+  source: "voice" | "typed" | "step";
   /** Speech engine confidence (0-1), when it reports one. */
   confidence?: number;
   /** Skip the router (already interpreted, or a step of a personal command). */
@@ -88,6 +89,10 @@ export class Controller {
   private autoScrolling = false;
   /** Last thing Navi said or showed, for "what did you say?". */
   private lastMessage = "";
+  /** What Navi showed for the command running now. */
+  private turnMessage = "";
+  /** The last few commands and what came of them, so the AI can answer "why did that fail?". */
+  private recent: string[] = [];
 
   constructor(
     private readonly getSettings: () => Settings,
@@ -173,6 +178,7 @@ export class Controller {
     }
     this.ui.log("user", command);
     this.busy = true;
+    this.turnMessage = "";
     this.ui.setWorking(true);
     const controller = new AbortController();
     this.current = controller;
@@ -214,9 +220,12 @@ export class Controller {
         const row: CommandMetric = { t: new Date().toISOString(), command, ...metric };
         this.hooks.onMetric?.(row);
         void recordMetric(row).catch(() => undefined);
+        this.remember(command, options, metric);
       }
-      // Speak after timing, so latency numbers measure the action, not the voice.
-      if (reply) await this.say(reply).catch(() => undefined);
+      // Speak after timing, so latency numbers measure the action, not the voice. A typed chat reply
+      // is read on screen, so it's only spoken in spoken-feedback mode.
+      const spoken = options.source !== "typed" || this.getSettings().feedback === "spoken";
+      if (reply && spoken) await this.say(reply).catch(() => undefined);
       this.busy = false;
       this.current = null;
       this.ui.setWorking(false);
@@ -224,6 +233,19 @@ export class Controller {
       const next = this.queue.shift();
       if (next) void this.run(next.text, next.options);
     }
+  }
+
+  private remember(command: string, options: RunOptions, metric: Omit<CommandMetric, "t" | "command">) {
+    const how = options.source === "typed" ? "typed" : "said";
+    const result =
+      metric.path === "error"
+        ? `failed: ${metric.error}`
+        : metric.path === "cancelled"
+          ? "cancelled"
+          : metric.path === "ignored"
+            ? "ignored (not understood)"
+            : this.turnMessage || "done";
+    this.recent = [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6);
   }
 
   /** Personal commands first, then built-in commands, then the AI. */
@@ -291,7 +313,12 @@ export class Controller {
       return { intent: "ignored" };
     }
     if (!keyFor(settings, settings.model)) {
-      this.ui.log("step", `Didn't catch that. Say “what can I say” for examples, or add an AI API key in settings.`);
+      this.ui.log(
+        "step",
+        options.source === "typed"
+          ? `That isn't a built-in command. Type “what can I say” for examples, or add an OpenAI or Claude key in settings to chat.`
+          : `Didn't catch that. Say “what can I say” for examples, or add an AI API key in settings.`,
+      );
       this.speaker.sound("unknown");
       return { intent: "unknown" };
     }
@@ -300,10 +327,11 @@ export class Controller {
     const tab = await targetTab().catch(() => undefined);
     if (isBlocked(tab?.url, settings)) throw new Error("You've turned off Navi's AI on this site.");
 
-    // Unrecognized: a fast small model decides if it's a command in other words, a real task, or noise.
+    // Unrecognized speech: a fast small model decides if it's a command in other words, a real task, or
+    // noise. Typed messages go straight to the main model: typing is for questions, chat and tasks.
     let routerMs: number | undefined;
     let routerCostUsd: number | undefined;
-    if (settings.routerModel !== "off" && keyFor(settings, settings.routerModel) && !options.routed && !intent) {
+    if (voice && settings.routerModel !== "off" && keyFor(settings, settings.routerModel) && !options.routed && !intent) {
       const t0 = performance.now();
       this.ui.setWorking(true, "Understanding…");
       const routed = await routeUtterance(
@@ -329,14 +357,15 @@ export class Controller {
           throw err;
         });
         if (fastPath) return { ...fastPath, routerMs, routerCostUsd };
-      } else if (decision.route === "ignore" && voice) {
+      } else if (decision.route === "ignore") {
         this.ui.log("step", `Ignored “${command}” · ${routerMs} ms`);
         this.speaker.sound("unknown");
         return { intent: "ignored", routerMs, routerCostUsd };
       }
     }
     this.speaker.sound("thinking");
-    return { intent: "ai", agent: await this.runAgent(command, signal), routerMs, routerCostUsd };
+    const typed = options.source === "typed";
+    return { intent: typed ? "chat" : "ai", agent: await this.runAgent(command, signal, typed), routerMs, routerCostUsd };
   }
 
   private async runCustom(match: CommandMatch, signal: AbortSignal, depth: number): Promise<Outcome> {
@@ -350,7 +379,7 @@ export class Controller {
       if (step.type === "open") {
         lastTab = await navigate(step.url, step.newTab);
       } else {
-        const outcome = await this.dispatch(step.command, signal, depth + 1, { source: "typed", routed: true });
+        const outcome = await this.dispatch(step.command, signal, depth + 1, { source: "step", routed: true });
         agent = outcome.agent ?? agent;
         lastTab = undefined;
       }
@@ -362,15 +391,19 @@ export class Controller {
     return { intent: "custom", agent };
   }
 
-  private async runAgent(command: string, signal: AbortSignal): Promise<AgentResult> {
-    const result = await this.agent.run(command, {
-      signal,
-      onStep: (step) => {
-        this.ui.setWorking(true, step);
-        this.ui.log("step", step);
-        this.hooks.onActivity();
+  private async runAgent(command: string, signal: AbortSignal, typed = false): Promise<AgentResult> {
+    const result = await this.agent.run(
+      command,
+      {
+        signal,
+        onStep: (step) => {
+          this.ui.setWorking(true, step);
+          this.ui.log("step", step);
+          this.hooks.onActivity();
+        },
       },
-    });
+      { typed, recent: this.recent },
+    );
     const seconds = (result.totalMs / 1000).toFixed(1);
     this.navi(
       result.reply,
@@ -387,6 +420,7 @@ export class Controller {
   /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
   private navi(text: string, meta?: string) {
     this.lastMessage = text;
+    this.turnMessage = text;
     this.ui.log("navi", text, meta);
   }
 

@@ -150,6 +150,8 @@
           <label class="check"><input id="allowPageText" type="checkbox" /> Let the AI read page text when I ask it to read, summarize, or answer questions about a page</label>
           <p class="hint">Otherwise the AI only ever sees the names of buttons, links, and fields. “Read this page” always reads aloud locally.</p>
           <label class="check"><input id="allowScreenshots" type="checkbox" /> Let the AI look at the screen when the page's labels aren't enough (sends a screenshot of the visible page)</label>
+          <label class="check"><input id="typedPageContext" type="checkbox" /> Send the current page's buttons and links with every typed message</label>
+          <p class="hint">Off: the AI gets your open tabs, and looks at a page only when your message needs it. On: typed tasks start a little faster.</p>
           <label for="blockedSites">Never use the AI on these sites (one per line)</label>
           <textarea id="blockedSites" placeholder="chase.com&#10;mychart"></textarea>
         </fieldset>

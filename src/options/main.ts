@@ -85,6 +85,7 @@ async function fill() {
   field<HTMLInputElement>("allowPageText").checked = s.allowPageText;
   field<HTMLInputElement>("allowCloudSpeech").checked = s.allowCloudSpeech;
   field<HTMLInputElement>("allowScreenshots").checked = s.allowScreenshots;
+  field<HTMLInputElement>("typedPageContext").checked = s.typedPageContext;
   field<HTMLTextAreaElement>("blockedSites").value = s.blockedSites.join("\n");
   field<HTMLInputElement>("elevenLabsKey").value = s.elevenLabsKey;
   field<HTMLSelectElement>("speechInput").value = s.speechInput;
@@ -124,6 +125,7 @@ form.addEventListener("submit", async (e) => {
     allowPageText: field<HTMLInputElement>("allowPageText").checked,
     allowCloudSpeech: field<HTMLInputElement>("allowCloudSpeech").checked,
     allowScreenshots: field<HTMLInputElement>("allowScreenshots").checked,
+    typedPageContext: field<HTMLInputElement>("typedPageContext").checked,
     blockedSites: field<HTMLTextAreaElement>("blockedSites")
       .value.split("\n")
       .map((s) => s.trim())

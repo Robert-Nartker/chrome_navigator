@@ -48,6 +48,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 
 - **Core changes:** changes to `background.ts` or the manifest restart the whole extension, which closes the side panel. Reopen it with Alt+Shift+N (Option+Shift+N on a Mac). If Navi ever disappears from the toolbar, click ↻ on `chrome://extensions`.
 - **Local edits:** if you edit files yourself, auto-pull pauses (the Terminal says so) until you commit or discard them.
+- **Build changes:** when an update changes the build scripts or dependencies, `npm run dev` restarts itself so the new files get built. Versions before this change couldn't, so if Navi says its mic and voice page is missing, stop `npm run dev` (Ctrl+C) and start it again once.
 
 ## What you can say
 
@@ -68,7 +69,11 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Your own commands | "add a command open wordle", "make study mode open Canvas and play lofi on YouTube", "what are my commands", "delete the wordle command" |
 | Control | "stop" (interrupts speech or a running task), "what can I say" |
 
-You can also type commands in the side panel.
+You can also type in the side panel's chat box, or dictate into it with its mic button:
+- **Built-in and personal commands** run instantly, just like when you say them.
+- **Anything else goes to the AI as a chat message:** ask questions ("which tab has my flight?", "why didn't that work?"), add commands, or give tasks. Typed messages skip the quick router.
+- **What the AI gets:** your open tabs (the current one marked) and your last few commands. It looks at a page only when your message needs it. Settings → Privacy can send the current page with every typed message instead.
+- **Replies** are shown, not spoken, unless you turn on spoken feedback.
 
 ## Pointing at things you can't name
 
