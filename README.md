@@ -17,8 +17,12 @@ npm run build          # outputs the extension to dist/
 
 1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick the `dist/` folder.
 2. A setup tab opens. Click **Allow microphone**. Chrome only lets extensions ask for the mic from a normal tab, so this one-time step is required.
-3. Pin Navi (puzzle-piece menu), then click its icon or press **Alt+Shift+N** to open the side panel.
-4. Optional: open **Settings** and paste an OpenAI or Claude API key to turn on the AI for open-ended commands. Basic commands work without a key.
+3. Optional: under **Connect an AI**, pick OpenAI or Anthropic and paste an API key. Navi checks the key and turns on that provider's recommended models:
+   - **OpenAI:** GPT-6 Sol for tasks and GPT-6 Luna for quick checks.
+   - **Anthropic:** Claude Sonnet 5.5 for both.
+
+   Built-in commands work without a key.
+4. Pin Navi (puzzle-piece menu), then click its icon or press **Alt+Shift+N** to open the side panel.
 
 The side panel is optional. Once the mic is allowed, Navi keeps listening for "Hey Navi" with the panel closed:
 - **Caption:** a small caption at the bottom of the page shows what Navi hears, what it's doing, and its reply.
@@ -150,7 +154,7 @@ npm run typecheck   # TypeScript (tsgo)
 npm test            # unit tests: parser, label matching, wake session (vitest)
 npm run test:e2e    # builds, loads the extension in Chromium, drives real pages (Playwright)
 npm run check       # all of the above
-npm run bench       # NaviBench task suite against real Claude models (see below)
+npm run bench       # NaviBench task suite against real OpenAI and Claude models (see below)
 node scripts/probe-sites.mjs [urls...]   # snapshot quality on real sites (element counts, size, timing)
 ```
 

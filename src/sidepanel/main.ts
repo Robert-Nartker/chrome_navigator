@@ -221,7 +221,10 @@ ui.form.addEventListener("submit", (e) => {
 
 $("open-setup").addEventListener("click", () => void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") }));
 $("open-settings").addEventListener("click", openSettings);
-$("open-settings-inline").addEventListener("click", openSettings);
+$("open-settings-inline").addEventListener("click", (e) => {
+  e.preventDefault();
+  void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html#ai") });
+});
 $("help").addEventListener("click", () => void toWorker({ type: "navi:help" }));
 ui.gridButton.addEventListener("click", () => void toWorker({ type: "navi:toggle", what: "grid" }));
 ui.numbersButton.addEventListener("click", () => void toWorker({ type: "navi:toggle", what: "numbers" }));

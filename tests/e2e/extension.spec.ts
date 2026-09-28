@@ -228,6 +228,64 @@ test("router: a close command rebuilt from loose speech is not run without confi
   expect(site.isClosed()).toBe(false);
 });
 
+test("setup: connecting a key checks it, then turns on that provider's recommended models", async ({ panel, context, extensionId }) => {
+  const seen: string[] = [];
+  await context.route("https://api.anthropic.com/v1/models**", (route) => {
+    const key = route.request().headers()["x-api-key"];
+    seen.push(key);
+    if (key !== "sk-ant-good") return route.fulfill({ status: 401, json: { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } } });
+    return route.fulfill({
+      json: {
+        data: [{ type: "model", id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5.5", created_at: "2026-09-28T00:00:00Z" }],
+        has_more: false,
+        first_id: "claude-sonnet-5-5",
+        last_id: "claude-sonnet-5-5",
+      },
+    });
+  });
+  await context.route("https://api.openai.com/v1/models", (route) => route.fulfill({ json: { data: [{ id: "gpt-6-sol" }] } }));
+
+  // The panel's banner leads straight to this step.
+  await expect(panel.locator("#key-banner")).toBeVisible();
+  const [setup] = await Promise.all([context.waitForEvent("page"), panel.locator("#open-settings-inline").click()]);
+  await setup.waitForLoadState();
+  expect(setup.url()).toBe(`chrome-extension://${extensionId}/setup.html#ai`);
+  const key = setup.locator("#ai-key");
+  const result = setup.locator("#ai-result");
+
+  // A pasted Claude key switches the provider by itself.
+  await key.fill("sk-ant-wrong");
+  await expect(setup.locator("input[name=provider][value=anthropic]")).toBeChecked();
+  await expect(setup.locator("#ai-key-label")).toHaveText("Anthropic API key");
+  await setup.locator("#ai-connect").click();
+  await expect(result).toHaveText("Anthropic rejected that key. Check that you copied all of it.");
+  let settings = await setup.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Record<string, string> | undefined);
+  expect(settings?.apiKey).toBeFalsy();
+
+  await key.fill("sk-ant-good");
+  await key.press("Enter");
+  await expect(result).toContainText("Connected to Anthropic.");
+  await expect(result).toContainText("Tasks and chat: Claude Sonnet 5.5 (low reasoning). Unclear speech: Claude Sonnet 5.5 (no reasoning).");
+  await expect(setup.locator("#ai-warning")).toBeHidden();
+  settings = await setup.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Record<string, string>);
+  expect(settings).toMatchObject({ apiKey: "sk-ant-good", model: "claude-sonnet-5-5", routerModel: "claude-sonnet-5-5", effort: "low" });
+  expect(seen).toEqual(["sk-ant-wrong", "sk-ant-good"]);
+  await expect(panel.locator("#key-banner")).toBeHidden();
+
+  // An OpenAI key without one of Navi's models still connects, with a note.
+  await setup.locator("input[name=provider][value=openai]").check();
+  await key.fill("sk-proj-test");
+  await setup.locator("#ai-connect").click();
+  await expect(result).toContainText("Connected to OpenAI.");
+  await expect(setup.locator("#ai-warning")).toContainText("doesn't list gpt-6-luna");
+  settings = await setup.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Record<string, string>);
+  expect(settings).toMatchObject({ openaiKey: "sk-proj-test", apiKey: "sk-ant-good", model: "gpt-6-sol", routerModel: "gpt-6-luna" });
+
+  // Reopening shows what's connected.
+  await setup.reload();
+  await expect(result).toContainText("Connected to OpenAI (and Anthropic).");
+});
+
 test("reports restricted pages instead of failing silently", async ({ panel, site }) => {
   await site.goto("chrome://version");
   await run(panel, "scroll down");
