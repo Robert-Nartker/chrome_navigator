@@ -20,25 +20,8 @@ export interface ModelInfo {
   priceNote: string;
 }
 
+// Current-generation models only. Menus list them in this order (each provider's defaults first).
 export const MODEL_CATALOG: ModelInfo[] = [
-  {
-    id: "claude-opus-5-5",
-    label: "Claude Opus 5.5",
-    provider: "anthropic",
-    roles: ["agent"],
-    efforts: ["low", "medium", "high"],
-    price: { input: 4, cachedInput: 0.4, cacheWrite: 5, output: 20 },
-    priceNote: "Anthropic pricing page (Sep 2026)",
-  },
-  {
-    id: "gpt-6-astra",
-    label: "GPT-6 Astra",
-    provider: "openai",
-    roles: ["agent"],
-    efforts: ["low", "medium", "high"],
-    price: { input: 10, cachedInput: 1, cacheWrite: 10, output: 50 },
-    priceNote: "launch coverage (unverified); cached input assumed 10%",
-  },
   {
     id: "gpt-6-sol",
     label: "GPT-6 Sol",
@@ -52,31 +35,53 @@ export const MODEL_CATALOG: ModelInfo[] = [
     id: "gpt-6-luna",
     label: "GPT-6 Luna",
     provider: "openai",
-    roles: ["agent", "router"],
+    roles: ["router", "agent"],
     efforts: ["none", "low", "medium", "high"],
     price: { input: 0.1, cachedInput: 0.01, cacheWrite: 0.1, output: 0.5 },
     priceNote: "launch coverage (unverified); cached input assumed 10%",
   },
   {
-    id: "claude-sonnet-5",
-    label: "Claude Sonnet 5",
+    id: "claude-sonnet-5-5",
+    label: "Claude Sonnet 5.5",
     provider: "anthropic",
-    roles: ["router"],
+    roles: ["agent", "router"],
+    // "none" turns thinking off (Anthropic's lowest setting, "between_tools").
     efforts: ["none", "low", "medium", "high"],
     price: { input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 10 },
-    priceNote: "Anthropic models page (Sep 2026)",
+    priceNote: "Anthropic pricing (Sep 2026)",
   },
   {
-    id: "claude-haiku-4-5",
-    label: "Claude Haiku 4.5",
+    id: "claude-opus-5-5",
+    label: "Claude Opus 5.5",
     provider: "anthropic",
-    roles: ["router"],
-    // Haiku 4.5 doesn't reason unless asked to, and takes no effort setting.
-    efforts: ["none"],
-    price: { input: 1, cachedInput: 0.1, cacheWrite: 1.25, output: 5 },
-    priceNote: "Anthropic pricing page",
+    roles: ["agent"],
+    // Always thinks; "low" is the least.
+    efforts: ["low", "medium", "high"],
+    price: { input: 4, cachedInput: 0.2, cacheWrite: 5, output: 20 },
+    priceNote: "Anthropic pricing (Sep 2026)",
+  },
+  {
+    id: "gpt-6-astra",
+    label: "GPT-6 Astra",
+    provider: "openai",
+    roles: ["agent"],
+    efforts: ["low", "medium", "high"],
+    price: { input: 10, cachedInput: 1, cacheWrite: 10, output: 50 },
+    priceNote: "launch coverage (unverified); cached input assumed 10%",
   },
 ];
+
+/** What Navi uses with each provider's key: a thinking-off model for quick checks, a low-reasoning one for tasks. */
+export const PROVIDER_DEFAULTS: Record<Provider, { name: string; model: string; effort: Effort; routerModel: string }> = {
+  openai: { name: "OpenAI", model: "gpt-6-sol", effort: "low", routerModel: "gpt-6-luna" },
+  anthropic: { name: "Anthropic", model: "claude-sonnet-5-5", effort: "low", routerModel: "claude-sonnet-5-5" },
+};
+
+/** Models Navi no longer offers, and what replaces them in saved settings. */
+export const RETIRED_MODELS: Record<string, string> = {
+  "claude-sonnet-5": "claude-sonnet-5-5",
+  "claude-haiku-4-5": "claude-sonnet-5-5",
+};
 
 export function modelInfo(id: string): ModelInfo {
   const known = MODEL_CATALOG.find((m) => m.id === id);
@@ -102,6 +107,15 @@ export function effortFor(id: string, wanted: Effort): Effort {
   const order: Effort[] = ["none", "low", "medium", "high"];
   const rank = order.indexOf(wanted);
   return efforts.find((e) => order.indexOf(e) >= rank) ?? efforts[efforts.length - 1];
+}
+
+/**
+ * Claude request settings for a reasoning level. "none" is Sonnet 5.5's thinking-off mode
+ * ("between_tools", at low effort); other levels keep adaptive thinking at that effort.
+ */
+export function claudeReasoning(id: string, wanted: Effort): { thinking?: { type: "between_tools" }; effort: Exclude<Effort, "none"> } {
+  const effort = effortFor(id, wanted);
+  return effort === "none" ? { thinking: { type: "between_tools" }, effort: "low" } : { effort };
 }
 
 /** Token counts for one or more model calls. `input` excludes cached and cache-write tokens. */

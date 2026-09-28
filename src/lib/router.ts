@@ -4,7 +4,7 @@
 // (b) a real task for the main AI, or (c) noise to ignore silently.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { type Usage, costOf, effortFor, modelInfo } from "./models";
+import { type Usage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
 import { createResponse, outputText, usageOf } from "./openai";
 import { keyFor, type Settings } from "./settings";
 
@@ -73,14 +73,18 @@ export async function routeUtterance(
 
 async function askClaude(model: string, message: string, settings: Settings, signal: AbortSignal) {
   const client = new Anthropic({ apiKey: keyFor(settings, model), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: TIMEOUT_MS });
+  // Routing is a quick classification: no thinking where the model allows it (Sonnet 5.5 does).
+  const { thinking, effort } = claudeReasoning(model, "none");
   const response = await client.messages.create(
     {
       model,
       max_tokens: 256,
-      // Routing is a quick classification: skip extended thinking where the model allows it.
-      ...(model.startsWith("claude-sonnet-5") ? { thinking: { type: "disabled" as const } } : {}),
+      // The SDK's types don't list Sonnet 5.5's thinking-off mode yet.
+      ...(thinking ? { thinking: thinking as unknown as Anthropic.ThinkingConfigParam } : {}),
       system: SYSTEM_PROMPT,
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
+      // The instructions are the same on every call: cache them.
+      cache_control: { type: "ephemeral" },
+      output_config: { effort, format: { type: "json_schema", schema: SCHEMA } },
       messages: [{ role: "user", content: message }],
     },
     { signal },

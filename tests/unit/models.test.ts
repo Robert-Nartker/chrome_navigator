@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { addUsage, costOf, effortFor, formatCost, modelInfo } from "../../src/lib/models";
+import { MODEL_CATALOG, addUsage, claudeReasoning, costOf, effortFor, formatCost, modelInfo } from "../../src/lib/models";
 import { parseDecision } from "../../src/lib/router";
-import { DEFAULT_SETTINGS, keyFor } from "../../src/lib/settings";
+import { DEFAULT_SETTINGS, keyFor, normalizeSettings, withAvailableModels } from "../../src/lib/settings";
 
 describe("model catalog", () => {
   it("prices cached, cache-write, and output tokens separately", () => {
-    // Opus 5.5: $4 in, $0.40 cached, $5 cache write, $20 out per million.
+    // Opus 5.5: $4 in, $0.20 cached, $5 cache write, $20 out per million.
     const usage = { input: 1000, cachedInput: 10_000, cacheWrite: 2000, output: 500 };
-    expect(costOf("claude-opus-5-5", usage)).toBeCloseTo((1000 * 4 + 10_000 * 0.4 + 2000 * 5 + 500 * 20) / 1e6, 12);
+    expect(costOf("claude-opus-5-5", usage)).toBeCloseTo((1000 * 4 + 10_000 * 0.2 + 2000 * 5 + 500 * 20) / 1e6, 12);
   });
 
   it("returns NaN cost for models without a known price", () => {
@@ -22,7 +22,19 @@ describe("model catalog", () => {
     expect(effortFor("gpt-6-astra", "none")).toBe("low");
     expect(effortFor("gpt-6-luna", "none")).toBe("none");
     expect(effortFor("gpt-6-sol", "medium")).toBe("medium");
-    expect(effortFor("claude-haiku-4-5", "high")).toBe("none");
+    expect(effortFor("claude-sonnet-5-5", "none")).toBe("none");
+  });
+
+  it("offers only current-generation models", () => {
+    expect(MODEL_CATALOG.map((m) => m.id)).toEqual(["gpt-6-sol", "gpt-6-luna", "claude-sonnet-5-5", "claude-opus-5-5", "gpt-6-astra"]);
+  });
+
+  it("turns Claude thinking off only where the model allows it", () => {
+    // Sonnet 5.5's thinking-off mode, at low effort.
+    expect(claudeReasoning("claude-sonnet-5-5", "none")).toEqual({ thinking: { type: "between_tools" }, effort: "low" });
+    expect(claudeReasoning("claude-sonnet-5-5", "low")).toEqual({ effort: "low" });
+    // Opus 5.5 always thinks: the least it does is "low".
+    expect(claudeReasoning("claude-opus-5-5", "none")).toEqual({ effort: "low" });
   });
 
   it("adds usage and formats small costs readably", () => {
@@ -37,6 +49,43 @@ describe("model catalog", () => {
     const s = { ...DEFAULT_SETTINGS, apiKey: "ant", openaiKey: "oai" };
     expect(keyFor(s, "claude-opus-5-5")).toBe("ant");
     expect(keyFor(s, "gpt-6-luna")).toBe("oai");
+  });
+});
+
+describe("which models run", () => {
+  const pick = (s: Partial<typeof DEFAULT_SETTINGS>) => {
+    const { model, effort, routerModel } = withAvailableModels({ ...DEFAULT_SETTINGS, ...s });
+    return { model, effort, routerModel };
+  };
+
+  it("OpenAI key: Luna for quick checks, Sol at low reasoning for tasks", () => {
+    expect(pick({ openaiKey: "oai" })).toEqual({ model: "gpt-6-sol", effort: "low", routerModel: "gpt-6-luna" });
+  });
+
+  it("Claude key only: Sonnet 5.5 for both, without thinking for quick checks", () => {
+    expect(pick({ apiKey: "ant" })).toEqual({ model: "claude-sonnet-5-5", effort: "low", routerModel: "claude-sonnet-5-5" });
+  });
+
+  it("keeps upgrades and cross-provider picks that have a key", () => {
+    expect(pick({ apiKey: "ant", openaiKey: "oai", model: "claude-opus-5-5", effort: "medium" })).toEqual({
+      model: "claude-opus-5-5",
+      effort: "medium",
+      routerModel: "gpt-6-luna",
+    });
+    expect(pick({ apiKey: "ant", model: "claude-sonnet-5-5", effort: "high", routerModel: "off" })).toEqual({
+      model: "claude-sonnet-5-5",
+      effort: "high",
+      routerModel: "off",
+    });
+  });
+
+  it("leaves settings alone without any key", () => {
+    expect(pick({})).toEqual({ model: "gpt-6-sol", effort: "low", routerModel: "gpt-6-luna" });
+  });
+
+  it("moves saved settings off retired models", () => {
+    const s = normalizeSettings({ model: "claude-sonnet-5", routerModel: "claude-haiku-4-5" });
+    expect([s.model, s.routerModel]).toEqual(["claude-sonnet-5-5", "claude-sonnet-5-5"]);
   });
 });
 

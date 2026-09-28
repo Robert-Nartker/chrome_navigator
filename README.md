@@ -115,8 +115,8 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Noise filter and router** (`src/lib/parser.ts`, `src/lib/router.ts`):
   - **Forgiving matching:** looser phrasing ("scroll down further", "Navi sleep") and near-miss transcriptions ("scrawl down") are caught locally.
   - **Noise filter:** keyboard clatter heard as words ("tiktok tiktok tiktok") and lone filler words are ignored without calling any AI.
-  - **Router:** anything else unrecognized goes to a quick model (GPT-6 Luna by default, or Claude Haiku 4.5). It maps the phrase to a command, passes it to the main AI, or ignores it as background talk.
-- **AI path** (`src/lib/agent.ts`): Claude gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. Default model is GPT-6 Sol at low reasoning, which keeps thinking short so actions start quickly. Claude Opus 5.5 and the other GPT-6 and Claude models can be picked in settings. Claude Opus also has an optional fast mode (2x price).
+  - **Router:** anything else unrecognized that was spoken goes to a quick model with reasoning off. That's GPT-6 Luna with an OpenAI key, or Claude Sonnet 5.5 with a Claude key. It maps the phrase to a command, passes it to the main AI, or ignores it as background talk.
+- **AI path** (`src/lib/agent.ts`): the model gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. The default is GPT-6 Sol at low reasoning with an OpenAI key, or Claude Sonnet 5.5 at low reasoning with a Claude key. Low reasoning keeps thinking short, so actions start quickly. With only one key, Navi uses that provider's defaults. Upgrades are in settings: more reasoning, Claude Opus 5.5 (optional 2x-price fast mode), GPT-6 Astra, or mixing providers when you have both keys.
 
 ## Privacy model
 
@@ -175,13 +175,13 @@ OPENAI_API_KEY=sk-...
 ```bash
 npm run bench:estimate    # what a run will cost; no API calls
 npm run bench:check       # checks your keys and model names (about a cent)
-npm run bench             # full run: router and agent suites (default set: about $0.55 with an OpenAI key only)
+npm run bench             # full run: router and agent suites (default set: about $0.24 with an OpenAI key only, about $1 with both keys)
 npm run bench:mock        # checks the harness with fake API replies (free)
 ```
 
 **Default models** (any without a key are skipped):
-- Routers: GPT-6 Luna, GPT-6 Sol, Claude Haiku 4.5.
-- Agents: GPT-6 Sol with reasoning off and at low, GPT-6 Luna with reasoning off, Opus 5.5 at low effort.
+- Routers (reasoning off): GPT-6 Luna, Claude Sonnet 5.5.
+- Agents: GPT-6 Sol and Claude Sonnet 5.5 at low reasoning (the defaults), Claude Opus 5.5 at low, GPT-6 Luna with reasoning off.
 - GPT-6 Astra costs about 5x more than the rest together, so add it on purpose: `--agents gpt-6-astra@low`.
 
 **Options:**

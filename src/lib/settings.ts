@@ -1,7 +1,7 @@
 // User settings, stored locally in this browser profile (chrome.storage.local).
 
 import { DEFAULT_VOICE_ID } from "./elevenlabs";
-import { type Effort, modelInfo } from "./models";
+import { type Effort, PROVIDER_DEFAULTS, type Provider, RETIRED_MODELS, modelInfo } from "./models";
 
 /** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
 export type ListenMode = "handsfree" | "open";
@@ -58,9 +58,9 @@ export type SpeechProvider = "elevenlabs" | "chrome";
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
   openaiKey: "",
-  // Cheap and fast by default; Opus 5.5 and GPT-6 Astra are options in settings.
-  model: "gpt-6-sol",
-  effort: "low",
+  // OpenAI's defaults; with only a Claude key, Navi uses Anthropic's (see withAvailableModels).
+  model: PROVIDER_DEFAULTS.openai.model,
+  effort: PROVIDER_DEFAULTS.openai.effort,
   fastMode: false,
   wakeName: "Navi",
   listenMode: "handsfree",
@@ -68,7 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   feedback: "minimal",
   speechRate: 1.0,
   volume: 0.6,
-  routerModel: "gpt-6-luna",
+  routerModel: PROVIDER_DEFAULTS.openai.routerModel,
   voiceName: "",
   lang: "en-US",
   allowCloudSpeech: true,
@@ -90,6 +90,27 @@ export function keyFor(s: Settings, model: string): string {
   return modelInfo(model).provider === "openai" ? s.openaiKey : s.apiKey;
 }
 
+/** Which providers have a key, OpenAI first. */
+export function providersWithKeys(s: Settings): Provider[] {
+  return (["openai", "anthropic"] as Provider[]).filter((p) => (p === "openai" ? s.openaiKey : s.apiKey));
+}
+
+/**
+ * The settings Navi runs with: a model whose provider has no key is swapped for the defaults of a
+ * provider that has one, so an OpenAI-only or Anthropic-only setup just works.
+ */
+export function withAvailableModels(s: Settings): Settings {
+  const fallback = providersWithKeys(s)[0];
+  if (!fallback) return s;
+  const next = { ...s };
+  if (!keyFor(s, s.model)) {
+    next.model = PROVIDER_DEFAULTS[fallback].model;
+    next.effort = PROVIDER_DEFAULTS[fallback].effort;
+  }
+  if (s.routerModel !== "off" && !keyFor(s, s.routerModel)) next.routerModel = PROVIDER_DEFAULTS[fallback].routerModel;
+  return next;
+}
+
 /** True when commands should be transcribed by ElevenLabs. */
 export function usesElevenInput(s: Settings): boolean {
   return !!s.elevenLabsKey && s.speechInput === "elevenlabs";
@@ -101,16 +122,19 @@ export function usesElevenOutput(s: Settings): boolean {
 }
 
 /** Defaults for anything missing, and renames from older versions. */
-function normalize(raw: Partial<Settings> | undefined): Settings {
+export function normalizeSettings(raw: Partial<Settings> | undefined): Settings {
   const s = { ...DEFAULT_SETTINGS, ...raw };
   // "Click to talk" ("push") became "Open mic".
   if ((s.listenMode as string) === "push") s.listenMode = "open";
+  // Older models are replaced by their current-generation successors.
+  s.model = RETIRED_MODELS[s.model] ?? s.model;
+  s.routerModel = RETIRED_MODELS[s.routerModel] ?? s.routerModel;
   return s;
 }
 
 export async function loadSettings(): Promise<Settings> {
   const stored = await chrome.storage.local.get("settings");
-  return normalize(stored.settings as Partial<Settings> | undefined);
+  return normalizeSettings(stored.settings as Partial<Settings> | undefined);
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
@@ -122,7 +146,7 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
 export function onSettingsChanged(callback: (settings: Settings) => void) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.settings) {
-      callback(normalize(changes.settings.newValue as Partial<Settings>));
+      callback(normalizeSettings(changes.settings.newValue as Partial<Settings>));
     }
   });
 }

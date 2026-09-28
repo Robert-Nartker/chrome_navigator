@@ -17,7 +17,7 @@ import {
   type WorkerState,
 } from "../lib/messages";
 import type { CommandMetric } from "../lib/metrics";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, withAvailableModels } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
 import { Controller, HELP_TEXT } from "../sidepanel/controller";
 
@@ -144,7 +144,8 @@ function log(kind: LogKind, text: string, meta?: string, onPage = true) {
 }
 
 const controller = new Controller(
-  () => settings,
+  // With only one provider's key, that provider's models run.
+  () => withAvailableModels(settings),
   {
     log,
     setWorking(on, detail) {
@@ -329,7 +330,12 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       return controller.isBusy;
     case "route": {
       const t0 = performance.now();
-      const result = await routeUtterance(msg.text ?? "", { personalPhrases: [] }, settings, new AbortController().signal);
+      const result = await routeUtterance(
+        msg.text ?? "",
+        { personalPhrases: [] },
+        withAvailableModels(settings),
+        new AbortController().signal,
+      );
       return { ...result, ms: Math.round(performance.now() - t0) };
     }
     case "ears":

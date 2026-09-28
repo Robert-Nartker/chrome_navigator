@@ -15,6 +15,10 @@
       #cmd-result.err { color: var(--bad); }
       #cmd-result.ok { color: var(--good); }
       #blockedSites { font-family: var(--mono); font-size: 12px; }
+      .presets { margin-top: 14px; flex-wrap: wrap; }
+      .presets .hint { margin: 0; }
+      .presets button { font-size: 12px; padding: 4px 9px; }
+      #model-note { color: var(--warn); }
     </style>
   </head>
   <body class="page">
@@ -29,12 +33,17 @@
       <form id="settings">
         <fieldset>
           <legend>AI</legend>
-          <p class="section-hint">For commands Navi doesn't know by heart.</p>
-          <label for="apiKey">Claude API key</label>
-          <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…" />
-          <label for="openaiKey">OpenAI API key (for GPT models)</label>
+          <p class="section-hint">For questions, chat, and tasks Navi doesn't know by heart. One key is enough; <a href="setup.html#ai">the setup page</a> checks it for you.</p>
+          <label for="openaiKey">OpenAI API key</label>
           <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…" />
-          <p class="hint">You only need the key for the models you pick. Keys are stored only in this browser profile. Get them at console.anthropic.com and platform.openai.com.</p>
+          <label for="apiKey">Anthropic (Claude) API key</label>
+          <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…" />
+          <p class="hint">Keys are stored only in this browser profile. Get them at platform.openai.com or console.anthropic.com.</p>
+          <div class="actions presets">
+            <span class="hint">Recommended setup:</span>
+            <button type="button" id="preset-openai">OpenAI: Luna + Sol</button>
+            <button type="button" id="preset-anthropic">Claude: Sonnet 5.5</button>
+          </div>
           <div class="row">
             <div>
               <label for="model">Model</label>
@@ -43,8 +52,8 @@
             <div>
               <label for="effort">Effort</label>
               <select id="effort">
-                <option value="none">None (no reasoning; GPT-6 Sol and Luna)</option>
-                <option value="low">Low (fastest for Opus and Astra)</option>
+                <option value="none">None (no reasoning: Sol, Luna, Sonnet 5.5)</option>
+                <option value="low">Low (recommended)</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
               </select>
@@ -57,7 +66,8 @@
           <input id="maxAgentSteps" type="number" min="1" max="30" />
           <label for="routerModel">When a command isn't recognized</label>
           <select id="routerModel"></select>
-          <p class="hint">The quick check fixes misheard commands and ignores background noise in about half a second, before anything slower runs.</p>
+          <p class="hint">For speech only: the quick check fixes misheard commands and ignores background noise, before anything slower runs.</p>
+          <p class="hint" id="model-note" role="status" hidden></p>
         </fieldset>
 
         <fieldset>

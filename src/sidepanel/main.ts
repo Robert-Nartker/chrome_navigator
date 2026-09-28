@@ -17,7 +17,7 @@ import {
 import type { CommandMetric } from "../lib/metrics";
 import { MODEL_CATALOG } from "../lib/models";
 import { parseCommand } from "../lib/parser";
-import { DEFAULT_SETTINGS, type Settings, keyFor, loadSettings, onSettingsChanged, saveSettings } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, providersWithKeys, saveSettings } from "../lib/settings";
 import { Feed } from "./feed";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -172,7 +172,7 @@ function applySettings(next: Settings) {
   document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));
   const handsFree = document.querySelector<HTMLElement>("label:has(input[value=handsfree])");
   if (handsFree) handsFree.title = `Say “Hey ${next.wakeName}”, then talk.`;
-  ui.keyBanner.hidden = !!keyFor(next, next.model);
+  ui.keyBanner.hidden = providersWithKeys(next).length > 0;
   renderStatus();
 }
 

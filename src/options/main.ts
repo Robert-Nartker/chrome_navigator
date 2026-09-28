@@ -1,8 +1,8 @@
 import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { DEFAULT_VOICE_ID, TTS_MODELS, listVoices as listElevenVoices } from "../lib/elevenlabs";
-import { MODEL_CATALOG, formatCost } from "../lib/models";
-import { type Settings, loadSettings, saveSettings } from "../lib/settings";
+import { MODEL_CATALOG, PROVIDER_DEFAULTS, type Provider, formatCost, modelInfo } from "../lib/models";
+import { DEFAULT_SETTINGS, type Settings, loadSettings, saveSettings, withAvailableModels } from "../lib/settings";
 import { Speaker, pickVoice } from "../lib/voice-output";
 
 const form = document.getElementById("settings") as HTMLFormElement;
@@ -15,10 +15,49 @@ const price = (m: (typeof MODEL_CATALOG)[number]) => `$${m.price.input} / $${m.p
 for (const m of MODEL_CATALOG.filter((x) => x.roles.includes("agent"))) {
   modelSelect.add(new Option(`${m.label} (${price(m)})`, m.id));
 }
-for (const m of MODEL_CATALOG.filter((x) => x.roles.includes("router"))) {
+// Quick-check models: each provider's default first.
+const routerIds = [PROVIDER_DEFAULTS.openai.routerModel, PROVIDER_DEFAULTS.anthropic.routerModel];
+const routers = MODEL_CATALOG.filter((x) => x.roles.includes("router")).sort(
+  (a, b) => (routerIds.indexOf(a.id) + 1 || 99) - (routerIds.indexOf(b.id) + 1 || 99),
+);
+for (const m of routers) {
   routerSelect.add(new Option(`Quick check with ${m.label} first (${price(m)})`, m.id));
 }
 routerSelect.add(new Option("Send straight to the main model", "off"));
+
+/** Fills in a provider's recommended models (saved with the rest of the form). */
+function usePreset(provider: Provider) {
+  const preset = PROVIDER_DEFAULTS[provider];
+  modelSelect.value = preset.model;
+  routerSelect.value = preset.routerModel;
+  field<HTMLSelectElement>("effort").value = preset.effort;
+  saved.textContent = `${preset.name} setup chosen. Save to keep it.`;
+  updateModelNote();
+}
+document.getElementById("preset-openai")!.addEventListener("click", () => usePreset("openai"));
+document.getElementById("preset-anthropic")!.addEventListener("click", () => usePreset("anthropic"));
+
+/** Says when a chosen model can't run for lack of its key, and what Navi uses instead. */
+function updateModelNote() {
+  const note = document.getElementById("model-note")!;
+  const chosen = {
+    ...DEFAULT_SETTINGS,
+    apiKey: field<HTMLInputElement>("apiKey").value.trim(),
+    openaiKey: field<HTMLInputElement>("openaiKey").value.trim(),
+    model: modelSelect.value,
+    routerModel: routerSelect.value,
+  };
+  const used = withAvailableModels(chosen);
+  const swaps: string[] = [];
+  if (used.model !== chosen.model) swaps.push(`${modelInfo(used.model).label} for tasks`);
+  if (used.routerModel !== chosen.routerModel) swaps.push(`${modelInfo(used.routerModel).label} for quick checks`);
+  note.hidden = !swaps.length;
+  note.textContent = swaps.length ? `No key for the models chosen above, so Navi uses ${swaps.join(" and ")}.` : "";
+}
+for (const id of ["apiKey", "openaiKey", "model", "routerModel"] as const) {
+  field<HTMLElement>(id).addEventListener("input", updateModelNote);
+  field<HTMLElement>(id).addEventListener("change", updateModelNote);
+}
 
 /** Keeps a stored model that isn't in the menus (e.g. an older default) selectable. */
 function selectValue(select: HTMLSelectElement, value: string) {
@@ -97,6 +136,7 @@ async function fill() {
   }
   elevenVoice.value = s.elevenVoiceId;
   void loadElevenVoices();
+  updateModelNote();
 }
 
 function clamp(value: string, min: number, max: number, fallback: number) {

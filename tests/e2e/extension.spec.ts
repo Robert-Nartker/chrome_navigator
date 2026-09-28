@@ -220,7 +220,7 @@ test("router: a close command rebuilt from loose speech is not run without confi
     routerOrAgent(() => [{ type: "text", text: JSON.stringify({ route: "command", command: "close tab" }) }]),
   );
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }),
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "clothes the red it tap");
@@ -269,7 +269,7 @@ test("AI path: Claude picks the element, extension clicks it, reply is logged", 
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
   await run(panel, "hit the subscribe thing for me");
@@ -342,7 +342,7 @@ test("privacy: blocked sites never reach the AI", async ({ panel, context }) => 
     return route.abort();
   });
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5", blockedSites: ["localhost"] } }),
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5", blockedSites: ["localhost"] } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "what is this page about");
@@ -663,7 +663,7 @@ test("AI vision: looks at a tagged screenshot, then clicks a spot by coordinates
       }),
     });
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "click the second button in that row");
   await expect(site.locator("#subs")).toHaveText("1");
@@ -706,13 +706,15 @@ test("router: a loosely worded command is understood by the quick model and runs
       return [{ type: "text", text: JSON.stringify({ route: "command", command: "click subscribe" }) }];
     }),
   );
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   await run(panel, "yo can you smash that sub thingy");
-  // The router runs without extended thinking so it stays fast.
-  expect(bodies[0].thinking).toEqual({ type: "disabled" });
+  // The router runs Sonnet 5.5 with thinking off (and its unchanging instructions cached) so it stays fast.
+  expect(bodies[0].thinking).toEqual({ type: "between_tools" });
+  expect(bodies[0].output_config).toMatchObject({ effort: "low" });
+  expect(bodies[0].cache_control).toEqual({ type: "ephemeral" });
   await expect(site.locator("#subs")).toHaveText("1");
-  expect(models).toEqual(["claude-sonnet-5"]);
+  expect(models).toEqual(["claude-sonnet-5-5"]);
   await expect(panel.locator("#log li.step").filter({ hasText: "Understood as “click subscribe”" })).toHaveCount(1);
 });
 
@@ -725,7 +727,7 @@ test("router: noise is ignored quietly and never reaches the main model", async 
       return [{ type: "text", text: JSON.stringify({ route: "ignore", command: "" }) }];
     }),
   );
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   const final = (text: string) =>
     panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);
@@ -737,7 +739,7 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   // Someone talking nearby: the quick model says ignore, the main model is never called.
   await final("and then she told me the car was still in the shop");
   await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “and then she told me" })).toHaveCount(1);
-  expect(models).toEqual(["claude-sonnet-5"]);
+  expect(models).toEqual(["claude-sonnet-5-5"]);
   // Nothing was spoken or shown as an error.
   await expect(panel.locator("#log li.error")).toHaveCount(0);
 });

@@ -161,9 +161,14 @@ async function mockClaude(
   opts: { reply?: string; routed?: Record<string, string>; hold?: Promise<void> } = {},
 ) {
   await context.route("https://api.anthropic.com/**", async (route: Route) => {
-    const body = route.request().postDataJSON() as { model: string; messages: { role: string; content: unknown }[] };
+    const body = route.request().postDataJSON() as {
+      model: string;
+      messages: { role: string; content: unknown }[];
+      output_config?: { format?: unknown };
+    };
     let content: unknown[];
-    if (body.model === "claude-sonnet-5") {
+    // The quick router asks for structured JSON.
+    if (body.output_config?.format) {
       const said = JSON.stringify(body.messages);
       const hit = Object.entries(opts.routed ?? {}).find(([phrase]) => said.includes(phrase));
       content = [{ type: "text", text: JSON.stringify(hit ? { route: "command", command: hit[1] } : { route: "agent", command: "" }) }];
@@ -305,7 +310,7 @@ test("fast commands and unrecognized ones stay compact; notes sit between cards"
 
 test("reopening the panel rebuilds the same cards", async ({ panel, site, context }) => {
   await mockClaude(context, { routed: { "smash that sub": "click subscribe" } });
-  await useClaude(panel, "claude-sonnet-5");
+  await useClaude(panel, "claude-sonnet-5-5");
   // (Not a scroll: a smooth scroll still moving could carry Subscribe off screen before the AI looks.)
   await run(panel, "what time is it");
   await run(panel, "yo smash that sub thingy");
@@ -531,7 +536,7 @@ test.describe("screenshots", () => {
       let release = () => {};
       const hold = new Promise<void>((resolve) => (release = resolve));
       await mockClaude(context, { routed: { "smash that sub": "click subscribe" }, reply: "Subscribed to Navi Test Page.", hold });
-      await useClaude(panel, "claude-sonnet-5");
+      await useClaude(panel, "claude-sonnet-5-5");
       // With the mic allowed, opening the panel starts listening for the wake word.
       await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
       await hear(panel, "hey navi", true);

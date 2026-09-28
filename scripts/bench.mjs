@@ -12,8 +12,8 @@
 //
 // Options:
 //   --suite router,agent     which suites to run (default: both)
-//   --routers a,b            router models (default: gpt-6-luna,gpt-6-sol,claude-haiku-4-5)
-//   --agents model@effort,…  agent models (default: gpt-6-sol@none,gpt-6-sol@low,gpt-6-luna@none,claude-opus-5-5@low;
+//   --routers a,b            router models, run without reasoning (default: gpt-6-luna,claude-sonnet-5-5)
+//   --agents model@effort,…  agent models (default: gpt-6-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none;
 //                            add gpt-6-astra@low explicitly, it costs ~5x more than the rest together)
 //   --tasks core|all|id,…    agent tasks (default: core, 8 tasks)
 //   --repeat N               runs per task and router phrase (default 1)
@@ -39,8 +39,8 @@ const suites = new Set(String(args.suite ?? "router,agent").split(","));
 const repeat = Number(args.repeat ?? 1);
 const budget = Number(args.budget ?? 1);
 const list = (value, fallback) => String(value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean);
-const routerModels = list(args.routers, "gpt-6-luna,gpt-6-sol,claude-haiku-4-5");
-const agentConfigs = list(args.agents, "gpt-6-sol@none,gpt-6-sol@low,gpt-6-luna@none,claude-opus-5-5@low").map(
+const routerModels = list(args.routers, "gpt-6-luna,claude-sonnet-5-5");
+const agentConfigs = list(args.agents, "gpt-6-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none").map(
   (spec) => {
     const [model, effort = "low"] = spec.split("@");
     return { model, effort, label: `${model}@${effort}` };
@@ -321,10 +321,10 @@ async function runCheck() {
       continue;
     }
     const wanted = [...new Set([...routerModels, ...agentConfigs.map((a) => a.model)])].filter((m) => providerOf(m) === provider);
-    // Accounts may list a dated ID (claude-haiku-4-5-20251001) for an alias that works (claude-haiku-4-5).
+    // Accounts may list a dated ID (some-model-20260101) for an alias that works (some-model).
     const listed = (m) => ids.includes(m) || ids.some((id) => id.startsWith(`${m}-`));
     for (const m of wanted) console.log(`${provider}: ${m} ${listed(m) ? "is available" : "NOT FOUND (check the exact model name)"}`);
-    const similar = ids.filter((id) => /gpt-6|opus-5|sonnet-5|haiku/.test(id));
+    const similar = ids.filter((id) => /gpt-6|opus-5|sonnet-5/.test(id));
     if (similar.length) console.log(`${provider}: related models on your account: ${similar.join(", ")}`);
   }
   for (const m of routers) {

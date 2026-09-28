@@ -16,7 +16,7 @@ import {
 } from "./browser";
 import { KEYS, type Key, type PageSnapshot, type ScrollAmount, type ScrollDirection } from "./protocol";
 import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./custom-commands";
-import { NO_USAGE, type Usage, addUsage, costOf, effortFor, modelInfo } from "./models";
+import { NO_USAGE, type Usage, addUsage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
 import { type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
 import { isBlocked, keyFor, type Settings } from "./settings";
 
@@ -343,13 +343,10 @@ class AnthropicBrain implements Brain {
       cache_control: { type: "ephemeral" },
     };
     // Effort controls how long the model thinks before acting (Opus 5.5 always thinks; "low" keeps it short).
-    // Haiku 4.5 doesn't take an effort setting.
-    const effort = effortFor(settings.model, settings.effort);
-    if (effort === "none") {
-      if (settings.model.startsWith("claude-sonnet-5")) params.thinking = { type: "disabled" };
-    } else if (!settings.model.startsWith("claude-haiku")) {
-      params.output_config = { effort };
-    }
+    const { thinking, effort } = claudeReasoning(settings.model, settings.effort);
+    params.output_config = { effort };
+    // The SDK's types don't list Sonnet 5.5's thinking-off mode yet.
+    if (thinking) params.thinking = thinking as unknown as Anthropic.Beta.BetaThinkingConfigParam;
     // If Opus declines on safety grounds, let the API retry on its recommended fallback model.
     if (settings.model.startsWith("claude-opus-5")) {
       betas.push("server-side-fallback-2026-07-01");
