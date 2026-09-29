@@ -35,7 +35,7 @@ import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
 import { NO_USAGE, formatCost } from "../lib/models";
 import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
-import { routeUtterance } from "../lib/router";
+import { type RecentCommand, routeUtterance } from "../lib/router";
 import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
 
@@ -102,6 +102,8 @@ export class Controller {
   private turnMessage = "";
   /** The last few commands and what came of them, so the AI can answer "why did that fail?". */
   private recent: string[] = [];
+  /** The same, in brief, for the router ("again", "a bit more" and other follow-ups). */
+  private recentForRouter: RecentCommand[] = [];
   /** Speech in order: an early answer finishes before the final reply starts. */
   private speech: Promise<void> = Promise.resolve();
   /** Bumped by "stop", so queued speech is dropped. */
@@ -260,6 +262,8 @@ export class Controller {
             ? "ignored (not understood)"
             : this.turnMessage || "done";
     this.recent = [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6);
+    const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled" }[metric.path] ?? metric.path;
+    this.recentForRouter = [...this.recentForRouter, { said: command, outcome }].slice(-3);
   }
 
   /** Personal commands first, then built-in commands, then the AI. */
@@ -354,7 +358,7 @@ export class Controller {
       this.ui.setWorking(true, "Understanding…");
       const routed = await routeUtterance(
         command,
-        { title: tab?.title, personalPhrases: this.commands.flatMap((c) => c.phrases) },
+        { title: tab?.title, personalPhrases: this.commands.flatMap((c) => c.phrases), recent: this.recentForRouter },
         settings,
         signal,
       ).catch((err: unknown) => {

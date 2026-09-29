@@ -353,7 +353,7 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       const t0 = performance.now();
       const result = await routeUtterance(
         msg.text ?? "",
-        { personalPhrases: [] },
+        { personalPhrases: [], recent: msg.recent },
         activeSettings(settings),
         new AbortController().signal,
       );

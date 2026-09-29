@@ -138,3 +138,23 @@ describe("Navi Free chat", () => {
     expect(prompt).toContain("(none yet)");
   });
 });
+
+describe("router context", () => {
+  it("sends the last three commands in one short line, keeping the heard text last", async () => {
+    const { routerMessage, SYSTEM_PROMPT } = await import("../../src/lib/router");
+    const recent = [
+      { said: "open youtube", outcome: "ran" },
+      { said: "tiktok tiktok", outcome: "ignored" },
+      { said: "scroll down", outcome: "ran" },
+      { said: "next tab", outcome: "ran" },
+    ];
+    const base = { title: "YouTube", personalPhrases: ["study time"] };
+    const plain = routerMessage("again", base);
+    const withRecent = routerMessage("again", { ...base, recent });
+    expect(withRecent).toContain('Before this: "tiktok tiktok" (ignored); "scroll down" (ran); "next tab" (ran)');
+    expect(withRecent.endsWith('Heard: "again"')).toBe(true);
+    // Under 10% more to read than without it (instructions included).
+    const added = withRecent.length - plain.length;
+    expect(added / (SYSTEM_PROMPT.length + plain.length)).toBeLessThan(0.1);
+  });
+});

@@ -206,9 +206,11 @@ await context.close();
 server.close();
 
 // ---- Suites ----
-async function routeOnce(heard) {
+/** One routing call; `before` is the last few commands, e.g. [["scroll down", "ran"]]. */
+async function routeOnce(heard, before = []) {
+  const recent = before.map(([said, outcome]) => ({ said, outcome }));
   return Promise.race([
-    panel.evaluate((t) => window.navi.route(t), heard),
+    panel.evaluate(([t, r]) => window.navi.route(t, r), [heard, recent]),
     new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 20_000)),
   ]);
 }
@@ -228,7 +230,7 @@ async function runRouterSuite() {
         if (spent > budget) break;
         let row;
         try {
-          const res = await routeOnce(c.heard);
+          const res = await routeOnce(c.heard, c.before);
           spent += Number.isFinite(res.costUsd) ? res.costUsd : 0;
           const got = res.decision.route === "command" ? await panel.evaluate((t) => window.navi.parse(t), res.decision.command) : null;
           row = {

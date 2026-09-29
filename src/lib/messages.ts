@@ -6,6 +6,7 @@
 
 import type { CommandMetric } from "./metrics";
 import type { NanoRequest } from "./nano";
+import type { RecentCommand } from "./router";
 import type { Settings } from "./settings";
 import type { EarconName } from "./voice-output";
 
@@ -104,7 +105,7 @@ export type WorkerRequest =
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }
-  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears" | "wake"; text?: string; ears?: Extract<EarsRequest, { type: "ears:test" }> };
+  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears" | "wake"; text?: string; recent?: RecentCommand[]; ears?: Extract<EarsRequest, { type: "ears:test" }> };
 
 /** What a view gets when it opens. */
 export interface WorkerHello {

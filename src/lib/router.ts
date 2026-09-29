@@ -38,7 +38,32 @@ zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
 go to sleep; stop`;
 
-const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assistant. The text comes from speech recognition, so it may be misheard, cut off, or not meant for Navi at all. Decide what it is:
+/** One of the last few commands and what came of it: "ran", "AI task", "ignored", "failed", "cancelled". */
+export interface RecentCommand {
+  said: string;
+  outcome: string;
+}
+
+export interface RouteContext {
+  title?: string;
+  personalPhrases: string[];
+  /** The last few commands, oldest first (at most 3 are sent). */
+  recent?: RecentCommand[];
+}
+
+/** What the router model gets besides its instructions (kept short: routing must stay fast). */
+export function routerMessage(utterance: string, context: RouteContext): string {
+  const lines = [
+    `Personal commands: ${context.personalPhrases.length ? context.personalPhrases.join("; ") : "(none)"}`,
+    `Current page: ${context.title ?? "unknown"}`,
+  ];
+  const recent = (context.recent ?? []).slice(-3);
+  if (recent.length) lines.push(`Before this: ${recent.map((r) => `"${r.said.slice(0, 60)}" (${r.outcome})`).join("; ")}`);
+  lines.push(`Heard: "${utterance}"`);
+  return lines.join("\n");
+}
+
+export const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assistant. The text comes from speech recognition, so it may be misheard, cut off, or not meant for Navi at all. Decide what it is:
 
 "command": it's one of Navi's commands below, possibly misheard or phrased loosely. Put the exact command text to run in "command", with any details filled in (e.g. "search youtube for lofi beats", "open github.com", "click sign in", "type hello world", "switch to tab 2"). Personal commands are listed in the message; return their phrase with any {placeholders} filled in.
 "agent": a genuine request that needs understanding the page, several steps, writing, or answering a question (e.g. "open google docs and write a workout plan", "reply to Sarah that I'm running late", "what's this article about", "add the cheapest one to my cart", "add a command that opens wordle").
@@ -47,7 +72,9 @@ const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assi
 Built-in commands:
 ${BUILT_IN_COMMANDS}
 
-Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore".`;
+Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore".
+
+"Before this" lists the last few commands and what came of them. Use it for follow-ups ("again", "a bit more", "the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"), but judge the new text on its own: resembling an earlier command doesn't make it one.`;
 
 const SCHEMA = {
   type: "object",
@@ -61,13 +88,12 @@ const SCHEMA = {
 
 export async function routeUtterance(
   utterance: string,
-  context: { title?: string; personalPhrases: string[] },
+  context: RouteContext,
   settings: Settings,
   signal: AbortSignal,
 ): Promise<RouteResult> {
   const model = settings.routerModel;
-  const personal = context.personalPhrases.length ? context.personalPhrases.join("; ") : "(none)";
-  const message = `Personal commands: ${personal}\nCurrent page: ${context.title ?? "unknown"}\nHeard: "${utterance}"`;
+  const message = routerMessage(utterance, context);
   const { provider } = modelInfo(model);
   const { text, usage } =
     provider === "chrome"

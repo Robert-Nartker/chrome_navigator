@@ -325,7 +325,7 @@ const navi = {
   /** Feeds ElevenLabs a tone at the given level for n x 100 ms, as if someone were talking. */
   feedScribe: (level: number, chunks: number) => earsTest({ type: "ears:test", action: "feedScribe", level, chunks }),
   // For the router benchmark: one routing call with the current settings, timed.
-  route: (text: string) => toWorker({ type: "navi:test", action: "route", text }),
+  route: (text: string, recent?: { said: string; outcome: string }[]) => toWorker({ type: "navi:test", action: "route", text, recent }),
   parse: (text: string) => parseCommand(text),
   models: MODEL_CATALOG,
   startListening: () => toWorker({ type: "navi:listen", on: true }),
