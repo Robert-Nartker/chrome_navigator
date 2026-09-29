@@ -370,8 +370,15 @@ function similarity(a, b) {
   }
   return 1 - prev[n] / Math.max(m, n);
 }
+/** Lowercase words only; "www." and ".com"-style endings are dropped, so "youtube" matches "youtube.com". */
 function norm(s) {
-  return s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .replace(/\bwww\./g, "")
+    .replace(/\.(com|org|net|io|co)\b/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Same command: same intent type and fields, allowing small wording differences in free text. */
