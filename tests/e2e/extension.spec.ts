@@ -9,6 +9,8 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { installFakeRecognizer } from "./fake-speech";
+
 const DIST = path.resolve("dist");
 const FIXTURES = path.resolve("tests/fixtures");
 const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
@@ -25,6 +27,8 @@ type Fixtures = {
   fakeMic: boolean;
   /** Replace Chrome's on-device model (Gemini Nano) in extension pages with a scripted one. */
   fakeNano: boolean;
+  /** Replace Chrome's speech recognizer with a scripted one reporting this on-device status (null: the real one). */
+  fakeSpeech: string | null;
 };
 
 /**
@@ -122,12 +126,13 @@ function startServer(): Promise<{ server: Server; baseUrl: string }> {
 const test = base.extend<Fixtures>({
   fakeMic: [false, { option: true }],
   fakeNano: [false, { option: true }],
+  fakeSpeech: [null, { option: true }],
   baseUrl: async ({}, use) => {
     const { server, baseUrl } = await startServer();
     await use(baseUrl);
     server.close();
   },
-  context: async ({ fakeMic, fakeNano }, use) => {
+  context: async ({ fakeMic, fakeNano, fakeSpeech }, use) => {
     const userDataDir = await mkdtemp(path.join(tmpdir(), "navi-e2e-"));
     // The default fake mic beeps every second, which can sound like speech; this one is silent.
     const media = fakeMic
@@ -143,6 +148,7 @@ const test = base.extend<Fixtures>({
       args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...media],
     });
     if (fakeNano) await context.addInitScript(installFakeNano);
+    if (fakeSpeech) await context.addInitScript(installFakeRecognizer, fakeSpeech);
     await use(context);
     await context.close();
   },
@@ -1230,7 +1236,7 @@ test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch
 });
 
 test.describe("ElevenLabs speech", () => {
-  test.use({ fakeMic: true });
+  test.use({ fakeMic: true, fakeSpeech: "available" });
 
   type Hooks = {
     navi: {
@@ -1334,8 +1340,8 @@ test.describe("ElevenLabs speech", () => {
     expect(String(tts[0].body.text)).toMatch(/It's \d/);
     expect(tts[0].key).toBe("el-test-key");
     expect(chunks).toBeGreaterThan(0);
-    // No ElevenLabs errors or fallbacks. (Chrome's own recognizer can't reach Google in CI.)
-    await expect(panel.locator("#log li.error").filter({ hasNotText: "Speech service unreachable" })).toHaveCount(0);
+    // No ElevenLabs errors or fallbacks.
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
 
     // The streamed reply plays to the end, then Navi listens again.
     await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.speaker.busy)).toBe(false);
@@ -1372,5 +1378,60 @@ test.describe("ElevenLabs speech", () => {
     await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("what time is it", 0.9));
     await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
     await expect(panel.locator("#log li.error").filter({ hasText: "Using Chrome's voice" })).toHaveCount(1);
+  });
+
+  test.describe("where Chrome can't recognize speech on-device", () => {
+    test.use({ fakeSpeech: "unavailable" });
+
+    test("ElevenLabs listens instead, including for the name", async ({ context, extensionId, site }) => {
+      const sockets: string[] = [];
+      await context.route("https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", (route) =>
+        route.fulfill({ json: { token: "single-use-test-token" } }),
+      );
+      await context.routeWebSocket(/api\.elevenlabs\.io/, (ws) => {
+        sockets.push(ws.url());
+      });
+      const panel = await openPanel(context, extensionId, site, { elevenLabsKey: "el-test-key" });
+      await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+      await expect(panel.locator("#log li").filter({ hasText: "ElevenLabs listens instead" })).toHaveCount(1);
+      // Asleep, speech still goes to ElevenLabs: it's the only recognizer.
+      await expect
+        .poll(async () => {
+          await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
+          return sockets.length;
+        })
+        .toBeGreaterThan(0);
+      // Nothing to download, so no download banner.
+      await expect(panel.locator("#speech-banner")).toBeHidden();
+    });
+
+    test("without an ElevenLabs key, Navi says why it can't hear", async ({ context, extensionId, site }) => {
+      const panel = await openPanel(context, extensionId, site, {});
+      await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+      await expect(panel.locator("#log li.error")).toContainText("Chrome can't recognize en-US on this computer yet.");
+      await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
+    });
+  });
+});
+
+test.describe("On-device speech download", () => {
+  test.use({ fakeMic: true, fakeSpeech: "downloadable" });
+
+  test("the side panel offers the one-time download, then Navi listens on-device", async ({ context, panel }) => {
+    type Listen = { navi: { startListening(): Promise<void> } };
+    await expect(panel.locator("#speech-banner")).toBeVisible();
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    await expect(panel.locator("#log li.error")).toContainText("On-device speech isn't downloaded yet");
+    await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
+
+    await panel.locator("#download-speech").click();
+    await expect(panel.locator("#speech-banner")).toBeHidden();
+    await expect(panel.locator("#status")).not.toHaveAttribute("data-state", "error");
+    // The recognizer runs with audio kept on this computer.
+    const ears = context.pages().find((p) => p.url().endsWith("/offscreen.html"));
+    expect(ears).toBeTruthy();
+    await expect
+      .poll(() => ears!.evaluate(() => (window as unknown as { __recognition?: { processLocally: boolean } }).__recognition?.processLocally))
+      .toBe(true);
   });
 });

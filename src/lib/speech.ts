@@ -6,7 +6,8 @@ export interface SpeechCallbacks {
   /** confidence is 0-1, or 0 when the engine doesn't report one. */
   onFinal(text: string, confidence: number): void;
   onRunningChange(running: boolean): void;
-  onError(message: string, fatal: boolean): void;
+  /** `noOnDevice`: this computer can't recognize speech on-device (not a missing download). */
+  onError(message: string, fatal: boolean, noOnDevice?: boolean): void;
   onInfo?(message: string): void;
 }
 
@@ -101,20 +102,32 @@ export function speechSupported(): boolean {
 
 export interface WebSpeechOptions {
   lang: string;
-  /** Keep audio on this computer when Chrome supports on-device recognition. */
-  preferOnDevice: boolean;
-  /** If on-device isn't available, may audio go to Google's speech service? */
-  allowCloud: boolean;
+}
+
+/** Why Chrome's on-device recognizer can't run, for the user. */
+export function onDeviceProblem(status: OnDeviceStatus, lang: string): string {
+  switch (status) {
+    case "downloadable":
+    case "downloading":
+      return "On-device speech isn't downloaded yet. Download it once and Navi can hear you.";
+    case "unavailable":
+      return `Chrome can't recognize ${lang} on this computer yet.`;
+    default:
+      return "This version of Chrome can't recognize speech on-device. Update Chrome (139 or newer).";
+  }
 }
 
 /** How long a partial transcript may sit unchanged before Chrome is told to finish the phrase. */
 const STALL_MS = 1400;
 
+/**
+ * Chrome's recognizer, on-device only: audio never goes to Google's servers. (Chrome's cloud mode is free
+ * but has no retention promise, so Navi doesn't use it.)
+ */
 export class WebSpeechEngine implements SpeechEngine {
   private recognition: Recognition | null = null;
   private wanted = false;
   private active = false;
-  private onDevice = false;
   private restartDelay = 250;
   private lastError = "";
   /** Noise-suppressed mic track handed to the recognizer (Chrome 135+), when supported. */
@@ -130,7 +143,7 @@ export class WebSpeechEngine implements SpeechEngine {
   ) {}
 
   get label(): string {
-    return this.onDevice ? "Chrome speech (on-device)" : "Chrome speech (Google cloud)";
+    return "Chrome speech (on-device)";
   }
 
   get running(): boolean {
@@ -144,13 +157,11 @@ export class WebSpeechEngine implements SpeechEngine {
       return;
     }
     this.wanted = true;
-    this.onDevice = this.options.preferOnDevice && (await this.prepareOnDevice(Ctor));
-    if (!this.onDevice && !this.options.allowCloud) {
+    const status = await onDeviceStatus(this.options.lang);
+    if (status !== "available") {
       this.wanted = false;
-      this.callbacks.onError(
-        "On-device speech isn't ready. Download it on Navi's setup page, or allow cloud speech in settings.",
-        true,
-      );
+      const missingDownload = status === "downloadable" || status === "downloading";
+      this.callbacks.onError(onDeviceProblem(status, this.options.lang), true, !missingDownload);
       return;
     }
     this.callbacks.onInfo?.(`Speech: ${this.label}`);
@@ -187,23 +198,6 @@ export class WebSpeechEngine implements SpeechEngine {
     }
   }
 
-  /** Uses Chrome's on-device model if present (Chrome 139+), downloading it if needed. */
-  private async prepareOnDevice(Ctor: RecognitionCtor): Promise<boolean> {
-    if (typeof Ctor.available !== "function") return false;
-    const request = { langs: [this.options.lang], processLocally: true };
-    try {
-      const status = await Ctor.available(request);
-      if (status === "available") return true;
-      if (status === "downloadable" || status === "downloading") {
-        // Downloading needs a click, so it happens on the setup page.
-        this.callbacks.onInfo?.("On-device speech can be downloaded on Navi's setup page. Using cloud speech for now.");
-      }
-    } catch {
-      // Fall through to cloud recognition.
-    }
-    return false;
-  }
-
   private launch(Ctor: RecognitionCtor) {
     if (!this.wanted) return;
     const rec = new Ctor();
@@ -211,7 +205,7 @@ export class WebSpeechEngine implements SpeechEngine {
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
-    if (this.onDevice && "processLocally" in rec) rec.processLocally = true;
+    rec.processLocally = true;
 
     rec.onstart = () => {
       if (!this.active) {
@@ -258,13 +252,8 @@ export class WebSpeechEngine implements SpeechEngine {
           this.callbacks.onError("Microphone access is blocked. Open Navi setup to allow it.", true);
           return;
         case "language-not-supported":
-          if (this.onDevice) {
-            this.onDevice = false;
-            this.callbacks.onInfo?.("On-device speech isn't available for this language; using cloud speech.");
-            return;
-          }
           this.wanted = false;
-          this.callbacks.onError(`Speech recognition doesn't support ${this.options.lang}.`, true);
+          this.callbacks.onError(onDeviceProblem("unavailable", this.options.lang), true, true);
           return;
         case "network":
           report("Speech service unreachable. Retrying…");

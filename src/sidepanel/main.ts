@@ -27,6 +27,7 @@ import {
   providersWithKeys,
   saveSettings,
 } from "../lib/settings";
+import { installOnDevice, onDeviceStatus } from "../lib/speech";
 import { Feed } from "./feed";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -40,6 +41,9 @@ const ui = {
   form: $<HTMLFormElement>("command-form"),
   input: $<HTMLInputElement>("command-input"),
   micBanner: $("mic-banner"),
+  speechBanner: $("speech-banner"),
+  speechBannerText: $("speech-banner-text"),
+  downloadSpeech: $<HTMLButtonElement>("download-speech"),
   keyBanner: $("key-banner"),
   sessionBar: $("session-bar"),
   numbersButton: $<HTMLButtonElement>("toggle-numbers"),
@@ -265,6 +269,33 @@ ui.form.addEventListener("submit", (e) => {
 });
 
 $("open-setup").addEventListener("click", () => void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") }));
+
+/** Navi only uses Chrome's on-device recognizer; offer its one-time download here (it needs a click). */
+async function checkOnDeviceSpeech() {
+  const status = await onDeviceStatus(settings.lang);
+  ui.speechBanner.hidden = status !== "downloadable" && status !== "downloading";
+  ui.downloadSpeech.disabled = status === "downloading";
+  if (status === "downloading") window.setTimeout(() => void checkOnDeviceSpeech(), 3000);
+  return status;
+}
+
+ui.downloadSpeech.addEventListener("click", async () => {
+  ui.downloadSpeech.disabled = true;
+  ui.speechBannerText.textContent = "Downloading on-device speech…";
+  try {
+    await installOnDevice(settings.lang);
+  } catch (err) {
+    ui.speechBannerText.textContent = `Download failed: ${String(err)}`;
+    ui.downloadSpeech.disabled = false;
+    return;
+  }
+  if ((await checkOnDeviceSpeech()) !== "available") return;
+  // Listening stopped because the recognizer was missing: start again now that it's here.
+  if (worker.listening || settings.listenMode === "handsfree") {
+    await toWorker({ type: "navi:listen", on: false });
+    void toWorker({ type: "navi:listen", on: true });
+  }
+});
 $("open-settings").addEventListener("click", openSettings);
 $("open-settings-inline").addEventListener("click", (e) => {
   e.preventDefault();
@@ -384,6 +415,7 @@ async function init() {
   }
   void loadSpentToday();
   const granted = await checkMicPermission();
+  void checkOnDeviceSpeech();
   // In "Hey Navi" mode, Navi listens for its name whenever it can.
   if (granted && settings.listenMode === "handsfree" && !worker.listening) void toWorker({ type: "navi:listen", on: true });
   renderStatus();

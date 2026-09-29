@@ -2,7 +2,7 @@ import { checkKey, providerOfKey } from "../lib/keys";
 import { NANO_STATUS_TEXT, downloadNano, nanoStatus } from "../lib/nano";
 import { PROVIDER_DEFAULTS, type ApiProvider, modelInfo } from "../lib/models";
 import { activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
-import { installOnDevice, onDeviceStatus } from "../lib/speech";
+import { installOnDevice, onDeviceProblem, onDeviceStatus } from "../lib/speech";
 
 // One-time microphone permission. Extension side panels can't show Chrome's
 // permission prompt, so it is granted here in a normal tab.
@@ -77,10 +77,11 @@ async function showOnDevice() {
   onDeviceButton.disabled = status !== "downloadable";
   onDeviceResult.textContent = {
     available: "On-device speech is ready. Audio stays on this computer.",
-    downloadable: "Available for your language. Click to download (a one-time download).",
+    downloadable: "Available for your language: a one-time download.",
     downloading: "Downloading…",
-    unavailable: `On-device speech isn't available for ${lang} on this computer. Navi will use Google's speech service.`,
-    unsupported: "This version of Chrome doesn't support on-device speech (needs Chrome 139+). Navi will use Google's speech service.",
+    // Without it, only ElevenLabs (if you add a key in settings) can hear you.
+    unavailable: `${onDeviceProblem(status, lang)} With an ElevenLabs key (in settings), ElevenLabs can listen instead.`,
+    unsupported: `${onDeviceProblem(status, lang)} With an ElevenLabs key (in settings), ElevenLabs can listen instead.`,
   }[status];
   if (status === "downloading") window.setTimeout(() => void showOnDevice(), 3000);
 }

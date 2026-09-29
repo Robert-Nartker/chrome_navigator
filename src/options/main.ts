@@ -131,7 +131,6 @@ async function fill() {
   field<HTMLInputElement>("volume").value = String(s.volume);
   selectValue(routerSelect, s.routerModel);
   field<HTMLInputElement>("allowPageText").checked = s.allowPageText;
-  field<HTMLInputElement>("allowCloudSpeech").checked = s.allowCloudSpeech;
   field<HTMLInputElement>("allowScreenshots").checked = s.allowScreenshots;
   field<HTMLInputElement>("typedPageContext").checked = s.typedPageContext;
   field<HTMLTextAreaElement>("blockedSites").value = s.blockedSites.join("\n");
@@ -173,7 +172,6 @@ form.addEventListener("submit", async (e) => {
     volume: clamp(field<HTMLInputElement>("volume").value, 0, 1, 0.6),
     routerModel: routerSelect.value,
     allowPageText: field<HTMLInputElement>("allowPageText").checked,
-    allowCloudSpeech: field<HTMLInputElement>("allowCloudSpeech").checked,
     allowScreenshots: field<HTMLInputElement>("allowScreenshots").checked,
     typedPageContext: field<HTMLInputElement>("typedPageContext").checked,
     blockedSites: field<HTMLTextAreaElement>("blockedSites")

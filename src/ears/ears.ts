@@ -89,7 +89,6 @@ export class Ears {
       (speechChanged ||
         next.lang !== this.settings.lang ||
         next.wakeName !== this.settings.wakeName ||
-        next.allowCloudSpeech !== this.settings.allowCloudSpeech ||
         next.listenMode !== this.settings.listenMode);
     if (speechChanged) this.scribeDisabled = false;
     if (next.elevenLabsKey !== this.settings.elevenLabsKey || next.elevenVoiceId !== this.settings.elevenVoiceId) {
@@ -252,14 +251,14 @@ export class Ears {
   private buildEngine(): SpeechEngine {
     // No word boosting: it made Chrome "hear" boosted words in background noise.
     return new WebSpeechEngine(
-      { lang: this.settings.lang, preferOnDevice: true, allowCloud: this.settings.allowCloudSpeech },
+      { lang: this.settings.lang },
       {
         onInterim: (text) => {
           if (!this.scribeLive) this.interim(text);
         },
         onFinal: (text, confidence) => this.chromeFinal(text, confidence),
         onRunningChange: () => this.emit(),
-        onError: (message, fatal) => void this.onChromeError(message, fatal),
+        onError: (message, fatal, noOnDevice) => void this.onChromeError(message, fatal, noOnDevice),
         onInfo: (message) => {
           if (message.startsWith("Speech: ")) {
             this.chromeLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
@@ -274,13 +273,21 @@ export class Ears {
     );
   }
 
-  private async onChromeError(message: string, fatal: boolean) {
+  private async onChromeError(message: string, fatal: boolean, noOnDevice = false) {
     if (!fatal) {
       this.out.log("error", message);
       this.emit();
       return;
     }
     this.engine = null;
+    // Chrome can't recognize speech on this computer at all: ElevenLabs can listen instead, if set up.
+    if (noOnDevice && usesElevenInput(this.settings) && !this.scribeDisabled) {
+      this.chromeBlocked = true;
+      this.out.log("info", `${message} ElevenLabs listens instead.`);
+      this.startScribe();
+      this.emit();
+      return;
+    }
     // The mic works but Chrome won't recognize speech in a background page (Chrome before ~150).
     if (/microphone access is blocked/i.test(message) && (await micGranted())) {
       this.chromeBlocked = true;

@@ -9,6 +9,8 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { installFakeRecognizer } from "./fake-speech";
+
 const DIST = path.resolve("dist");
 const FIXTURES = path.resolve("tests/fixtures");
 const SCREENSHOTS = path.resolve("docs/screenshots");
@@ -27,39 +29,6 @@ type Fixtures = {
   /** Replace Chrome's speech recognizer in extension pages with a scripted one (see `hear`). */
   fakeSpeech: boolean;
 };
-
-/** A stand-in for Chrome's recognizer: always on-device, never errors, and hears what `__hear` says. */
-function installFakeRecognizer() {
-  if (location.protocol !== "chrome-extension:") return;
-  type Handler = ((event?: unknown) => void) | null;
-  class FakeRecognition {
-    onresult: Handler = null;
-    onerror: Handler = null;
-    onend: Handler = null;
-    onstart: Handler = null;
-    constructor() {
-      (window as unknown as { __recognition: FakeRecognition }).__recognition = this;
-    }
-    static available() {
-      return Promise.resolve("available");
-    }
-    start() {
-      setTimeout(() => this.onstart?.(), 0);
-    }
-    stop() {
-      setTimeout(() => this.onend?.(), 0);
-    }
-    abort() {
-      this.stop();
-    }
-  }
-  const w = window as unknown as Record<string, unknown>;
-  w.SpeechRecognition = w.webkitSpeechRecognition = FakeRecognition;
-  w.__hear = (transcript: string, isFinal: boolean) => {
-    const result = Object.assign([{ transcript, confidence: 0.95 }], { isFinal });
-    (w.__recognition as FakeRecognition | undefined)?.onresult?.({ resultIndex: 0, results: [result] });
-  };
-}
 
 function startServer(): Promise<{ server: Server; baseUrl: string }> {
   return new Promise((resolve) => {
@@ -98,7 +67,7 @@ const test = base.extend<Fixtures>({
       deviceScaleFactor,
       args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...media],
     });
-    if (fakeSpeech) await context.addInitScript(installFakeRecognizer);
+    if (fakeSpeech) await context.addInitScript(installFakeRecognizer, "available");
     await use(context);
     await context.close();
   },

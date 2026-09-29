@@ -142,7 +142,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 
 ## Privacy model
 
-- **Audio:** Navi uses Chrome's speech recognizer in on-device mode when available (Chrome 139+; download the model once on the setup page). Then audio never leaves your computer, including while Navi listens for its name. If on-device isn't available, Chrome falls back to Google's speech service while the mic is on. You can turn that fallback off in settings, and the side panel log says which mode is active.
+- **Audio:** Navi uses Chrome's speech recognizer in on-device mode only (Chrome 139+; download the model once on the setup page or from the side panel). Audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio. If this computer can't recognize speech on-device, Navi can listen with ElevenLabs instead (your key).
 - **Optional ElevenLabs speech** (Settings → ElevenLabs key): while Navi is awake, commands are transcribed by ElevenLabs Scribe v2 Realtime, which can ignore other people talking nearby. Navi also speaks with an ElevenLabs voice. ElevenLabs' standard data policy applies; zero retention needs an Enterprise plan. While asleep, only Chrome's recognizer listens for the name. The mic socket uses a single-use token, so the API key never goes into the URL. If the key fails, Navi falls back to Chrome's recognizer and voice.
 - **Sound from your own computer** (a podcast or video) is cancelled out of the mic when Chrome supports system-wide echo cancellation (`echoCancellation: "all"`).
 - **Nothing is acted on until the wake word.** Speech before "Hey Navi" is ignored and never shown or sent to the AI.

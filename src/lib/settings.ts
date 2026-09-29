@@ -38,8 +38,6 @@ export interface Settings {
   routerModel: string;
   voiceName: string;
   lang: string;
-  /** Fall back to Google's cloud speech service when on-device recognition isn't available. */
-  allowCloudSpeech: boolean;
   /** Whether the AI may read page text when asked to read/summarize/answer questions. */
   allowPageText: boolean;
   /** Whether the AI may take a screenshot when the element list isn't enough. */
@@ -79,7 +77,6 @@ export const DEFAULT_SETTINGS: Settings = {
   routerModel: PROVIDER_DEFAULTS.openai.routerModel,
   voiceName: "",
   lang: "en-US",
-  allowCloudSpeech: true,
   allowPageText: true,
   allowScreenshots: true,
   typedPageContext: false,
