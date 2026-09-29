@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeWav, splitSentences } from "../../src/tts-lab/audio";
+import { splitSentences } from "../../src/tts-lab/audio";
 import { blindName, formatBytes, formatMs, realTimeFactor, shuffle, topRated } from "../../src/tts-lab/format";
 
 describe("splitSentences", () => {
@@ -12,19 +12,6 @@ describe("splitSentences", () => {
     expect(splitSentences("Opening github.com slash navi.")).toEqual(["Opening github.com slash navi."]);
     expect(splitSentences("  Done.  ")).toEqual(["Done."]);
     expect(splitSentences("")).toEqual([]);
-  });
-});
-
-describe("decodeWav", () => {
-  it("reads 16-bit mono PCM and the sample rate from a WAV file", () => {
-    const wav = new ArrayBuffer(44 + 4);
-    const view = new DataView(wav);
-    view.setUint32(24, 22050, true);
-    view.setInt16(44, 0x4000, true);
-    view.setInt16(46, -0x8000, true);
-    const { samples, sampleRate } = decodeWav(wav);
-    expect(sampleRate).toBe(22050);
-    expect([...samples]).toEqual([0.5, -1]);
   });
 });
 
@@ -49,12 +36,12 @@ describe("formatting", () => {
 describe("ratings", () => {
   it("lists the best-rated voices first, ignoring cleared ratings", () => {
     const top = topRated({
-      "piper:amy": { rating: 3, label: "Amy (Piper)" },
+      "system:Daniel": { rating: 3, label: "Daniel (Chrome)" },
       "kokoro:af_heart": { rating: 5, label: "Heart (Kokoro)" },
       "system:Samantha": { rating: 0, label: "Samantha (Chrome)" },
       "kokoro:af_bella": { rating: 5, label: "Bella (Kokoro)" },
     });
-    expect(top.map((t) => t.label)).toEqual(["Bella (Kokoro)", "Heart (Kokoro)", "Amy (Piper)"]);
+    expect(top.map((t) => t.label)).toEqual(["Bella (Kokoro)", "Heart (Kokoro)", "Daniel (Chrome)"]);
   });
 
   it("shuffles without losing or repeating voices", () => {

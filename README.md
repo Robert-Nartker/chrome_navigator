@@ -142,9 +142,9 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 
 ## Privacy model
 
-- **Audio:** Navi uses Chrome's speech recognizer in on-device mode only (Chrome 139+; download the model once on the setup page or from the side panel). Audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio. If this computer can't recognize speech on-device, Navi can listen with ElevenLabs instead (your key).
-- **Navi's voice** runs on your computer too: a neural voice from the voice lab below, Kokoro on the graphics chip (WebGPU; 326 MB once, or 92 MB on the processor if you pick it) or Kyutai's Pocket TTS on the processor (about 125 MB once). It downloads from Hugging Face the first time Navi speaks (or from the setup page), and your computer's system voice answers until then. Pick a voice, or the system voices, in Settings. The side panel shows what's hearing and speaking, e.g. "Hears: Chrome (on-device) · Speaks: Kokoro (on-device)".
-- **Optional ElevenLabs speech** (Settings → ElevenLabs key): while Navi is awake, commands are transcribed by ElevenLabs Scribe v2 Realtime, which can ignore other people talking nearby. Navi also speaks with an ElevenLabs voice. ElevenLabs' standard data policy applies; zero retention needs an Enterprise plan. While asleep, only Chrome's recognizer listens for the name. The mic socket uses a single-use token, so the API key never goes into the URL. If the key fails, Navi falls back to Chrome's recognizer and Navi's on-device voice.
+- **Audio:** Navi uses Chrome's speech recognizer in on-device mode only (Chrome 139+; download the model once on the setup page or from the side panel). Audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio.
+- **Navi's voice** runs on your computer too: Kokoro, a neural voice, on the graphics chip when there is one (WebGPU; 326 MB once) or on the processor otherwise (92 MB once). It downloads from Hugging Face the first time Navi speaks (or from the setup page), and your computer's system voice answers until then. Pick a voice, or the system voices, in Settings. The side panel shows what's hearing and speaking, e.g. "Hears: Chrome (on-device) · Speaks: Kokoro (on-device)".
+- **Speech stays on your computer.** Speech recognition and Navi's voice both run locally. The AI runs on-device with Gemini Nano (Free), or through OpenAI or Anthropic with your own key (Pro). ElevenLabs was removed because zero data retention needs its Enterprise plan.
 - **Sound from your own computer** (a podcast or video) is cancelled out of the mic when Chrome supports system-wide echo cancellation (`echoCancellation: "all"`).
 - **Nothing is acted on until the wake word.** Speech before "Hey Navi" is ignored and never shown or sent to the AI.
 - **The AI sees labels, not content.** By default Claude receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
@@ -156,10 +156,10 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 
 ## Voice lab: compare voices
 
-Chrome's built-in voices can sound robotic. The voice lab (**Settings → Voice feedback → Compare voices**) lets you listen to free neural voices that run on your own computer, side by side, rate them, and pick one.
+Chrome's built-in voices can sound robotic. The voice lab (**Settings → Voice feedback → Compare voices**) lets you listen to Kokoro's voices (Navi's own) next to your computer's voices, time them on your machine, rate them, and pick one.
 
-- **Engines:** Chrome's own voices (marked "on this computer" or "online"), Kokoro (on the graphics chip with WebGPU, or the processor with WebAssembly), Pocket TTS by Kyutai, and Piper. With an ElevenLabs key set, its paid voice is included for comparison.
-- **First use downloads the voice model once**, from Hugging Face: Kokoro 92 MB on the processor or 326 MB on the graphics chip (one download covers all its voices), Pocket TTS about 125 MB, Piper about 63 MB per voice. After that they load from the browser's storage and work offline. **Delete downloaded voices** at the bottom of the page frees the space.
+- **Engines:** Chrome's own voices (marked "on this computer" or "online") and Kokoro (on the graphics chip with WebGPU, or the processor with WebAssembly). Pocket TTS, Supertonic, Kitten and Piper were tried in the speech lab (`scripts/speech-lab/`) and dropped.
+- **First use downloads the voice model once**, from Hugging Face: Kokoro 92 MB on the processor or 326 MB on the graphics chip (one download covers all its voices). After that it loads from the browser's storage and work offline. **Delete downloaded voices** at the bottom of the page frees the space.
 - **Numbers for each voice:** first-load time and download size, time to first audio, total synthesis time, and real-time factor.
 - **Comparing:** tick voices and play the same phrase in each, one after another: things Navi really says, a paragraph, or your own text. Blind mode hides the names and shuffles the order. Ratings (1 to 5) are saved in the browser, and your top voices are listed.
 - **Mac tip:** download a "Premium" or "Enhanced" voice in System Settings → Accessibility → Spoken Content → System voice → Manage Voices. It then shows up under Chrome's voices.
@@ -221,8 +221,8 @@ Real usage is logged too: **Settings → Usage log** shows the running AI cost. 
 
 ## Roadmap
 
-- **Older Chrome versions:** some Chrome versions block speech recognition in background pages. Navi then uses ElevenLabs for all listening if a key is set, and otherwise asks you to update Chrome. A panel-hosted fallback would cover this without a key.
+- **Local command recognition:** transcribe commands on-device with an open model (Qwen3-ASR, Whisper or Parakeet; see `scripts/speech-lab/`) while Chrome's recognizer keeps listening for the wake word.
+- **Older Chrome versions:** some Chrome versions block speech recognition in background pages; Navi asks you to update Chrome. A panel-hosted fallback would cover this.
 - **Voice ID:** optional enrollment on the setup page so only your voice is acted on during a session (Picovoice Eagle or WeSpeaker ONNX); see `docs/research/wake-word-and-voice-id.md`
 - **Dedicated wake-word engine** (Porcupine / openWakeWord) for lower CPU than running recognition continuously
-- **Speech-to-text comparison:** accuracy and latency of ElevenLabs Scribe v2 Realtime vs Chrome on-device on recorded noisy commands; see `docs/research/speech-to-text.md`
 - **Evaluation harness:** about 50 recorded commands plus a task suite, measuring task success, latency and cost for fast path vs AI and across models

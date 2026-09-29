@@ -36,6 +36,7 @@ export const KOKORO_STAND_INS: Record<string, () => Promise<Buffer> | Buffer | s
   [`${KOKORO}tokenizer.json`]: () => JSON.stringify(kokoroTokenizer()),
   [`${KOKORO}tokenizer_config.json`]: () => JSON.stringify({ model_max_length: 512, unk_token: "$", pad_token: "$" }),
   [`${KOKORO}onnx/model_quantized.onnx`]: () => readFile(path.join(MODELS, "kokoro-tone.onnx")),
-  // One 256-value style vector per input length.
+  // One 256-value style vector per input length, for each voice the tests play.
   [`${KOKORO}voices/af_heart.bin`]: () => Buffer.alloc(510 * 256 * 4),
+  [`${KOKORO}voices/af_bella.bin`]: () => Buffer.alloc(510 * 256 * 4),
 };

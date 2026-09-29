@@ -1,13 +1,12 @@
 // Speech-to-text behind one interface, so providers can be swapped and compared.
-// Chrome's built-in Web Speech API (on-device when supported) here; ElevenLabs Scribe in scribe.ts.
+// Chrome's built-in Web Speech API, used in on-device mode only.
 
 export interface SpeechCallbacks {
   onInterim(text: string): void;
   /** confidence is 0-1, or 0 when the engine doesn't report one. */
   onFinal(text: string, confidence: number): void;
   onRunningChange(running: boolean): void;
-  /** `noOnDevice`: this computer can't recognize speech on-device (not a missing download). */
-  onError(message: string, fatal: boolean, noOnDevice?: boolean): void;
+  onError(message: string, fatal: boolean): void;
   onInfo?(message: string): void;
 }
 
@@ -160,8 +159,7 @@ export class WebSpeechEngine implements SpeechEngine {
     const status = await onDeviceStatus(this.options.lang);
     if (status !== "available") {
       this.wanted = false;
-      const missingDownload = status === "downloadable" || status === "downloading";
-      this.callbacks.onError(onDeviceProblem(status, this.options.lang), true, !missingDownload);
+      this.callbacks.onError(onDeviceProblem(status, this.options.lang), true);
       return;
     }
     this.callbacks.onInfo?.(`Speech: ${this.label}`);
@@ -253,7 +251,7 @@ export class WebSpeechEngine implements SpeechEngine {
           return;
         case "language-not-supported":
           this.wanted = false;
-          this.callbacks.onError(onDeviceProblem("unavailable", this.options.lang), true, true);
+          this.callbacks.onError(onDeviceProblem("unavailable", this.options.lang), true);
           return;
         case "network":
           report("Speech service unreachable. Retrying…");

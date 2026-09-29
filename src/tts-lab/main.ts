@@ -10,13 +10,8 @@ import {
   KOKORO_VOICES,
   type LabVoice,
   type LoadStats,
-  PIPER_VOICES,
   type RunStats,
-  elevenEngine,
-  elevenVoice,
   kokoroEngine,
-  piperEngine,
-  pocketEngine,
   systemEngine,
   systemVoices,
 } from "./engines";
@@ -46,26 +41,16 @@ const RATINGS_KEY = "ttsLabRatings";
 const ENGINE_NAMES: Record<EngineId, string> = {
   system: "Chrome",
   kokoro: "Kokoro",
-  pocket: "Pocket TTS",
-  piper: "Piper",
-  eleven: "ElevenLabs",
 };
 
 const kokoro = kokoroEngine();
-const pocket = pocketEngine();
 const engines: Record<EngineId, Engine> = {
   system: systemEngine,
   kokoro,
-  pocket,
-  piper: piperEngine(),
-  eleven: systemEngine, // Replaced when an ElevenLabs key is set.
 };
 const voices: Record<EngineId, LabVoice[]> = {
   system: [],
   kokoro: KOKORO_VOICES,
-  pocket: [],
-  piper: PIPER_VOICES,
-  eleven: [],
 };
 
 let settings: Settings;
@@ -97,9 +82,8 @@ function shownName(v: LabVoice): string {
   return revealed ? `${blindName(i)}: ${fullName(v)}` : blindName(i);
 }
 
-/** Kokoro has one model per device; Piper one per voice; the others one in all. */
+/** Kokoro has one model per device; system voices need no loading. */
 function loadKey(v: { engine: EngineId; key?: string }): string {
-  if (v.engine === "piper") return v.key ?? "piper";
   if (v.engine === "kokoro") return `kokoro@${kokoro.device}`;
   return v.engine;
 }
@@ -197,8 +181,7 @@ function renderVoices(engine: EngineId) {
   if (!items.length) {
     const empty = document.createElement("li");
     empty.className = "empty";
-    empty.textContent =
-      engine === "pocket" ? "Load Pocket TTS to see its voices." : "Chrome didn't report any voices on this computer.";
+    empty.textContent = "Chrome didn't report any voices on this computer.";
     list.append(empty);
   }
 }
@@ -242,10 +225,10 @@ function progressFor(engine: EngineId, label: string) {
 
 /** Loads what `voice` (or the whole engine) needs. Returns false and shows why if it fails. */
 async function load(engine: EngineId, voice?: LabVoice): Promise<boolean> {
-  const what = engine === "piper" && voice ? `Piper ${voice.name}` : ENGINE_NAMES[engine];
+  const what = ENGINE_NAMES[engine];
   const key = loadKey(voice ?? { engine });
   const progress = progressFor(engine, `Downloading ${what}`);
-  const downloads = engine === "kokoro" || engine === "pocket" || (engine === "piper" && voice);
+  const downloads = engine === "kokoro";
   if (downloads && !loads.has(key)) engineStatus(engine, `Loading ${what}…`);
   // In blind mode the engine sections are hidden, so report under the voice's letter instead.
   const blind = voice && blindIndex(voice) >= 0 ? shownName(voice) : "";
@@ -259,11 +242,6 @@ async function load(engine: EngineId, voice?: LabVoice): Promise<boolean> {
       loads.set(key, stats);
       const size = stats.cached ? "already downloaded" : `${formatBytes(stats.bytes)} downloaded and saved for next time`;
       engineStatus(engine, `${what} loaded in ${formatMs(stats.ms)} (${size}).`, "ok");
-      if (engine === "pocket") {
-        voices.pocket = pocket.voices();
-        if (voices.pocket[0]) selected.add(voices.pocket[0].key);
-        renderVoices("pocket");
-      }
       renderResults();
       void showStorage();
     }
@@ -415,7 +393,6 @@ function renderResults() {
 
 function downloadText(voice: LabVoice, loaded: LoadStats | undefined): string {
   if (voice.engine === "system") return voice.online ? "none (online voice)" : "none (built in)";
-  if (voice.engine === "eleven") return "none (online voice)";
   if (!loaded) return "—";
   if (loaded.cached) return loaded.bytes ? `${formatBytes(loaded.bytes)}, already saved` : "already saved";
   return formatBytes(loaded.bytes);
@@ -457,7 +434,8 @@ async function showStorage() {
 async function deleteDownloads() {
   if (!confirm("Delete all downloaded voice models? They'll download again the next time you play them.")) return;
   stopAll();
-  // Kokoro (transformers.js and kokoro-js) and Pocket TTS use Cache Storage; Piper uses the origin's file system.
+  // Kokoro (transformers.js and kokoro-js) keeps its files in Cache Storage. Voices from older versions of the
+  // lab (Pocket TTS, Piper) are cleared too.
   await Promise.all(["transformers-cache", "kokoro-voices", "pocket-tts-js-v1"].map((name) => caches.delete(name)));
   await navigator.storage
     .getDirectory()
@@ -499,13 +477,6 @@ async function init() {
   );
   if (naviVoice) selected.add(`system:${naviVoice}`);
   selected.add(KOKORO_VOICES[0].key);
-  selected.add(PIPER_VOICES[0].key);
-  if (settings.elevenLabsKey) {
-    engines.eleven = elevenEngine(settings);
-    voices.eleven = [elevenVoice(settings)];
-    selected.add(voices.eleven[0].key);
-    section("eleven").hidden = false;
-  }
   for (const engine of Object.keys(voices) as EngineId[]) renderVoices(engine);
   renderResults();
   renderTop();
@@ -524,11 +495,9 @@ async function init() {
     renderResults();
     renderTop();
   });
-  for (const engine of ["kokoro", "pocket"] as const) {
-    section(engine)
-      .querySelector(".load")!
-      .addEventListener("click", () => void load(engine));
-  }
+  section("kokoro")
+    .querySelector(".load")!
+    .addEventListener("click", () => void load("kokoro"));
   $("#clear-downloads").addEventListener("click", () => void deleteDownloads());
   void setUpKokoroDevice();
   void showStorage();

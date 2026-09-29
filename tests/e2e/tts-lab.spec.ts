@@ -1,18 +1,17 @@
-// Voice lab (tts-lab.html). Real voice models are 60-330 MB downloads from Hugging Face, so these tests
-// either make those downloads fail or serve tiny stand-in models (tests/fixtures/tts/) that output a
-// tone. Everything else is real: the vendored ONNX Runtime builds, the phonemizers, the Kokoro and
-// Pocket TTS workers, caching and playback, all under the extension's content security policy.
+// Voice lab (tts-lab.html). Kokoro's real model is a 92-326 MB download from Hugging Face, so these tests
+// either make that download fail or serve a tiny stand-in model (tests/fixtures/tts/) that outputs a
+// tone. Everything else is real: the vendored ONNX Runtime, the phonemizer, Kokoro's worker, caching and
+// playback, all under the extension's content security policy.
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { KOKORO, KOKORO_STAND_INS } from "./fake-models";
 
 const DIST = path.resolve("dist");
-const MODELS = path.resolve("tests/fixtures/tts");
 const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 
@@ -74,44 +73,8 @@ async function watchedPage(context: BrowserContext, problems: string[]): Promise
 }
 
 const HF = "https://huggingface.co/";
-const POCKET = `${HF}vlapky/pocket-tts-onnx/resolve/main/onnx/english_2026-04/`;
-const PIPER = `${HF}diffusionstudio/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium`;
-
-const model = (name: string) => readFile(path.join(MODELS, name));
-
-/** Stand-ins for the files each engine downloads from Hugging Face. */
-const STAND_INS: Record<string, () => Promise<Buffer> | Buffer | string> = {
-  ...KOKORO_STAND_INS,
-  [`${PIPER}.onnx.json`]: () =>
-    JSON.stringify({
-      audio: { sample_rate: 22050 },
-      espeak: { voice: "en-us" },
-      inference: { noise_scale: 0.667, length_scale: 1, noise_w: 0.8 },
-      speaker_id_map: {},
-    }),
-  [`${PIPER}.onnx`]: () => model("piper-tone.onnx"),
-  [`${POCKET}bundle.json`]: () =>
-    JSON.stringify({
-      sample_rate: 24000,
-      samples_per_frame: 1920,
-      latent_dim: 32,
-      conditioning_dim: 1024,
-      tokenizer_file: "tokenizer.model",
-      predefined_voices: ["alba"],
-      flow_lm_state_manifest: [],
-    }),
-  [`${POCKET}tokenizer.model`]: () => Buffer.alloc(0),
-  // "PTVB1" voice states: one voice, "alba", with no tensors.
-  [`${POCKET}voices.bin`]: () =>
-    Buffer.concat([Buffer.from("PTVB1"), Buffer.from([1, 0, 0, 0, 4, 0]), Buffer.from("alba"), Buffer.from([0, 0])]),
-  // Any valid model works here: this checks that the worker's ONNX Runtime creates the sessions.
-  ...Object.fromEntries(
-    ["text_conditioner", "flow_lm_main", "flow_lm_flow", "mimi_decoder"].map((m) => [
-      `${POCKET}${m}_int8.onnx`,
-      () => model("double.onnx"),
-    ]),
-  ),
-};
+/** Stand-ins for the files Kokoro downloads from Hugging Face. */
+const STAND_INS = KOKORO_STAND_INS;
 
 /** Serves the stand-ins (404 for anything else) and returns the URLs requested. */
 async function serveStandIns(context: BrowserContext): Promise<string[]> {
@@ -164,17 +127,15 @@ test("loads under the extension's security policy, lists every engine, and loads
   await expect(engine(lab, "system").locator("legend")).toContainText("Chrome and this computer");
   await expect(engine(lab, "system")).toContainText("Premium");
   await expect(engine(lab, "kokoro").locator(".voices li")).toHaveCount(12);
-  await expect(engine(lab, "pocket")).toContainText("Load Pocket TTS to see its voices");
-  await expect(engine(lab, "piper").locator(".voices li")).toHaveCount(5);
-  // ElevenLabs only appears when Navi has a key.
-  await expect(engine(lab, "eleven")).toBeHidden();
+  // Only Kokoro and the computer's own voices: the other engines were retired.
+  await expect(lab.locator("fieldset.engine")).toHaveCount(2);
   await expect(lab.locator("#volume-note")).toContainText("60%");
   // Headless Chromium can't use WebGPU, so Kokoro falls back to WebAssembly.
   await expect(lab.locator("#kokoro-device")).toHaveValue("wasm");
 
   // The engines' code and runtimes load only when used.
   await lab.waitForTimeout(500);
-  expect(requested.filter((url) => /\/vendor\/|kokoro|piper|ort\./.test(url))).toEqual([]);
+  expect(requested.filter((url) => /\/vendor\/|kokoro|ort\./.test(url))).toEqual([]);
   expect(problems).toEqual([]);
 
   // Settings links here.
@@ -183,45 +144,32 @@ test("loads under the extension's security policy, lists every engine, and loads
   await expect(options.getByRole("link", { name: "Compare voices" })).toHaveAttribute("href", "tts-lab.html");
 });
 
-test("each engine shows a clear error when its model download fails, and can retry", async ({ lab, context, problems }) => {
+test("Kokoro shows a clear error when its model download fails, and can retry", async ({ lab, context, problems }) => {
   const blocked = await blockHuggingFace(context);
   await loadButton(lab, "kokoro").click();
   await expect(engine(lab, "kokoro").locator(".status")).toContainText("Couldn't load Kokoro", { timeout: 20_000 });
-  await loadButton(lab, "pocket").click();
-  await expect(engine(lab, "pocket").locator(".status")).toContainText("Couldn't load Pocket TTS", { timeout: 20_000 });
-  await lab.getByRole("button", { name: "Play Amy (Piper)" }).click();
-  await expect(engine(lab, "piper").locator(".status")).toContainText("Couldn't load Piper Amy", { timeout: 20_000 });
-  await expect(lab.locator("li[data-key='piper:en_US-amy-medium'] .voice-note")).toContainText("Couldn't load this voice");
-  for (const id of ["kokoro", "pocket", "piper"]) {
-    await expect(engine(lab, id).locator(".status")).toContainText("check your internet connection");
-  }
+  await expect(engine(lab, "kokoro").locator(".status")).toContainText("check your internet connection");
   expect(blocked.some((url) => url.startsWith(KOKORO))).toBe(true);
-  // Pocket TTS downloads from its worker; those requests go through the same route.
-  expect(blocked.some((url) => url.startsWith(POCKET))).toBe(true);
 
-  // Piper stores whatever the server returns; a 404 page must not be reused once the voice is available.
-  await blockHuggingFace(context, "404");
-  await lab.getByRole("button", { name: "Play HFC female (Piper)" }).click();
-  await expect(engine(lab, "piper").locator(".status")).toContainText("Couldn't load Piper HFC female", { timeout: 20_000 });
   await serveStandIns(context);
-  await lab.getByRole("button", { name: "Play HFC female (Piper)" }).click();
-  await expect(engine(lab, "piper").locator(".status")).toContainText("Piper HFC female loaded", { timeout: 30_000 });
+  await loadButton(lab, "kokoro").click();
+  await expect(engine(lab, "kokoro").locator(".status")).toContainText("Kokoro loaded", { timeout: 30_000 });
   expect(problems).toEqual([]);
 });
 
-test("runs Kokoro, Piper and Pocket TTS on their vendored runtimes, then loads them again offline", async ({
+test("runs Kokoro on its vendored runtime, then loads it again offline", async ({
   lab,
   context,
   problems,
 }) => {
   test.setTimeout(120_000);
   const requested = await serveStandIns(context);
-  await compareOnly(lab, ["Heart (Kokoro)", "HFC female (Piper)"]);
+  await compareOnly(lab, ["Heart (Kokoro)", "Bella (Kokoro)"]);
   await lab.getByRole("button", { name: "Play this phrase in all selected voices" }).click();
   await expect(lab.locator("#status")).toHaveText("Played 2 voices.", { timeout: 60_000 });
 
-  // Real synthesis through each engine (the stand-in models return a 0.3 s tone).
-  for (const name of ["Heart (Kokoro)", "HFC female (Piper)"]) {
+  // Real synthesis (the stand-in model returns a 0.3 s tone).
+  for (const name of ["Heart (Kokoro)"]) {
     // Engine, first load, download, time to first audio, synthesis, real-time factor, rating.
     const cells = await resultRow(lab, name).locator("td").allTextContents();
     expect(cells[1]).toMatch(/\d+ (ms|s)/);
@@ -234,41 +182,15 @@ test("runs Kokoro, Piper and Pocket TTS on their vendored runtimes, then loads t
   // Kokoro's voice file is data it fetches on first use.
   expect(requested).toContain(`${KOKORO}voices/af_heart.bin`);
 
-  // Pocket TTS: its worker loads ONNX Runtime from the extension and creates all four model sessions.
-  await loadButton(lab, "pocket").click();
-  await expect(engine(lab, "pocket").locator(".status")).toContainText("Pocket TTS loaded", { timeout: 30_000 });
-  // The stand-ins can't drive its generation loop; that fails with a message instead of hanging.
-  await lab.getByRole("button", { name: "Play Alba (Pocket TTS)" }).click();
-  await expect(lab.locator("li[data-key='pocket:alba'] .voice-note")).toContainText("Couldn't play", { timeout: 20_000 });
-
   // Next visit, offline: everything comes from the browser's storage.
   const offline = await blockHuggingFace(context);
   await lab.reload();
   await loadButton(lab, "kokoro").click();
   await expect(engine(lab, "kokoro").locator(".status")).toContainText("already downloaded", { timeout: 30_000 });
-  await loadButton(lab, "pocket").click();
-  await expect(engine(lab, "pocket").locator(".status")).toContainText("already downloaded", { timeout: 30_000 });
-  await lab.getByRole("button", { name: "Play HFC female (Piper)" }).click();
-  await expect(engine(lab, "piper").locator(".status")).toContainText("already downloaded", { timeout: 30_000 });
   await lab.getByRole("button", { name: "Play Heart (Kokoro)" }).click();
   await expect(resultRow(lab, "Heart (Kokoro)")).toBeVisible({ timeout: 30_000 });
   expect(offline).toEqual([]);
   await expect(lab.locator("#storage")).toContainText("Downloaded voice models use about");
-  expect(problems).toEqual([]);
-});
-
-test("the vendored ONNX Runtime 1.20 runs a model in an extension page", async ({ lab, problems }) => {
-  const bytes = [...(await model("double.onnx"))];
-  const output = await lab.evaluate(async (modelBytes) => {
-    const base = chrome.runtime.getURL("vendor/ort-1.20.0/");
-    const ort = await import(`${base}ort.min.mjs`);
-    ort.env.wasm.wasmPaths = base;
-    ort.env.wasm.numThreads = 1;
-    const session = await ort.InferenceSession.create(new Uint8Array(modelBytes), { executionProviders: ["wasm"] });
-    const result = await session.run({ x: new ort.Tensor("float32", new Float32Array([1, 2, 3]), [3]) });
-    return [...(result.y.data as Float32Array)];
-  }, bytes);
-  expect(output).toEqual([3, 5, 7]);
   expect(problems).toEqual([]);
 });
 
@@ -311,14 +233,14 @@ test("Chrome's voices: English by default, marked local or online, timed when pl
 });
 
 test("ratings are saved, blind mode hides names and shuffles, and favorites are listed", async ({ lab, context, extensionId }) => {
-  await compareOnly(lab, ["Heart (Kokoro)", "Bella (Kokoro)", "HFC female (Piper)"]);
+  await compareOnly(lab, ["Heart (Kokoro)", "Bella (Kokoro)", "Nicole (Kokoro)"]);
   await lab.getByLabel("Rating for Heart (Kokoro)").selectOption("5");
-  await lab.getByLabel("Rating for HFC female (Piper)").selectOption("3");
-  await expect(lab.locator("#top li")).toHaveText(["Heart (Kokoro): 5/5", "HFC female (Piper): 3/5"]);
+  await lab.getByLabel("Rating for Nicole (Kokoro)").selectOption("3");
+  await expect(lab.locator("#top li")).toHaveText(["Heart (Kokoro): 5/5", "Nicole (Kokoro): 3/5"]);
   const stored = await lab.evaluate(() => chrome.storage.local.get("ttsLabRatings"));
   expect(stored.ttsLabRatings).toEqual({
     "kokoro:af_heart": { rating: 5, label: "Heart (Kokoro)" },
-    "piper:en_US-hfc_female-medium": { rating: 3, label: "HFC female (Piper)" },
+    "kokoro:af_nicole": { rating: 3, label: "Nicole (Kokoro)" },
   });
 
   // Blind mode: letters instead of names, and the named lists are hidden.
@@ -331,7 +253,7 @@ test("ratings are saved, blind mode hides names and shuffles, and favorites are 
   await blockHuggingFace(context);
   await blind.nth(1).getByRole("button", { name: "Play Voice B" }).click();
   await expect(lab.locator("#status")).toContainText("Couldn't load Voice B", { timeout: 20_000 });
-  await expect(lab.locator("#status")).not.toContainText(/Kokoro|Piper/);
+  await expect(lab.locator("#status")).not.toContainText(/Kokoro|Heart|Bella|Nicole/);
   await expect(lab.locator("#top li").first()).toHaveText(/^Voice [ABC]: 5\/5$/);
   // Rating a letter saves it under the real voice.
   await blind.nth(0).getByRole("combobox").selectOption("4");
@@ -342,24 +264,5 @@ test("ratings are saved, blind mode hides names and shuffles, and favorites are 
 
   // Ratings survive a reload.
   await lab.goto(`chrome-extension://${extensionId}/tts-lab.html`);
-  await expect(lab.getByLabel("Rating for HFC female (Piper)")).toHaveValue(first === "HFC female (Piper)" ? "4" : "3");
-});
-
-test("ElevenLabs shows only with a key, is marked paid, and plays through Navi's speaker", async ({ lab, context }) => {
-  const requests: { url: string; key?: string }[] = [];
-  await context.route("https://api.elevenlabs.io/**", (route) => {
-    requests.push({ url: route.request().url(), key: route.request().headers()["xi-api-key"] });
-    // 0.3 s of a quiet tone as 24 kHz 16-bit PCM.
-    const pcm = Buffer.alloc(24000 * 0.3 * 2);
-    for (let i = 0; i < pcm.length / 2; i++) pcm.writeInt16LE(Math.round(Math.sin(i / 10) * 2000), i * 2);
-    return route.fulfill({ status: 200, contentType: "application/octet-stream", body: pcm });
-  });
-  await lab.evaluate(() => chrome.storage.local.set({ settings: { elevenLabsKey: "el-test-key" } }));
-  await lab.reload();
-  await expect(engine(lab, "eleven")).toBeVisible();
-  await expect(engine(lab, "eleven").locator("legend")).toContainText("Paid");
-  await lab.getByRole("button", { name: "Play Sarah (ElevenLabs)" }).click();
-  await expect(resultRow(lab, "Sarah (ElevenLabs)").locator("td").nth(3)).toHaveText(/\d+ ms/);
-  expect(requests[0].url).toContain("/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL/stream");
-  expect(requests[0].key).toBe("el-test-key");
+  await expect(lab.getByLabel("Rating for Nicole (Kokoro)")).toHaveValue(first === "Nicole (Kokoro)" ? "4" : "3");
 });

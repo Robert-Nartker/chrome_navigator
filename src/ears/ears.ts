@@ -1,12 +1,11 @@
-// Navi's ears and voice: the microphone, speech recognition (Chrome's recognizer, plus ElevenLabs while
-// awake when a key is set), the "Hey Navi" session, and spoken replies and sounds. It runs in Navi's
+// Navi's ears and voice: the microphone, speech recognition (Chrome's on-device recognizer), the
+// "Hey Navi" session, and spoken replies and sounds. It runs in Navi's
 // background page (an offscreen document), so Navi keeps listening with the side panel closed.
 // It knows nothing about commands: finished commands go out through `EarsOutput`.
 
 import type { EarsState, LogKind } from "../lib/messages";
-import { ScribeEngine } from "../lib/scribe";
 import { WakeSession } from "../lib/session";
-import { DEFAULT_SETTINGS, type Settings, naviVoiceOf, usesElevenInput, usesElevenOutput } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, naviVoiceOf } from "../lib/settings";
 import { type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 
@@ -29,14 +28,8 @@ const DICTATION_IDLE_MS = 8000;
 
 export class Ears {
   private settings: Settings = DEFAULT_SETTINGS;
-  /** Chrome's recognizer: always on while listening (wake word, "stop" during replies, fallback). */
+  /** Chrome's on-device recognizer: always on while listening. */
   private engine: SpeechEngine | null = null;
-  /** ElevenLabs Scribe: transcribes commands while awake, when a key is set. */
-  private scribe: ScribeEngine | null = null;
-  /** ElevenLabs failed for good (bad key, quota); stay on Chrome's recognizer until settings change. */
-  private scribeDisabled = false;
-  /** Chrome refused to recognize speech here (older Chrome in a background page): ElevenLabs does it all. */
-  private chromeBlocked = false;
   private micError = "";
   private chromeLabel = "";
   private lastInfo = "";
@@ -59,13 +52,10 @@ export class Ears {
         voiceName: this.settings.voiceName,
         lang: this.settings.lang,
         volume: this.settings.volume,
-        eleven: usesElevenOutput(this.settings)
-          ? { apiKey: this.settings.elevenLabsKey, voiceId: this.settings.elevenVoiceId, model: this.settings.elevenModel }
-          : undefined,
         neural: naviVoiceOf(this.settings),
       }),
-      (message, instead) => {
-        if (message !== this.lastVoiceError) this.out.log("error", `Voice: ${message} Using ${instead}.`);
+      (message) => {
+        if (message !== this.lastVoiceError) this.out.log("error", `Voice: ${message} Using Chrome's voice.`);
         this.lastVoiceError = message;
       },
       (note) => this.out.log("info", note),
@@ -74,28 +64,14 @@ export class Ears {
   }
 
   get listening(): boolean {
-    return !!this.engine?.running || (this.chromeBlocked && !!this.scribe?.running);
-  }
-
-  get scribeLive(): boolean {
-    return !!this.scribe?.live;
+    return !!this.engine?.running;
   }
 
   configure(next: Settings) {
-    const speechChanged =
-      next.elevenLabsKey !== this.settings.elevenLabsKey ||
-      next.speechInput !== this.settings.speechInput ||
-      next.filterBackgroundAudio !== this.settings.filterBackgroundAudio;
     const restart =
       this.listening &&
-      (speechChanged ||
-        next.lang !== this.settings.lang ||
-        next.wakeName !== this.settings.wakeName ||
-        next.listenMode !== this.settings.listenMode);
-    if (speechChanged) this.scribeDisabled = false;
-    if (next.elevenLabsKey !== this.settings.elevenLabsKey || next.elevenVoiceId !== this.settings.elevenVoiceId) {
-      this.lastVoiceError = "";
-    }
+      (next.lang !== this.settings.lang || next.wakeName !== this.settings.wakeName || next.listenMode !== this.settings.listenMode);
+    if (next.speechOutput !== this.settings.speechOutput || next.naviVoice !== this.settings.naviVoice) this.lastVoiceError = "";
     this.settings = next;
     setSoundVolume(next.volume);
     this.session.configure({ mode: next.listenMode, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
@@ -145,7 +121,6 @@ export class Ears {
     this.session.wake();
     this.wasAwake = true;
     earcons.wake();
-    this.startScribe();
     this.emit();
   }
 
@@ -153,7 +128,6 @@ export class Ears {
   sleep() {
     this.session.sleep();
     this.wasAwake = false;
-    this.stopScribe();
     earcons.sleep();
     this.emit();
   }
@@ -163,7 +137,7 @@ export class Ears {
     this.session.touch();
   }
 
-  /** A finished phrase from whichever recognizer is transcribing (also used by tests). */
+  /** A finished phrase from the recognizer (also used by tests). */
   final(transcript: string, confidence = 0) {
     this.out.interim("");
     if (this.dictating) {
@@ -180,34 +154,17 @@ export class Ears {
     if (decision.woke) {
       earcons.wake();
       this.wasAwake = true;
-      this.startScribe();
     }
     if (decision.command) this.out.command(decision.command, confidence);
     this.emit();
   }
 
-  /** Chrome's recognizer defers to ElevenLabs while it's active, except to hear "stop" during a reply. */
-  chromeFinal(transcript: string, confidence: number) {
-    if (!this.scribeLive) return this.final(transcript, confidence);
-    if (this.speaker.busy && STOP_WORDS.test(transcript)) this.out.cancel();
-  }
-
-  /** Feeds ElevenLabs a tone at the given level for n x 100 ms, as if someone were talking (tests). */
-  feedScribe(level: number, chunks: number) {
-    for (let i = 0; i < chunks; i++) {
-      this.scribe?.feed(Float32Array.from({ length: 1600 }, (_, j) => level * Math.sin((2 * Math.PI * 220 * j) / 16000)));
-    }
-  }
-
   get state(): EarsState {
-    const eleven = this.scribeLive
-      ? `ElevenLabs${this.settings.filterBackgroundAudio ? " · ignores background voices" : ""}`
-      : "";
     return {
       listening: this.listening,
       awake: this.listening && this.session.current === "awake",
       micError: this.micError,
-      engineLabel: this.listening ? eleven || this.chromeLabel : "",
+      engineLabel: this.listening ? this.chromeLabel : "",
       voiceLabel: this.speaker.lastVoice,
       remainingMs: this.listening && this.settings.listenMode === "handsfree" ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
@@ -230,7 +187,6 @@ export class Ears {
     const awake = this.session.current === "awake";
     if (this.wasAwake && !awake && this.settings.listenMode === "handsfree" && this.listening) {
       earcons.sleep();
-      this.stopScribe();
     }
     this.wasAwake = awake;
     if (this.listening && this.settings.listenMode === "handsfree") this.out.state(this.state);
@@ -256,12 +212,10 @@ export class Ears {
     return new WebSpeechEngine(
       { lang: this.settings.lang },
       {
-        onInterim: (text) => {
-          if (!this.scribeLive) this.interim(text);
-        },
-        onFinal: (text, confidence) => this.chromeFinal(text, confidence),
+        onInterim: (text) => this.interim(text),
+        onFinal: (text, confidence) => this.final(text, confidence),
         onRunningChange: () => this.emit(),
-        onError: (message, fatal, noOnDevice) => void this.onChromeError(message, fatal, noOnDevice),
+        onError: (message, fatal) => void this.onChromeError(message, fatal),
         onInfo: (message) => {
           if (message.startsWith("Speech: ")) {
             this.chromeLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
@@ -276,83 +230,19 @@ export class Ears {
     );
   }
 
-  private async onChromeError(message: string, fatal: boolean, noOnDevice = false) {
+  private async onChromeError(message: string, fatal: boolean) {
     if (!fatal) {
       this.out.log("error", message);
       this.emit();
       return;
     }
     this.engine = null;
-    // Chrome can't recognize speech on this computer at all: ElevenLabs can listen instead, if set up.
-    if (noOnDevice && usesElevenInput(this.settings) && !this.scribeDisabled) {
-      this.chromeBlocked = true;
-      this.out.log("info", `${message} ElevenLabs listens instead.`);
-      this.startScribe();
-      this.emit();
-      return;
-    }
     // The mic works but Chrome won't recognize speech in a background page (Chrome before ~150).
-    if (/microphone access is blocked/i.test(message) && (await micGranted())) {
-      this.chromeBlocked = true;
-      if (usesElevenInput(this.settings) && !this.scribeDisabled) {
-        this.out.log("info", "This version of Chrome can't recognize speech in the background, so ElevenLabs listens instead.");
-        this.startScribe();
-      } else {
-        this.micError = "This version of Chrome can't listen in the background. Update Chrome, or add an ElevenLabs key in settings.";
-        this.out.log("error", this.micError);
-      }
-    } else {
-      this.micError = message;
-      this.out.log("error", message);
-    }
-    this.emit();
-  }
-
-  /** Starts ElevenLabs for an awake session (or for everything when Chrome can't recognize here). */
-  private startScribe() {
-    if (this.scribe || this.scribeDisabled || !usesElevenInput(this.settings)) return;
-    if (!this.engine?.running && !this.chromeBlocked) return;
-    // Just the wake name: a long list of boosted words risks phantom words.
-    const keyterms = [this.settings.wakeName, `Hey ${this.settings.wakeName}`];
-    let lastError = "";
-    const current = new ScribeEngine(
-      {
-        apiKey: this.settings.elevenLabsKey,
-        lang: this.settings.lang,
-        keyterms,
-        filterBackgroundAudio: this.settings.filterBackgroundAudio,
-        isMuted: () => this.speaker.busy,
-      },
-      {
-        onInterim: (text) => this.interim(text),
-        onFinal: (text, confidence) => this.final(text, confidence),
-        onRunningChange: () => this.emit(),
-        onError: (message, fatal) => {
-          // With Chrome's recognizer blocked here, losing ElevenLabs means Navi can't hear at all.
-          const fallback = this.chromeBlocked
-            ? "This version of Chrome can't listen in the background, so the mic is off. Check your ElevenLabs key, or update Chrome."
-            : "Using Chrome's speech recognition.";
-          if (message !== lastError) this.out.log("error", fatal ? `${message} ${fallback}` : message);
-          lastError = message;
-          if (fatal) {
-            this.scribeDisabled = true;
-            if (this.scribe === current) this.scribe = null;
-            current.stop();
-            if (this.chromeBlocked) this.micError = fallback;
-          }
-          this.emit();
-        },
-      },
-    );
-    this.scribe = current;
-    void current.start();
-  }
-
-  private stopScribe() {
-    // When ElevenLabs is the only recognizer, it keeps listening for the name while asleep.
-    if (this.chromeBlocked && this.listening) return;
-    this.scribe?.stop();
-    this.scribe = null;
+    this.micError =
+      /microphone access is blocked/i.test(message) && (await micGranted())
+        ? "This version of Chrome can't listen in the background. Update Chrome."
+        : message;
+    this.out.log("error", this.micError);
     this.emit();
   }
 
@@ -365,29 +255,22 @@ export class Ears {
     }
     this.micError = "";
     const generation = ++this.listenGeneration;
-    this.scribe?.stop();
-    this.scribe = null;
     this.engine?.stop();
     this.engine = null;
-    if (!this.chromeBlocked) {
-      const next = this.buildEngine();
-      this.engine = next;
-      await next.start();
-      // A newer start or a stop happened meanwhile: never leave two recognizers running.
-      if (generation !== this.listenGeneration) {
-        next.stop();
-        return;
-      }
+    const next = this.buildEngine();
+    this.engine = next;
+    await next.start();
+    // A newer start or a stop happened meanwhile: never leave two recognizers running.
+    if (generation !== this.listenGeneration) {
+      next.stop();
+      return;
     }
     if (this.settings.listenMode === "open") this.session.wake();
-    if (this.chromeBlocked || this.settings.listenMode === "open" || this.session.current === "awake") this.startScribe();
     this.emit();
   }
 
   private stop() {
     this.listenGeneration++;
-    this.scribe?.stop();
-    this.scribe = null;
     this.engine?.stop();
     this.engine = null;
     this.out.interim("");

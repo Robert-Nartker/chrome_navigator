@@ -1,6 +1,5 @@
 // User settings, stored locally in this browser profile (chrome.storage.local).
 
-import { DEFAULT_VOICE_ID } from "./elevenlabs";
 import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, modelInfo } from "./models";
 
 /** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
@@ -47,27 +46,13 @@ export interface Settings {
   /** Hostname fragments where Navi never sends anything to the AI. */
   blockedSites: string[];
   maxAgentSteps: number;
-  /** ElevenLabs key: higher-quality speech-to-text and Navi's voice. Optional. */
-  elevenLabsKey: string;
-  /** Who transcribes commands while Navi is awake. ElevenLabs is used only when a key is set. */
-  speechInput: SpeechProvider;
-  /**
-   * Who speaks Navi's replies: ElevenLabs (when a key is set; otherwise Navi's on-device voice), Navi's
-   * on-device voice, or the computer's system voices.
-   */
+  /** Who speaks Navi's replies: Navi's on-device voice (Kokoro), or the computer's system voices. */
   speechOutput: VoiceOutput;
-  /** Navi's on-device voice: a Kokoro voice ("af_heart"; Pocket TTS has its own). */
+  /** Navi's on-device voice: a Kokoro voice, e.g. "af_heart". */
   naviVoice: string;
-  /** Which model runs it. "auto": Kokoro with a graphics chip (WebGPU), Pocket TTS on the CPU otherwise. */
-  naviVoiceEngine: "auto" | "kokoro" | "pocket";
-  elevenVoiceId: string;
-  elevenModel: string;
-  /** Ignore nearby conversations and background audio (ElevenLabs speech-to-text). */
-  filterBackgroundAudio: boolean;
 }
 
-export type SpeechProvider = "elevenlabs" | "chrome";
-export type VoiceOutput = "elevenlabs" | "navi" | "chrome";
+export type VoiceOutput = "navi" | "chrome";
 
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
@@ -90,14 +75,8 @@ export const DEFAULT_SETTINGS: Settings = {
   typedPageContext: false,
   blockedSites: [],
   maxAgentSteps: 12,
-  elevenLabsKey: "",
-  speechInput: "elevenlabs",
-  speechOutput: "elevenlabs",
+  speechOutput: "navi",
   naviVoice: "af_heart",
-  naviVoiceEngine: "auto",
-  elevenVoiceId: DEFAULT_VOICE_ID,
-  elevenModel: "eleven_flash_v2_5",
-  filterBackgroundAudio: true,
 };
 
 /** The API key for a model's provider ("" if not set). The on-device model needs none. */
@@ -136,19 +115,9 @@ export function activeSettings(s: Settings): Settings {
   return next;
 }
 
-/** True when commands should be transcribed by ElevenLabs. */
-export function usesElevenInput(s: Settings): boolean {
-  return !!s.elevenLabsKey && s.speechInput === "elevenlabs";
-}
-
-/** True when Navi should speak with ElevenLabs. */
-export function usesElevenOutput(s: Settings): boolean {
-  return !!s.elevenLabsKey && s.speechOutput === "elevenlabs";
-}
-
-/** Navi's on-device voice, unless system voices were chosen (it also stands in when ElevenLabs fails). */
-export function naviVoiceOf(s: Settings): { voice: string; engine: Settings["naviVoiceEngine"] } | undefined {
-  return s.speechOutput === "chrome" ? undefined : { voice: s.naviVoice, engine: s.naviVoiceEngine };
+/** Navi's on-device voice, unless system voices were chosen. */
+export function naviVoiceOf(s: Settings): { voice: string } | undefined {
+  return s.speechOutput === "chrome" ? undefined : { voice: s.naviVoice };
 }
 
 /** Defaults for anything missing, and renames from older versions. */
@@ -159,6 +128,13 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
   // Older models are replaced by their current-generation successors.
   s.model = RETIRED_MODELS[s.model] ?? s.model;
   s.routerModel = RETIRED_MODELS[s.routerModel] ?? s.routerModel;
+  // ElevenLabs was removed (it keeps requests unless you're on an Enterprise plan): its voice setting
+  // becomes Navi's own on-device voice.
+  if (s.speechOutput !== "chrome") s.speechOutput = "navi";
+  // Settings that no longer exist (including the old ElevenLabs key) aren't kept.
+  for (const key of ["elevenLabsKey", "speechInput", "elevenVoiceId", "elevenModel", "filterBackgroundAudio", "naviVoiceEngine", "allowCloudSpeech"]) {
+    delete (s as Record<string, unknown>)[key];
+  }
   return s;
 }
 

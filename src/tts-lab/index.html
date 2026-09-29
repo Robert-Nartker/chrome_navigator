@@ -111,29 +111,6 @@
           <ul class="voices"></ul>
         </fieldset>
 
-        <fieldset class="engine" data-engine="pocket">
-          <legend>Pocket TTS by Kyutai <span class="badge free">Free · on this computer</span></legend>
-          <p class="hint">A newer model that streams its speech, so it starts talking quickly. About 125 MB, downloaded once; its voices appear once it's loaded.</p>
-          <div class="actions"><button type="button" class="load">Download and load</button></div>
-          <div class="progress" hidden><progress max="1" aria-label="Pocket TTS download"></progress><span></span></div>
-          <p class="status" role="status"></p>
-          <ul class="voices"></ul>
-        </fieldset>
-
-        <fieldset class="engine" data-engine="piper">
-          <legend>Piper <span class="badge free">Free · on this computer</span></legend>
-          <p class="hint">Light, fast voices made for offline assistants. Each voice is its own download (about 63 MB), fetched the first time you play it.</p>
-          <div class="progress" hidden><progress max="1" aria-label="Piper download"></progress><span></span></div>
-          <p class="status" role="status"></p>
-          <ul class="voices"></ul>
-        </fieldset>
-
-        <fieldset class="engine" data-engine="eleven" hidden>
-          <legend>ElevenLabs <span class="badge paid">Paid</span></legend>
-          <p class="hint">For comparison: the premium online voice from your Navi settings. Each play uses your ElevenLabs credits.</p>
-          <p class="status" role="status"></p>
-          <ul class="voices"></ul>
-        </fieldset>
       </section>
 
       <section aria-labelledby="results-heading">
@@ -141,7 +118,7 @@
         <p class="hint">
           <strong>Time to first audio</strong> is how long you'd wait before Navi starts talking.
           <strong>Real-time factor</strong> is synthesis time divided by the length of the speech; under 1× means it
-          generates speech faster than it plays. Chrome's and ElevenLabs' voices don't report synthesis time.
+          generates speech faster than it plays. Chrome's voices don't report synthesis time.
         </p>
         <div class="table-wrap">
           <table id="results">

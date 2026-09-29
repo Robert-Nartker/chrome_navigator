@@ -88,9 +88,9 @@ export type EarsRequest =
   /** Navi Free's on-device model runs in the background page too. Answer: { text } or { error }. */
   | { type: "nano:prompt"; req: NanoRequest }
   | { type: "nano:status" }
-  | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; level?: number; chunks?: number; muted?: boolean };
+  | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; muted?: boolean };
 
-export type EarsTestAction = "final" | "chromeFinal" | "feedScribe" | "state" | "scribeLive" | "session" | "speakerBusy" | "mute";
+export type EarsTestAction = "final" | "state" | "session" | "speakerBusy" | "lastSaid" | "mute";
 
 /** Worker -> views. */
 export type ViewEvent =

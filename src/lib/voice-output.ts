@@ -1,9 +1,8 @@
-// Spoken replies (ElevenLabs streaming, Navi's on-device neural voice, or the system voices) and short
-// sounds ("earcons") for wake/sleep/error. System voices go through chrome.tts where it exists, and through
+// Spoken replies (Navi's on-device neural voice, or the system voices) and short sounds ("earcons") for
+// wake/sleep/error. System voices go through chrome.tts where it exists, and through
 // speechSynthesis in Navi's background page, which has no chrome.tts (they're the same voices).
 
 import type * as NeuralModule from "../voice/neural";
-import { pcm16ToFloat, speechStream } from "./elevenlabs";
 
 /**
  * One voice everywhere: Chrome's built-in "Google US English" is the same voice on
@@ -59,15 +58,12 @@ export interface VoiceSettings {
   voiceName: string;
   lang: string;
   volume: number;
-  /** When set, Navi speaks with this ElevenLabs voice (Navi's own voice, then Chrome's, are the fallbacks). */
-  eleven?: { apiKey: string; voiceId: string; model: string };
   /** When set, Navi's on-device voice (downloaded the first time; Chrome's voice speaks until it's ready). */
-  neural?: { voice: string; engine: "auto" | "kokoro" | "pocket" };
+  neural?: { voice: string };
 }
 
-/** Navi's on-device voice for one engine choice, and how its download is going. */
+/** Navi's on-device voice, and how its download is going. */
 interface NeuralEntry {
-  choice: string;
   voice: NeuralModule.NeuralVoice | null;
   state: "loading" | "ready" | "failed";
   /** When a failed download may be tried again. */
@@ -82,14 +78,13 @@ export class Speaker implements Voice {
   private speaking = false;
   private utterance = 0;
   private abort: AbortController | null = null;
-  private sources: AudioBufferSourceNode[] = [];
 
   private neural: NeuralEntry | null = null;
 
   constructor(
     private readonly getVoice: () => VoiceSettings,
-    /** Told when ElevenLabs or Navi's own voice fails, and which voice speaks instead. */
-    private readonly onFallback?: (message: string, instead: "Navi's voice" | "Chrome's voice") => void,
+    /** Told when Navi's own voice fails and Chrome's voice speaks instead. */
+    private readonly onFallback?: (message: string) => void,
     /** Told about Navi's own voice: its one-time download, when it's ready, and if the download failed. */
     private readonly onNote?: (message: string) => void,
   ) {}
@@ -108,32 +103,29 @@ export class Speaker implements Voice {
   /** The voice of the last reply, e.g. "Kokoro (on-device)", so people can see what's in use. */
   lastVoice = "";
 
+  /** The last text spoken (tests check what was and wasn't said). */
+  lastSaid = "";
+
   async say(text: string): Promise<void> {
     const clean = text.replace(/[*_`#>]/g, "").trim();
     if (!clean || this.muted) return;
     this.stopPlayback();
     const id = ++this.utterance;
     this.speaking = true;
+    this.lastSaid = clean;
     const voice = this.getVoice();
+    // System voices were chosen: unload Navi's own voice rather than keep its model in memory.
+    if (!voice.neural && this.neural) {
+      this.neural.voice?.dispose();
+      this.neural = null;
+    }
     try {
-      if (voice.eleven) {
-        const played = await this.sayEleven(clean, voice, voice.eleven, id).catch((err: unknown) => {
-          if (id === this.utterance && !(err instanceof DOMException && err.name === "AbortError")) {
-            const instead = voice.neural && this.neural?.state === "ready" ? "Navi's voice" : "Chrome's voice";
-            this.onFallback?.(err instanceof Error ? err.message : String(err), instead);
-          }
-          return false;
-        });
-        // Fall back to another voice only if nothing was heard yet.
-        if (played) this.lastVoice = "ElevenLabs";
-        if (played || id !== this.utterance) return;
-      }
       if (voice.neural) {
         const played = await this.sayNeural(clean, voice, voice.neural).catch((err: unknown) => {
-          if (id === this.utterance) this.onFallback?.(`Navi's voice: ${err instanceof Error ? err.message : String(err)}`, "Chrome's voice");
+          if (id === this.utterance) this.onFallback?.(`Navi's voice: ${err instanceof Error ? err.message : String(err)}`);
           return false;
         });
-        if (played) this.lastVoice = `${this.neural?.voice?.engine === "pocket" ? "Pocket TTS" : "Kokoro"} (on-device)`;
+        if (played) this.lastVoice = "Kokoro (on-device)";
         if (played || id !== this.utterance) return;
       }
       if (id === this.utterance) this.lastVoice = "System voice";
@@ -147,98 +139,32 @@ export class Speaker implements Voice {
     }
   }
 
-  /** Streams ElevenLabs audio and plays it as it arrives. Resolves true once playback ends. */
-  private async sayEleven(
-    text: string,
-    voice: VoiceSettings,
-    eleven: NonNullable<VoiceSettings["eleven"]>,
-    id: number,
-  ): Promise<boolean> {
-    const ctx = await runningAudio();
-    const abort = new AbortController();
-    this.abort = abort;
-    const stream = await speechStream(
-      eleven.apiKey,
-      text,
-      { voiceId: eleven.voiceId, model: eleven.model, speed: voice.rate },
-      abort.signal,
-    );
-    const gain = ctx.createGain();
-    gain.gain.value = voice.volume;
-    gain.connect(ctx.destination);
-    const reader = stream.getReader();
-    let playhead = 0;
-    let leftover = new Uint8Array(0);
-    let played = false;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done || id !== this.utterance) break;
-        const bytes = leftover.length ? concat(leftover, value) : value;
-        const usable = bytes.length - (bytes.length % 2);
-        leftover = bytes.slice(usable);
-        const samples = pcm16ToFloat(bytes.subarray(0, usable));
-        if (!samples.length) continue;
-        const buffer = ctx.createBuffer(1, samples.length, 24000);
-        buffer.copyToChannel(samples, 0);
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(gain);
-        // A small head start absorbs network jitter between chunks.
-        playhead = Math.max(playhead, ctx.currentTime + 0.05);
-        source.start(playhead);
-        playhead += buffer.duration;
-        this.sources.push(source);
-        if (!played) this.onAudioStart?.();
-        played = true;
-      }
-    } catch (err) {
-      // Once audio is playing, let what arrived finish rather than repeating it in another voice.
-      if (!played) throw err;
-    } finally {
-      reader.releaseLock();
-    }
-    if (!played) return false;
-    // Wait for the scheduled audio to finish (or for stop()).
-    await new Promise<void>((resolve) => {
-      if (abort.signal.aborted) return resolve();
-      const timer = window.setTimeout(resolve, Math.max(0, (playhead - ctx.currentTime) * 1000));
-      abort.signal.addEventListener("abort", () => {
-        window.clearTimeout(timer);
-        resolve();
-      });
-    });
-    return true;
-  }
-
   /**
    * Speaks with Navi's on-device voice once it's loaded. The first time, this starts the download and
    * returns false, so Chrome's voice answers meanwhile.
    */
   private async sayNeural(text: string, voice: VoiceSettings, neural: NonNullable<VoiceSettings["neural"]>): Promise<boolean> {
-    const entry = this.neuralVoice(neural.engine);
+    const entry = this.neuralVoice();
     if (entry.state !== "ready" || !entry.voice) return false;
     const abort = new AbortController();
     this.abort = abort;
     return entry.voice.speak({ text, voice: neural.voice, volume: voice.volume, signal: abort.signal });
   }
 
-  /** Navi's on-device voice for this engine choice, starting its load (and first download) if needed. */
-  private neuralVoice(choice: string): NeuralEntry {
+  /** Navi's on-device voice, starting its load (and first download) if needed. */
+  private neuralVoice(): NeuralEntry {
     const current = this.neural;
-    if (current && current.choice === choice && (current.state !== "failed" || Date.now() < current.retryAt)) return current;
-    const entry: NeuralEntry = { choice, voice: null, state: "loading", retryAt: 0 };
-    // A different engine was chosen: unload the old model rather than keep both in memory.
-    current?.voice?.dispose();
+    if (current && (current.state !== "failed" || Date.now() < current.retryAt)) return current;
+    const entry: NeuralEntry = { voice: null, state: "loading", retryAt: 0 };
     this.neural = entry;
     void this.loadNeural(entry);
     return entry;
   }
 
   /** Downloads (the first time) and loads Navi's voice now, e.g. from a "Download" button. */
-  prepareVoice(engine: "auto" | "kokoro" | "pocket"): Promise<void> {
+  prepareVoice(): Promise<void> {
     if (this.neural?.state === "failed") this.neural = null;
-    const entry = this.neuralVoice(engine);
+    const entry = this.neuralVoice();
     return new Promise((resolve, reject) => {
       const check = () => {
         if (entry.state === "ready") resolve();
@@ -259,12 +185,8 @@ export class Speaker implements Voice {
     }, 1500);
     try {
       const neural = (await import(chrome.runtime.getURL("voice/neural.js"))) as typeof NeuralModule;
-      const gpu = await neural.hasWebGpu();
-      const engine = entry.choice === "auto" ? neural.pickEngine(gpu) : (entry.choice as NeuralModule.NeuralEngineId);
-      entry.voice = neural.createNeuralVoice(engine, gpu);
+      entry.voice = neural.createNeuralVoice(await neural.hasWebGpu());
       await entry.voice.load(() => undefined);
-      // Replaced while loading (the setting changed again): don't keep it.
-      if (this.neural !== entry) return entry.voice.dispose();
       entry.state = "ready";
       if (noted) this.onNote?.("Navi's voice is ready.");
     } catch (err) {
@@ -332,14 +254,6 @@ export class Speaker implements Voice {
   private stopPlayback() {
     this.abort?.abort();
     this.abort = null;
-    for (const source of this.sources) {
-      try {
-        source.stop();
-      } catch {
-        // Already stopped.
-      }
-    }
-    this.sources = [];
   }
 
   sound(name: EarconName) {
@@ -355,23 +269,6 @@ export class Speaker implements Voice {
   }
 }
 
-function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
-  const out = new Uint8Array(a.length + b.length);
-  out.set(a);
-  out.set(b, a.length);
-  return out;
-}
-
-/** The shared audio output, resumed if the browser suspended it. */
-async function runningAudio(): Promise<AudioContext> {
-  audio ??= new AudioContext();
-  if (audio.state !== "running") {
-    await Promise.race([audio.resume(), new Promise((r) => window.setTimeout(r, 300))]);
-    // resume() may have changed the state since the check above.
-    if ((audio.state as AudioContextState) !== "running") throw new Error("Chrome blocked audio playback; using Chrome's voice.");
-  }
-  return audio;
-}
 
 let audio: AudioContext | null = null;
 let masterVolume = 0.6;

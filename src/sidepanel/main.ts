@@ -355,17 +355,14 @@ const navi = {
     if (result?.metrics) metrics.splice(0, metrics.length, ...result.metrics);
   },
   handleFinal: (text: string, confidence = 0) => earsTest({ type: "ears:test", action: "final", text, confidence }),
-  chromeFinal: (text: string, confidence = 0) => earsTest({ type: "ears:test", action: "chromeFinal", text, confidence }),
-  /** Feeds ElevenLabs a tone at the given level for n x 100 ms, as if someone were talking. */
-  feedScribe: (level: number, chunks: number) => earsTest({ type: "ears:test", action: "feedScribe", level, chunks }),
   // For the router benchmark: one routing call with the current settings, timed.
   route: (text: string, recent?: { said: string; outcome: string }[]) => toWorker({ type: "navi:test", action: "route", text, recent }),
   parse: (text: string) => parseCommand(text),
   models: MODEL_CATALOG,
   startListening: () => toWorker({ type: "navi:listen", on: true }),
   stopListening: () => toWorker({ type: "navi:listen", on: false }),
-  get scribeLive() {
-    return earsTest<boolean>({ type: "ears:test", action: "scribeLive" });
+  get lastSaid() {
+    return earsTest<string>({ type: "ears:test", action: "lastSaid" });
   },
   session: {
     get current() {

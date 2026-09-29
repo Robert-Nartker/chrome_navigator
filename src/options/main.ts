@@ -1,6 +1,5 @@
 import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
-import { DEFAULT_VOICE_ID, TTS_MODELS, listVoices as listElevenVoices } from "../lib/elevenlabs";
 import { MODEL_CATALOG, PROVIDER_DEFAULTS, type ApiProvider, formatCost, modelInfo } from "../lib/models";
 import { NANO_STATUS_TEXT, nanoStatus } from "../lib/nano";
 import { DEFAULT_SETTINGS, type Settings, activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
@@ -72,35 +71,7 @@ function selectValue(select: HTMLSelectElement, value: string) {
   if (![...select.options].some((o) => o.value === value)) select.add(new Option(value, value));
   select.value = value;
 }
-for (const m of TTS_MODELS) field<HTMLSelectElement>("elevenModel").add(new Option(m.label, m.id));
 for (const v of KOKORO_VOICES) field<HTMLSelectElement>("naviVoice").add(new Option(`${v.name} (${v.detail})`, v.id));
-
-const elevenVoice = field<HTMLSelectElement>("elevenVoiceId");
-let loadedVoicesFor = "";
-
-/** Fills the ElevenLabs voice list from the account (premade voices plus any you've added). */
-async function loadElevenVoices() {
-  const key = field<HTMLInputElement>("elevenLabsKey").value.trim();
-  if (!key || key === loadedVoicesFor) return;
-  loadedVoicesFor = key;
-  const current = elevenVoice.value || DEFAULT_VOICE_ID;
-  try {
-    const voices = await listElevenVoices(key);
-    if (!voices.length) return;
-    elevenVoice.replaceChildren();
-    for (const v of voices) {
-      const traits = [v.labels?.gender, v.labels?.accent, v.labels?.description ?? v.labels?.descriptive]
-        .filter(Boolean)
-        .join(", ");
-      elevenVoice.add(new Option(traits ? `${v.name} (${traits})` : v.name, v.voice_id));
-    }
-    elevenVoice.value = voices.some((v) => v.voice_id === current) ? current : voices[0].voice_id;
-  } catch (err) {
-    loadedVoicesFor = "";
-    saved.textContent = err instanceof Error ? err.message : String(err);
-  }
-}
-field<HTMLInputElement>("elevenLabsKey").addEventListener("change", () => void loadElevenVoices());
 
 chrome.tts.getVoices((voices) => {
   const select = field<HTMLSelectElement>("voiceName");
@@ -136,18 +107,8 @@ async function fill() {
   field<HTMLInputElement>("allowScreenshots").checked = s.allowScreenshots;
   field<HTMLInputElement>("typedPageContext").checked = s.typedPageContext;
   field<HTMLTextAreaElement>("blockedSites").value = s.blockedSites.join("\n");
-  field<HTMLInputElement>("elevenLabsKey").value = s.elevenLabsKey;
-  field<HTMLSelectElement>("speechInput").value = s.speechInput;
   field<HTMLSelectElement>("speechOutput").value = s.speechOutput;
   field<HTMLSelectElement>("naviVoice").value = s.naviVoice;
-  field<HTMLSelectElement>("naviVoiceEngine").value = s.naviVoiceEngine;
-  field<HTMLInputElement>("filterBackgroundAudio").checked = s.filterBackgroundAudio;
-  field<HTMLSelectElement>("elevenModel").value = s.elevenModel;
-  if (![...elevenVoice.options].some((o) => o.value === s.elevenVoiceId)) {
-    elevenVoice.add(new Option(s.elevenVoiceId, s.elevenVoiceId));
-  }
-  elevenVoice.value = s.elevenVoiceId;
-  void loadElevenVoices();
   updateModelNote();
 }
 
@@ -182,14 +143,8 @@ form.addEventListener("submit", async (e) => {
       .value.split("\n")
       .map((s) => s.trim())
       .filter(Boolean),
-    elevenLabsKey: field<HTMLInputElement>("elevenLabsKey").value.trim(),
-    speechInput: field<HTMLSelectElement>("speechInput").value as Settings["speechInput"],
     speechOutput: field<HTMLSelectElement>("speechOutput").value as Settings["speechOutput"],
     naviVoice: field<HTMLSelectElement>("naviVoice").value,
-    naviVoiceEngine: field<HTMLSelectElement>("naviVoiceEngine").value as Settings["naviVoiceEngine"],
-    filterBackgroundAudio: field<HTMLInputElement>("filterBackgroundAudio").checked,
-    elevenVoiceId: elevenVoice.value || DEFAULT_VOICE_ID,
-    elevenModel: field<HTMLSelectElement>("elevenModel").value,
   });
   saved.textContent = "Saved";
   window.setTimeout(() => (saved.textContent = ""), 2000);
@@ -285,24 +240,16 @@ void showCommands();
 /** What "Test voice" plays: the form's current choices (kept, so Navi's voice loads only once here). */
 function testVoice() {
   const lang = field<HTMLInputElement>("lang").value || "en-US";
-  const apiKey = field<HTMLInputElement>("elevenLabsKey").value.trim();
-  const output = field<HTMLSelectElement>("speechOutput").value;
-  const eleven = !!apiKey && output === "elevenlabs";
-  const engine = field<HTMLSelectElement>("naviVoiceEngine").value as Settings["naviVoiceEngine"];
+  const navi = field<HTMLSelectElement>("speechOutput").value !== "chrome";
   return {
     lang,
-    eleven,
-    navi: !eleven && output !== "chrome",
-    engine,
+    navi,
     settings: {
       voiceName: field<HTMLSelectElement>("voiceName").value,
       lang,
       rate: Number(field<HTMLInputElement>("speechRate").value) || 1,
       volume: Number(field<HTMLInputElement>("volume").value),
-      eleven: eleven
-        ? { apiKey, voiceId: elevenVoice.value || DEFAULT_VOICE_ID, model: field<HTMLSelectElement>("elevenModel").value }
-        : undefined,
-      neural: output === "chrome" ? undefined : { voice: field<HTMLSelectElement>("naviVoice").value, engine },
+      neural: navi ? { voice: field<HTMLSelectElement>("naviVoice").value } : undefined,
     },
   };
 }
@@ -313,14 +260,13 @@ document.getElementById("test-voice")?.addEventListener("click", async () => {
   const test = testVoice();
   testSpeaker ??= new Speaker(
     () => testVoice().settings,
-    (message, instead) => (saved.textContent = `${message} Using ${instead}.`),
+    (message) => (saved.textContent = `${message} Using Chrome's voice.`),
   );
   let name = test.settings.voiceName || (await pickVoice(test.lang)) || "the default voice";
-  if (test.eleven) name = elevenVoice.selectedOptions[0]?.text.split(" (")[0] ?? "an ElevenLabs voice";
   if (test.navi) {
-    saved.textContent = "Loading Navi's voice (the first time, it downloads 90 to 330 MB)…";
+    saved.textContent = "Loading Navi's voice (the first time, it downloads 92 to 326 MB)…";
     try {
-      await testSpeaker.prepareVoice(test.engine);
+      await testSpeaker.prepareVoice();
       saved.textContent = "";
       name = "Navi's on-device voice";
     } catch {

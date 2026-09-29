@@ -1025,7 +1025,6 @@ test("typed: a message goes straight to the main model as chat, with the tabs bu
 }) => {
   const bodies: Record<string, unknown>[] = [];
   let routerCalls = 0;
-  const spoken: string[] = [];
   await context.route("https://api.openai.com/v1/responses", async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     if (body.text) {
@@ -1039,14 +1038,8 @@ test("typed: a message goes straight to the main model as chat, with the tabs bu
       ]),
     );
   });
-  await context.route("https://api.elevenlabs.io/**", (route) => {
-    spoken.push(String((route.request().postDataJSON() as { text?: string } | null)?.text ?? ""));
-    return route.abort();
-  });
   await panel.evaluate(() =>
-    chrome.storage.local.set({
-      settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", routerModel: "gpt-6-luna", elevenLabsKey: "el-test" },
-    }),
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", routerModel: "gpt-6-luna" } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
@@ -1069,7 +1062,9 @@ test("typed: a message goes straight to the main model as chat, with the tabs bu
   );
   // The answer is read on screen, not spoken.
   await panel.waitForTimeout(300);
-  expect(spoken.filter((t) => t.includes("one tab"))).toHaveLength(0);
+  expect(await panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid)).not.toContain(
+    "one tab",
+  );
 });
 
 test("typed: a task looks at the page first, then acts, and knows what happened recently", async ({ panel, site, context }) => {
@@ -1240,7 +1235,7 @@ test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch
 
 /**
  * Opens the panel, then saves settings. Routes only reliably apply to pages opened after they're
- * registered, so the panel (which opens Navi's background page, where the mic and ElevenLabs run)
+ * registered, so the panel (which opens Navi's background page, where the mic and voice run)
  * opens only once the test's routes are set.
  */
 async function openPanel(context: BrowserContext, extensionId: string, site: Page, settings: Record<string, unknown>) {
@@ -1253,167 +1248,15 @@ async function openPanel(context: BrowserContext, extensionId: string, site: Pag
   return panel;
 }
 
-test.describe("ElevenLabs speech", () => {
-  test.use({ fakeMic: true, fakeSpeech: "available" });
+test.describe("where Chrome can't recognize speech on-device", () => {
+  test.use({ fakeMic: true, fakeSpeech: "unavailable" });
 
-  type Hooks = {
-    navi: {
-      handleFinal(t: string): void;
-      chromeFinal(t: string, c: number): void;
-      feedScribe(level: number, chunks: number): void;
-      startListening(): Promise<void>;
-      stopListening(): void;
-      scribeLive: boolean;
-      speaker: { busy: boolean };
-      session: { current: string };
-    };
-  };
-
-  /** 0.4 s of a quiet 440 Hz tone as 24 kHz 16-bit PCM, like ElevenLabs' pcm_24000 stream. */
-  function tonePcm(): Buffer {
-    const samples = 24000 * 0.4;
-    const buf = Buffer.alloc(samples * 2);
-    for (let i = 0; i < samples; i++) buf.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / 24000) * 3000), i * 2);
-    return buf;
-  }
-
-  test("awake commands are transcribed by Scribe; replies stream from ElevenLabs", async ({ context, extensionId, site }) => {
-    const sockets: string[] = [];
-    const tts: { url: string; body: Record<string, unknown>; key?: string }[] = [];
-    let chunks = 0;
-    let tokenKey = "";
-    await context.route("https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", (route) => {
-      tokenKey = route.request().headers()["xi-api-key"] ?? "";
-      return route.fulfill({ json: { token: "single-use-test-token" } });
-    });
-    await context.route("https://api.elevenlabs.io/v1/text-to-speech/**", (route) => {
-      tts.push({
-        url: route.request().url(),
-        body: route.request().postDataJSON() as Record<string, unknown>,
-        key: route.request().headers()["xi-api-key"],
-      });
-      return route.fulfill({ status: 200, contentType: "application/octet-stream", body: tonePcm() });
-    });
-    await context.routeWebSocket(/api\.elevenlabs\.io/, (ws) => {
-      sockets.push(ws.url());
-      let answered = false;
-      ws.onMessage((message) => {
-        const data = JSON.parse(String(message)) as { message_type: string; audio_base_64?: string };
-        if (data.message_type !== "input_audio_chunk") return;
-        chunks++;
-        // 100 ms of 16 kHz 16-bit mono per chunk.
-        expect(Buffer.from(data.audio_base_64 ?? "", "base64").length).toBe(3200);
-        if (answered) return;
-        answered = true;
-        ws.send(JSON.stringify({ message_type: "partial_transcript", text: "what time" }));
-        ws.send(JSON.stringify({ message_type: "committed_transcript", text: "what time is it" }));
-      });
-    });
-
-    const panel = await openPanel(context, extensionId, site, { elevenLabsKey: "el-test-key" });
-    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
-    // Asleep: Chrome's on-device recognizer listens for the name; nothing goes to ElevenLabs.
-    await panel.waitForTimeout(300);
-    expect(sockets).toHaveLength(0);
-
-    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
-    // Awake but quiet: no connection, so nothing is billed.
-    await panel.waitForTimeout(600);
-    expect(sockets).toHaveLength(0);
-    // Speaking opens the connection and sends the speech, including the moment before it was detected.
-    await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
-    await expect.poll(() => sockets.length).toBe(1);
-    const url = new URL(sockets[0]);
-    expect(url.pathname).toBe("/v1/speech-to-text/realtime");
-    expect(url.searchParams.get("model_id")).toBe("scribe_v2_realtime");
-    expect(url.searchParams.get("token")).toBe("single-use-test-token");
-    expect(url.searchParams.get("filter_background_audio")).toBe("true");
-    expect(url.searchParams.get("audio_format")).toBe("pcm_16000");
-    expect(url.searchParams.getAll("keyterms")).toContain("Navi");
-    // The key only goes in the token request header, never in the socket URL.
-    expect(tokenKey).toBe("el-test-key");
-    expect(sockets[0]).not.toContain("el-test-key");
-
-    // Scribe's transcript runs as a command, and the answer is spoken with ElevenLabs.
-    await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
-    await expect.poll(() => tts.length).toBe(1);
-    expect(tts[0].url).toContain("/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL/stream");
-    expect(tts[0].url).toContain("output_format=pcm_24000");
-    expect(tts[0].body.model_id).toBe("eleven_flash_v2_5");
-    expect(String(tts[0].body.text)).toMatch(/It's \d/);
-    expect(tts[0].key).toBe("el-test-key");
-    expect(chunks).toBeGreaterThan(0);
-    // No ElevenLabs errors or fallbacks.
-    await expect(panel.locator("#log li.error")).toHaveCount(0);
-
-    // The streamed reply plays to the end, then Navi listens again.
-    await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.speaker.busy)).toBe(false);
-
-    // While ElevenLabs is transcribing, Chrome's copy of the same speech is ignored.
-    const before = await panel.locator("#log li").count();
-    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("what time is it", 0.9));
-    await panel.waitForTimeout(300);
-    expect(await panel.locator("#log li").count()).toBe(before);
-
-    // Sleeping closes the ElevenLabs connection.
-    await panel.evaluate(() => (window as unknown as Hooks).navi.handleFinal("go to sleep"));
-    await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
-  });
-
-  test("a rejected key falls back to Chrome's recognizer and voice", async ({ context, extensionId, site }) => {
-    await context.route("https://api.elevenlabs.io/**", (route) =>
-      route.fulfill({ status: 401, json: { detail: { status: "invalid_api_key" } } }),
-    );
-    const panel = await openPanel(context, extensionId, site, { elevenLabsKey: "bad-key" });
-    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
-    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("hey navi", 0.9));
-    // Talk until ElevenLabs is asked (its mic may still be opening at first).
-    const fallback = panel.locator("#log li.error").filter({ hasText: "Using Chrome's speech recognition" });
-    await expect
-      .poll(async () => {
-        await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
-        return fallback.count();
-      })
-      .toBe(1);
-    expect(await panel.evaluate(() => (window as unknown as Hooks).navi.scribeLive)).toBe(false);
-
-    // Chrome's recognizer now handles commands, and replies use Chrome's voice.
-    await panel.evaluate(() => (window as unknown as Hooks).navi.chromeFinal("what time is it", 0.9));
-    await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
-    await expect(panel.locator("#log li.error").filter({ hasText: "Using Chrome's voice" })).toHaveCount(1);
-  });
-
-  test.describe("where Chrome can't recognize speech on-device", () => {
-    test.use({ fakeSpeech: "unavailable" });
-
-    test("ElevenLabs listens instead, including for the name", async ({ context, extensionId, site }) => {
-      const sockets: string[] = [];
-      await context.route("https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", (route) =>
-        route.fulfill({ json: { token: "single-use-test-token" } }),
-      );
-      await context.routeWebSocket(/api\.elevenlabs\.io/, (ws) => {
-        sockets.push(ws.url());
-      });
-      const panel = await openPanel(context, extensionId, site, { elevenLabsKey: "el-test-key" });
-      await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
-      await expect(panel.locator("#log li").filter({ hasText: "ElevenLabs listens instead" })).toHaveCount(1);
-      // Asleep, speech still goes to ElevenLabs: it's the only recognizer.
-      await expect
-        .poll(async () => {
-          await panel.evaluate(() => (window as unknown as Hooks).navi.feedScribe(0.3, 8));
-          return sockets.length;
-        })
-        .toBeGreaterThan(0);
-      // Nothing to download, so no download banner.
-      await expect(panel.locator("#speech-banner")).toBeHidden();
-    });
-
-    test("without an ElevenLabs key, Navi says why it can't hear", async ({ context, extensionId, site }) => {
-      const panel = await openPanel(context, extensionId, site, {});
-      await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
-      await expect(panel.locator("#log li.error")).toContainText("Chrome can't recognize en-US on this computer yet.");
-      await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
-    });
+  test("Navi says why it can't hear, and doesn't fall back to a cloud service", async ({ context, extensionId, site }) => {
+    type Listen = { navi: { startListening(): Promise<void> } };
+    const panel = await openPanel(context, extensionId, site, {});
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    await expect(panel.locator("#log li.error")).toContainText("Chrome can't recognize en-US on this computer yet.");
+    await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
   });
 });
 
@@ -1457,7 +1300,7 @@ test.describe("Navi's on-device voice", () => {
 
   test("replies use Kokoro once it's downloaded; the system voice speaks meanwhile", async ({ context, extensionId, site }) => {
     const requested = await huggingFace(context, true);
-    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi", naviVoiceEngine: "kokoro" });
+    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi" });
     await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
     await run(panel, "what time is it");
     const label = panel.locator("#engine-label");
@@ -1475,22 +1318,23 @@ test.describe("Navi's on-device voice", () => {
     expect(requested).toContain(`${KOKORO}onnx/model_quantized.onnx`);
     await expect(panel.locator("#log li.error")).toHaveCount(0);
 
-    // Choosing another engine unloads Kokoro (its worker holds the whole model in memory).
+    // Choosing the system voices unloads Kokoro (its worker holds the whole model in memory).
     const ears = context.pages().find((p) => p.url().endsWith("/offscreen.html"))!;
     const kokoroWorkers = () => ears.workers().filter((w) => w.url().endsWith("/lab/kokoro-worker.js")).length;
     expect(kokoroWorkers()).toBe(1);
-    await panel.evaluate(() => chrome.storage.local.set({ settings: { speechOutput: "navi", naviVoiceEngine: "pocket" } }));
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { speechOutput: "chrome" } }));
     await expect
       .poll(async () => {
         await run(panel, "what time is it");
         return kokoroWorkers();
       })
       .toBe(0);
+    await expect(label).toContainText("Speaks: System voice");
   });
 
   test("if the voice can't download, the system voice speaks and the log says why", async ({ context, extensionId, site }) => {
     await huggingFace(context, false);
-    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi", naviVoiceEngine: "kokoro" });
+    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi" });
     await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
     await run(panel, "what time is it");
     const note = panel.locator("#log li").filter({ hasText: "Couldn't download Navi's voice" }).last();

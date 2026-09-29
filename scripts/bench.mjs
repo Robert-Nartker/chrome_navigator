@@ -494,8 +494,6 @@ async function report(routerRows, agentRows) {
         SCENARIOS.map((s) => `${s.routerCalls} phrases to the router and ${s.agentTasks} tasks to the agent`).join(", ") +
         ". Benchmark tasks are multi-step, so real average costs may be lower. Your Settings → Usage log records the real cost of every command.",
       "",
-      "Speech add-ons, if enabled (not measured here): ElevenLabs speech-to-text ~$0.39 per hour awake (about $4 for 20 hours if Navi is awake half the time); ElevenLabs voice ~$0.05/h for short replies.",
-      "",
     );
   }
   const text = out.join("\n");

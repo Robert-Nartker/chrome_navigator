@@ -23,24 +23,11 @@ const staticFiles = [
   ["src/icons", "icons"],
 ];
 
-// Runtimes for the voice lab's on-device speech engines. Chrome extensions can't load code from a CDN,
-// so the WebAssembly builds these libraries would normally fetch are copied in from node_modules.
-// The folder names are referenced in src/tts-lab/ and the versions are pinned in package.json.
+// Kokoro's runtime (transformers.js). Chrome extensions can't load code from a CDN, so the WebAssembly
+// build transformers.js would normally fetch is copied in from node_modules (see src/tts-lab/engines.ts).
 const vendorFiles = [
-  // Kokoro (transformers.js): the ONNX Runtime build transformers.js was compiled against.
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.wasm", "vendor/transformers/ort-wasm-simd-threaded.jsep.wasm"],
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.mjs", "vendor/transformers/ort-wasm-simd-threaded.jsep.mjs"],
-  // Pocket TTS: its worker imports ONNX Runtime 1.20.0's ort.min.mjs from ortBaseUrl at runtime. It only uses
-  // the WebAssembly backend, so it gets the WebAssembly-only build under that name: the full build's WebGL
-  // model parser tries eval(), which the extension's CSP blocks.
-  ["node_modules/pocket-tts-js/src", "vendor/pocket-tts"],
-  ["node_modules/onnxruntime-web-1-20/dist/ort.wasm.min.mjs", "vendor/ort-1.20.0/ort.min.mjs"],
-  ["node_modules/onnxruntime-web-1-20/dist/ort-wasm-simd-threaded.mjs", "vendor/ort-1.20.0/ort-wasm-simd-threaded.mjs"],
-  ["node_modules/onnxruntime-web-1-20/dist/ort-wasm-simd-threaded.wasm", "vendor/ort-1.20.0/ort-wasm-simd-threaded.wasm"],
-  // Piper: ONNX Runtime 1.18.0 (single-threaded SIMD build) plus the espeak-ng phonemizer.
-  ["node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm", "vendor/ort-1.18.0/ort-wasm-simd.wasm"],
-  ["node_modules/@diffusionstudio/piper-wasm/build/piper_phonemize.wasm", "vendor/piper/piper_phonemize.wasm"],
-  ["node_modules/@diffusionstudio/piper-wasm/build/piper_phonemize.data", "vendor/piper/piper_phonemize.data"],
 ];
 
 export async function copyStatic(outdir) {
@@ -49,8 +36,7 @@ export async function copyStatic(outdir) {
   }
   for (const [from, to] of vendorFiles) {
     // Copied once per build folder (both scripts start from an empty one), so dev rebuilds stay fast.
-    // (Skips the type declarations next to Pocket TTS's scripts.)
-    await cp(from, `${outdir}/${to}`, { recursive: true, force: false, filter: (src) => !src.endsWith(".d.ts") });
+    await cp(from, `${outdir}/${to}`, { recursive: true, force: false });
   }
 }
 

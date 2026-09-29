@@ -77,19 +77,6 @@
         </fieldset>
 
         <fieldset>
-          <legend>ElevenLabs</legend>
-          <p class="section-hint">Optional: better hearing in noisy places, and a natural voice.</p>
-          <label for="elevenLabsKey">ElevenLabs API key (optional)</label>
-          <input id="elevenLabsKey" type="password" autocomplete="off" placeholder="sk_…" />
-          <p class="hint">
-            Adds speech recognition that ignores nearby conversations and background audio, plus a natural voice for
-            Navi. Audio is sent to ElevenLabs only while Navi is awake (their standard data policy applies; zero
-            retention needs an Enterprise plan). Get a key at elevenlabs.io (Developers → API keys) with Speech to Text,
-            Text to Speech, and Voices (read) access. Stored only in this browser profile.
-          </p>
-        </fieldset>
-
-        <fieldset>
           <legend>Listening</legend>
           <label for="wakeName">Wake name</label>
           <input id="wakeName" type="text" />
@@ -101,14 +88,6 @@
           </select>
           <label for="sessionTimeoutSec">Stay awake for (seconds of silence)</label>
           <input id="sessionTimeoutSec" type="number" min="10" max="1800" />
-          <label for="speechInput">Speech recognition while awake</label>
-          <select id="speechInput">
-            <option value="elevenlabs">ElevenLabs Scribe (best in noisy places; needs the key above)</option>
-            <option value="chrome">Chrome's built-in recognizer only</option>
-          </select>
-          <p class="hint">While asleep, Navi only listens for its name, using Chrome's recognizer on this computer. ElevenLabs hears you only while Navi is awake, so it costs about $0.39 per hour awake.</p>
-          <label class="check"><input id="filterBackgroundAudio" type="checkbox" /> Ignore other people talking nearby and background audio (cafés, TV, a podcast in the room)</label>
-          <p class="hint">Sound your computer plays itself, such as a video or podcast, is also cancelled out of the mic when Chrome supports it.</p>
           <label for="lang">Language</label>
           <input id="lang" type="text" placeholder="en-US" />
           <p class="hint">Chrome's recognizer always runs on this computer (Chrome 139+; download it on the <a href="setup.html">setup page</a>). Navi never uses Google's cloud speech service.</p>
@@ -123,44 +102,21 @@
           </select>
           <label for="speechOutput">Navi's voice comes from</label>
           <select id="speechOutput">
-            <option value="elevenlabs">ElevenLabs when its key is set above, otherwise Navi's on-device voice</option>
-            <option value="navi">Navi's on-device voice (free, private)</option>
+            <option value="navi">Navi's on-device voice (Kokoro: free, private)</option>
             <option value="chrome">Your computer's system voices</option>
           </select>
+          <label for="naviVoice">Navi's on-device voice</label>
+          <select id="naviVoice"></select>
+          <p class="hint">Kokoro, a neural voice that runs on this computer, so replies never leave it: on the graphics chip when there is one (a 326 MB download), otherwise on the processor (92 MB, a bit slower). It downloads once, the first time Navi speaks, or from the <a href="setup.html">setup page</a>.</p>
           <div class="row">
             <div>
-              <label for="naviVoice">Navi's on-device voice</label>
-              <select id="naviVoice"></select>
-            </div>
-            <div>
-              <label for="naviVoiceEngine">Runs on</label>
-              <select id="naviVoiceEngine">
-                <option value="auto">Automatic: Kokoro with a graphics chip, else Pocket TTS</option>
-                <option value="kokoro">Kokoro (best with a graphics chip; 92 to 326 MB)</option>
-                <option value="pocket">Pocket TTS (quick on any computer; about 125 MB)</option>
-              </select>
-            </div>
-          </div>
-          <p class="hint">A neural voice that runs on this computer, so replies never leave it. It downloads once, the first time Navi speaks (or from the <a href="setup.html">setup page</a>). The voice list is Kokoro's; Pocket TTS has its own voice.</p>
-          <div class="row">
-            <div>
-              <label for="elevenVoiceId">ElevenLabs voice</label>
-              <select id="elevenVoiceId"><option value="EXAVITQu4vr4xnSDxMaL">Sarah (calm, warm)</option></select>
-            </div>
-            <div>
-              <label for="elevenModel">ElevenLabs model</label>
-              <select id="elevenModel"></select>
-            </div>
-          </div>
-          <div class="row">
-            <div>
-              <label for="voiceName">Chrome voice (used without ElevenLabs)</label>
+              <label for="voiceName">System voice (while Navi's voice downloads, or if chosen above)</label>
               <select id="voiceName"><option value="">Navi voice (Google US English)</option></select>
             </div>
             <div>
               <label for="speechRate">Speed</label>
               <input id="speechRate" type="number" min="0.5" max="3" step="0.1" />
-              <p class="hint">ElevenLabs uses 0.7 to 1.2. Navi's on-device voice always speaks at its normal speed.</p>
+              <p class="hint">For system voices. Navi's on-device voice speaks at its normal speed.</p>
             </div>
           </div>
           <div class="row">

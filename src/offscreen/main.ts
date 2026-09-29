@@ -68,20 +68,14 @@ function test(msg: Extract<EarsRequest, { type: "ears:test" }>): unknown {
     case "final":
       ears.final(msg.text ?? "", msg.confidence ?? 0);
       return true;
-    case "chromeFinal":
-      ears.chromeFinal(msg.text ?? "", msg.confidence ?? 0);
-      return true;
-    case "feedScribe":
-      ears.feedScribe(msg.level ?? 0.3, msg.chunks ?? 8);
-      return true;
     case "state":
       return ears.state;
-    case "scribeLive":
-      return ears.scribeLive;
     case "session":
       return ears.session.current;
     case "speakerBusy":
       return ears.speaker.busy;
+    case "lastSaid":
+      return ears.speaker.lastSaid;
     case "mute":
       ears.speaker.muted = !!msg.muted;
       return true;

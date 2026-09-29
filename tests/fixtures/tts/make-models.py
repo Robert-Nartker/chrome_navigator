@@ -1,6 +1,6 @@
-# Builds the tiny ONNX models the voice lab e2e tests serve in place of real voice models
-# (the real ones are 60-330 MB). The voice-shaped ones output a short 440 Hz tone, so a test can
-# check that the vendored ONNX Runtime builds load, run a model, and play audio in the extension.
+# Builds the tiny ONNX model the voice e2e tests serve in place of Kokoro (the real one is 92-326 MB).
+# It outputs a short 440 Hz tone, so a test can check that the vendored ONNX Runtime loads and runs it,
+# and that the audio plays in the extension.
 #   pip install onnx && python3 tests/fixtures/tts/make-models.py
 import math
 import os
@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 def model(nodes, inputs, outputs, initializer):
     graph = helper.make_graph(nodes, "tiny", inputs, outputs, initializer=initializer)
-    # Opset 13 / IR 8 load in every ONNX Runtime version the lab ships (1.18 and newer).
+    # Opset 13 / IR 8 load in the ONNX Runtime the extension ships.
     m = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
     m.ir_version = 8
     onnx.checker.check_model(m)
@@ -49,17 +49,6 @@ def save(m, name):
     onnx.save(m, os.path.join(HERE, name))
 
 
-# y = 2x + 1, for running a vendored runtime directly.
-save(
-    model(
-        [helper.make_node("Mul", ["x", "two"], ["x2"]), helper.make_node("Add", ["x2", "one"], ["y"])],
-        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])],
-        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [3])],
-        [scalar("two", 2.0), scalar("one", 1.0)],
-    ),
-    "double.onnx",
-)
-
 # The inputs and output of a Kokoro model.
 save(
     tone(
@@ -72,18 +61,4 @@ save(
         24000,
     ),
     "kokoro-tone.onnx",
-)
-
-# The inputs and output of a Piper voice.
-save(
-    tone(
-        [
-            helper.make_tensor_value_info("input", TensorProto.INT64, [1, "phonemes"]),
-            helper.make_tensor_value_info("input_lengths", TensorProto.INT64, [1]),
-            helper.make_tensor_value_info("scales", TensorProto.FLOAT, [3]),
-        ],
-        "output",
-        22050,
-    ),
-    "piper-tone.onnx",
 )

@@ -80,9 +80,8 @@ async function showOnDevice() {
     available: "On-device speech is ready. Audio stays on this computer.",
     downloadable: "Available for your language: a one-time download.",
     downloading: "Downloading…",
-    // Without it, only ElevenLabs (if you add a key in settings) can hear you.
-    unavailable: `${onDeviceProblem(status, lang)} With an ElevenLabs key (in settings), ElevenLabs can listen instead.`,
-    unsupported: `${onDeviceProblem(status, lang)} With an ElevenLabs key (in settings), ElevenLabs can listen instead.`,
+    unavailable: onDeviceProblem(status, lang),
+    unsupported: onDeviceProblem(status, lang),
   }[status];
   if (status === "downloading") window.setTimeout(() => void showOnDevice(), 3000);
 }
@@ -115,14 +114,14 @@ naviVoiceButton.addEventListener("click", async () => {
     voiceName: s.voiceName,
     lang: s.lang,
     volume: s.volume,
-    neural: { voice: s.naviVoice, engine: s.naviVoiceEngine },
+    neural: { voice: s.naviVoice },
   }));
   naviVoiceButton.disabled = true;
   naviVoiceResult.className = "";
   naviVoiceResult.textContent = "Downloading… (this can take a minute)";
   try {
     // Stored in the browser, where Navi's background page finds it.
-    await speaker.prepareVoice(s.naviVoiceEngine);
+    await speaker.prepareVoice();
   } catch {
     naviVoiceResult.className = "err";
     naviVoiceResult.textContent = "The download didn't finish. Check your connection and try again.";

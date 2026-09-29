@@ -1,7 +1,5 @@
 // Audio helpers for the voice lab: gapless playback of synthesized chunks, and text splitting.
 
-import { pcm16ToFloat } from "../lib/elevenlabs";
-
 /** Plays mono Float32 chunks back to back as a speech engine produces them, at Navi's volume. */
 export class ChunkPlayer {
   private ctx: AudioContext | null = null;
@@ -86,10 +84,4 @@ export function splitSentences(text: string): string[] {
     else out.push(piece);
   }
   return out;
-}
-
-/** Samples and rate of a 16-bit mono WAV file (the format Piper returns). */
-export function decodeWav(wav: ArrayBuffer): { samples: Float32Array; sampleRate: number } {
-  const sampleRate = new DataView(wav).getUint32(24, true);
-  return { samples: pcm16ToFloat(new Uint8Array(wav, 44)), sampleRate };
 }
