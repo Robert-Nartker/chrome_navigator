@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLikelyNoise, normalize, parseCommand, parseGridCommand, stripWakePhrase, wakeAliases } from "../../src/lib/parser";
+import { normalize, parseCommand, parseGridCommand, stripWakePhrase, wakeAliases } from "../../src/lib/parser";
 
 describe("normalize", () => {
   it("strips filler and punctuation", () => {
@@ -187,20 +187,6 @@ describe("forgiving matching (real-world phrasing and mishearings)", () => {
     expect(parseCommand("scrawl down")).toMatchObject({ type: "scroll", direction: "down" });
     expect(parseCommand("show nombers")).toEqual({ type: "showNumbers" });
     expect(parseCommand("close tap")).toEqual({ type: "closeTab" });
-  });
-});
-
-describe("noise filter", () => {
-  it("flags keyboard noise and filler", () => {
-    expect(isLikelyNoise("tiktok tiktok tiktok")).toBe(true);
-    expect(isLikelyNoise("click click click click")).toBe(true);
-    expect(isLikelyNoise("um")).toBe(true);
-    expect(isLikelyNoise("yeah")).toBe(true);
-  });
-  it("keeps real requests", () => {
-    expect(isLikelyNoise("open my latest email")).toBe(false);
-    expect(isLikelyNoise("what is this article about")).toBe(false);
-    expect(isLikelyNoise("wordle")).toBe(false);
   });
 });
 

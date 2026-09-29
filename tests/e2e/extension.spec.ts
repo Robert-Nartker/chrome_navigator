@@ -347,6 +347,32 @@ test("AI path: Claude picks the element, extension clicks it, reply is logged", 
   expect(JSON.stringify(secondReq.body.messages)).toContain("New observation");
 });
 
+test("AI path: a request with several parts answers right away, then acts, in one go", async ({ panel, site, context }) => {
+  let calls = 0;
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      calls++;
+      if (calls === 1) {
+        const text = String((body.messages as { content: unknown }[])[0].content);
+        const id = Number(text.match(/\[(\d+)\] button "Subscribe"/)?.[1]);
+        return [
+          { type: "tool_use", id: "toolu_say", name: "say", input: { text: "This is the Navi test page." } },
+          { type: "tool_use", id: "toolu_click", name: "click", input: { element_id: id } },
+        ];
+      }
+      return [{ type: "text", text: "And you're subscribed." }];
+    }),
+  );
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-sonnet-5-5", routerModel: "off" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "what is this page, then subscribe");
+  await expect(site.locator("#subs")).toHaveText("1");
+  const card = panel.locator("#log > li.turn").last();
+  await expect(card.locator("li.navi .text")).toHaveText(["This is the Navi test page.", "And you're subscribed."]);
+  expect(calls).toBe(2);
+});
+
 test("the log survives closing and reopening the panel", async ({ panel, context }) => {
   await run(panel, "what time is it");
   await expect(panel.locator("#log li.navi").last()).toContainText(/It's \d/);
@@ -790,14 +816,13 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   const final = (text: string) =>
     panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);
   await final("hey navi");
-  // Keyboard clatter: caught locally, no API call at all.
+  // Keyboard clatter and someone talking nearby: no hardcoded list, the quick model judges both,
+  // and the main model is never called.
   await final("tiktok tiktok tiktok");
   await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “tiktok tiktok tiktok”" })).toHaveCount(1);
-  expect(models).toEqual([]);
-  // Someone talking nearby: the quick model says ignore, the main model is never called.
   await final("and then she told me the car was still in the shop");
   await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “and then she told me" })).toHaveCount(1);
-  expect(models).toEqual(["claude-sonnet-5-5"]);
+  expect(models).toEqual(["claude-sonnet-5-5", "claude-sonnet-5-5"]);
   // Nothing was spoken or shown as an error.
   await expect(panel.locator("#log li.error")).toHaveCount(0);
 });

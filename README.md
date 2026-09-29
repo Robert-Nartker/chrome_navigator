@@ -116,10 +116,12 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Views:** the side panel (`src/sidepanel/`), the caption on web pages (`src/content/pill.ts`) and the toolbar badge. They only show state and pass on clicks and typed commands, so closing the panel changes nothing.
 - **Content script** (`src/content/`): builds a "snapshot" of the page's interactive elements named the way a screen reader would name them (ARIA labels, `<label>`, alt text), draws number badges, and performs clicks, typing, scrolling and reading. It also finds clickable `div`s that only have `cursor: pointer`, and scrolls inner panels (Gmail, Slack) as well as the page.
 - **Fast path** (`src/lib/parser.ts`): common commands run instantly with no AI call.
-- **Noise filter and router** (`src/lib/parser.ts`, `src/lib/router.ts`):
-  - **Forgiving matching:** looser phrasing ("scroll down further", "Navi sleep") and near-miss transcriptions ("scrawl down") are caught locally.
-  - **Noise filter:** keyboard clatter heard as words ("tiktok tiktok tiktok") and lone filler words are ignored without calling any AI.
-  - **Router:** anything else unrecognized that was spoken goes to a quick model with reasoning off. That's GPT-6 Luna with an OpenAI key, or Claude Sonnet 5.5 with a Claude key. It maps the phrase to a command, passes it to the main AI, or ignores it as background talk.
+- **Router** (`src/lib/router.ts`): spoken text that isn't a built-in command goes to a quick model with reasoning off (GPT-6 Luna with an OpenAI key, Claude Sonnet 5.5 with a Claude key, Gemini Nano in Navi Free). It decides:
+  - **A built-in command in other words:** runs it ("scroll down a smidge" → scroll down).
+  - **An intentional request:** goes to the main model.
+  - **Noise or someone else talking:** fails quietly ("tiktok tiktok", a TV in the background).
+
+  There's no hardcoded ignore list; noise that gets transcribed as words is a speech-recognition problem to fix at the source. Looser phrasing of built-in commands ("scroll down further", "scrawl down") is still matched locally.
 - **AI path** (`src/lib/agent.ts`): the model gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. The default is GPT-6 Sol at low reasoning with an OpenAI key, or Claude Sonnet 5.5 at low reasoning with a Claude key. Low reasoning keeps thinking short, so actions start quickly. With only one key, Navi uses that provider's defaults. Upgrades are in settings: more reasoning, Claude Opus 5.5 (optional 2x-price fast mode), GPT-6 Astra, or mixing providers when you have both keys.
 
 ## Privacy model

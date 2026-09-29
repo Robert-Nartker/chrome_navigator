@@ -514,20 +514,3 @@ export function parseCommand(text: string): Intent | null {
   const near = closestPhrase(target, CANONICAL);
   return near ? matchRules(near) : null;
 }
-
-/**
- * True for transcripts that are almost certainly not speech meant for Navi:
- * keyboard clicks heard as "tiktok tiktok tiktok", lone filler words, and so on.
- */
-export function isLikelyNoise(text: string): boolean {
-  const words = normalize(text)
-    .split(" ")
-    .filter(Boolean);
-  if (words.length === 0) return true;
-  const unique = new Set(words);
-  if (words.length >= 3 && unique.size / words.length <= 0.5) return true;
-  if (words.length === 1 && (words[0].length <= 3 || /^(?:um+|uh+|hm+|mm+|ah+|oh+|huh|yeah|okay|ok|hmm+)$/.test(words[0]))) {
-    return true;
-  }
-  return false;
-}

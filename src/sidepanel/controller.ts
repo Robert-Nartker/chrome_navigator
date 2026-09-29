@@ -28,7 +28,7 @@ import {
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
 import { formatCost } from "../lib/models";
-import { type GridCommand, type Intent, isLikelyNoise, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
+import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
 import { routeUtterance } from "../lib/router";
 import { type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
@@ -93,6 +93,10 @@ export class Controller {
   private turnMessage = "";
   /** The last few commands and what came of them, so the AI can answer "why did that fail?". */
   private recent: string[] = [];
+  /** Speech in order: an early answer finishes before the final reply starts. */
+  private speech: Promise<void> = Promise.resolve();
+  /** Bumped by "stop", so queued speech is dropped. */
+  private speechGen = 0;
 
   constructor(
     private readonly getSettings: () => Settings,
@@ -123,6 +127,7 @@ export class Controller {
     this.queue = [];
     if (this.autoScrolling) void this.autoScroll("stop").catch(() => undefined);
     this.current?.abort();
+    this.speechGen++;
     this.speaker.stop();
     if (this.gridOn) void this.grid({ type: "hide" }).catch(() => undefined);
   }
@@ -307,11 +312,6 @@ export class Controller {
     if (options.fastOnly) throw new Unhandled();
     const settings = this.getSettings();
     const voice = options.source === "voice";
-    // Keyboard clicks heard as "tiktok tiktok", lone filler words, very unsure transcripts: ignore quietly.
-    if (voice && !intent && (isLikelyNoise(command) || (options.confidence && options.confidence < 0.35))) {
-      this.ui.log("step", `Ignored “${command}” (sounded like noise)`);
-      return { intent: "ignored" };
-    }
     if (!keyFor(settings, settings.model)) {
       this.ui.log(
         "step",
@@ -401,6 +401,11 @@ export class Controller {
           this.ui.log("step", step);
           this.hooks.onActivity();
         },
+        // Part of the answer, told right away while the model keeps working.
+        onSay: (text) => {
+          this.navi(text);
+          if (!typed || this.getSettings().feedback === "spoken") void this.say(text);
+        },
       },
       { typed, recent: this.recent },
     );
@@ -412,9 +417,11 @@ export class Controller {
     return result;
   }
 
-  /** Always spoken: answers and errors. */
-  private async say(text: string) {
-    await this.speaker.say(text);
+  /** Always spoken: answers and errors. Queued behind anything Navi is still saying for this command. */
+  private say(text: string): Promise<void> {
+    const gen = this.speechGen;
+    this.speech = this.speech.catch(() => undefined).then(() => (gen === this.speechGen ? this.speaker.say(text) : undefined));
+    return this.speech;
   }
 
   /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
