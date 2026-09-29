@@ -23,7 +23,60 @@ type Fixtures = {
   panel: Page;
   /** Give Chromium a fake microphone (a test tone) that's allowed without a prompt. */
   fakeMic: boolean;
+  /** Replace Chrome's on-device model (Gemini Nano) in extension pages with a scripted one. */
+  fakeNano: boolean;
 };
+
+/**
+ * A stand-in for Chrome's Prompt API: routes a few phrases, and answers Navi Free's chat for the
+ * requests the tests make. Every prompt is kept in window.__nanoLog.
+ */
+function installFakeNano() {
+  if (location.protocol !== "chrome-extension:") return;
+  const w = window as unknown as Record<string, unknown>;
+  const log: { text: string; image: boolean }[] = [];
+  w.__nanoLog = log;
+  const none = { phrases: [], steps: [], description: "" };
+  const answer = (system: string, text: string): object => {
+    if (system.startsWith("You route voice input")) {
+      const heard = /Heard: "(.*)"/.exec(text)?.[1] ?? "";
+      if (heard.includes("smidge")) return { route: "command", command: "scroll down" };
+      if (heard.includes("tiktok")) return { route: "ignore", command: "" };
+      return { route: "agent", command: "" };
+    }
+    const said = /(?:Typed|Said): "(.*)"/.exec(text)?.[1] ?? "";
+    const page = /Current page: .* \((http[^)]*)\)/.exec(text)?.[1] ?? "";
+    if (said.includes("when I say")) {
+      const url = new URL("about.html", page).href;
+      return {
+        reply: "Saved: say “about page” to open it.",
+        run: [],
+        save: { phrases: ["about page"], steps: [{ type: "open", value: url, new_tab: false }], description: "Opens the about page" },
+        delete: "",
+      };
+    }
+    if (said.includes("take me down")) return { reply: "Scrolled down, then back to the top.", run: ["scroll down", "scroll to the top"], save: none, delete: "" };
+    const knows = text.includes("Article text at the bottom");
+    return { reply: knows ? "It's the Navi test page, with an article at the bottom." : "I can't see the page.", run: [], save: none, delete: "" };
+  };
+  class Session {
+    constructor(private readonly system: string) {}
+    async prompt(input: unknown) {
+      const image = typeof input !== "string";
+      const text = image ? (input as { content: { value: string }[] }[])[0].content[0].value : (input as string);
+      log.push({ text, image });
+      return JSON.stringify(answer(this.system, text));
+    }
+    async clone() {
+      return new Session(this.system);
+    }
+    destroy() {}
+  }
+  w.LanguageModel = {
+    availability: async () => "available",
+    create: async (options?: { initialPrompts?: { content: string }[] }) => new Session(options?.initialPrompts?.[0]?.content ?? ""),
+  };
+}
 
 /** One second of silence (16 kHz mono WAV): the fake mic stays quiet unless a test "talks". */
 async function silentWav(dir: string): Promise<string> {
@@ -68,12 +121,13 @@ function startServer(): Promise<{ server: Server; baseUrl: string }> {
 
 const test = base.extend<Fixtures>({
   fakeMic: [false, { option: true }],
+  fakeNano: [false, { option: true }],
   baseUrl: async ({}, use) => {
     const { server, baseUrl } = await startServer();
     await use(baseUrl);
     server.close();
   },
-  context: async ({ fakeMic }, use) => {
+  context: async ({ fakeMic, fakeNano }, use) => {
     const userDataDir = await mkdtemp(path.join(tmpdir(), "navi-e2e-"));
     // The default fake mic beeps every second, which can sound like speech; this one is silent.
     const media = fakeMic
@@ -88,6 +142,7 @@ const test = base.extend<Fixtures>({
       headless: true,
       args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...media],
     });
+    if (fakeNano) await context.addInitScript(installFakeNano);
     await use(context);
     await context.close();
   },
@@ -284,6 +339,70 @@ test("setup: connecting a key checks it, then turns on that provider's recommend
   // Reopening shows what's connected.
   await setup.reload();
   await expect(result).toContainText("Connected to OpenAI (and Anthropic).");
+});
+
+test.describe("Navi Free", () => {
+  test.use({ fakeNano: true });
+
+  test("on-device routing and chat: answers from the page, runs built-in commands, saves voice commands, never calls a paid API", async ({
+    panel,
+    site,
+    context,
+  }) => {
+    let paid = 0;
+    await context.route(/api\.(openai|anthropic)\.com/, (route) => {
+      paid++;
+      return route.abort();
+    });
+    await expect(panel.locator("#plan")).toHaveText("Free");
+    await expect(panel.locator("#plan")).toHaveAttribute("title", /No cost/);
+
+    // Loose speech: the on-device router turns it into a built-in command.
+    await run(panel, "nudge the whole thing along a smidge");
+    await expect(panel.locator("#log li.step").filter({ hasText: "Understood as “scroll down”" })).toHaveCount(1);
+    await expect.poll(() => site.evaluate(() => scrollY)).toBeGreaterThan(0);
+    await run(panel, "tiktok tiktok");
+    await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “tiktok tiktok”" })).toHaveCount(1);
+
+    // A question about the page, answered on this computer from the page's text.
+    await type(panel, "what is this page about?");
+    const reply = panel.locator("#log li.navi").last();
+    await expect(reply).toContainText("It's the Navi test page, with an article at the bottom.");
+    await expect(reply.locator(".meta")).toContainText("Free · on-device");
+
+    // Several built-in commands in a row.
+    await type(panel, "take me down the page and then back where I started");
+    await expect(panel.locator("#log li.navi").last()).toContainText("Scrolled down, then back to the top.");
+    await expect.poll(() => site.evaluate(() => scrollY)).toBe(0);
+
+    // A voice command, saved by the on-device model, then used by voice with no AI at all.
+    await type(panel, "when I say about page, open the about page");
+    await expect(panel.locator("#log li.step").filter({ hasText: "Saved command" })).toHaveCount(1);
+    await run(panel, "about page");
+    await expect(site).toHaveURL(/about\.html$/);
+
+    expect(paid).toBe(0);
+    const ears = context.pages().find((p) => p.url().endsWith("/offscreen.html"))!;
+    const prompts = await ears.evaluate(() => (window as unknown as { __nanoLog: { text: string }[] }).__nanoLog);
+    expect(prompts.some((p) => p.text.includes('Typed: "what is this page about?"'))).toBe(true);
+  });
+
+  test("Free / Pro: one click switches, and Pro shows what it costs today", async ({ panel, context }) => {
+    // No key: Pro needs one, so the switch opens the setup step.
+    const [setup] = await Promise.all([context.waitForEvent("page"), panel.locator("#plan").click()]);
+    await expect(setup).toHaveURL(/setup\.html#ai$/);
+    await expect(setup.locator("#free-result")).toContainText("Navi Free is on. The on-device AI is ready.");
+    await setup.close();
+
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-test" } }));
+    await expect(panel.locator("#plan")).toHaveText(/^Pro · \$0(\.0+)? today$/);
+    await expect(panel.locator("#plan")).toHaveAttribute("title", /GPT-6 Sol for tasks and chat, GPT-6 Luna for quick checks/);
+    await panel.locator("#plan").click();
+    await expect(panel.locator("#plan")).toHaveText("Free");
+    expect(await panel.evaluate(async () => ((await chrome.storage.local.get("settings")).settings as { aiMode: string }).aiMode)).toBe("free");
+    await panel.locator("#plan").click();
+    await expect(panel.locator("#plan")).toHaveText(/^Pro/);
+  });
 });
 
 test("reports restricted pages instead of failing silently", async ({ panel, site }) => {
@@ -1055,7 +1174,7 @@ test("GPT router: a loosely worded command runs on the fast path, and its cost i
   expect(metric?.costUsd).toBeCloseTo((1200 * 0.1 + 12 * 0.5) / 1e6, 12);
 });
 
-test("GPT: a missing OpenAI key skips the router and explains what's needed", async ({ panel, context }) => {
+test("no key: Navi runs Free, and says when its on-device AI isn't ready", async ({ panel, context }) => {
   let calls = 0;
   await context.route("https://api.openai.com/**", (route) => {
     calls++;
@@ -1064,7 +1183,9 @@ test("GPT: a missing OpenAI key skips the router and explains what's needed", as
   await panel.evaluate(() => chrome.storage.local.set({ settings: { model: "gpt-6-sol", routerModel: "gpt-6-luna" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === false);
   await run(panel, "which of these plans is the best deal");
-  await expect(panel.locator("#log li.step").last()).toContainText("add an AI API key");
+  // This test browser can't run Chrome's on-device model.
+  await expect(panel.locator("#log li.step").last()).toContainText("Navi Free's on-device AI isn't ready");
+  await expect(panel.locator("#plan")).toHaveText("Free");
   expect(calls).toBe(0);
 });
 
@@ -1125,18 +1246,17 @@ test.describe("ElevenLabs speech", () => {
   };
 
   /**
-   * Saves settings, then opens the panel. Routes only reliably apply to pages opened after they're
+   * Opens the panel, then saves settings. Routes only reliably apply to pages opened after they're
    * registered, so the panel (which opens Navi's background page, where the mic and ElevenLabs run)
    * opens only once the test's routes are set.
    */
   async function openPanel(context: BrowserContext, extensionId: string, site: Page, settings: Record<string, unknown>) {
-    const worker = context.serviceWorkers().find((w) => w.url().includes(extensionId))!;
-    await worker.evaluate((s) => chrome.storage.local.set({ settings: s }), settings);
     for (const p of context.pages()) if (p.url().includes("setup.html")) await p.close();
     await site.bringToFront();
     const panel = await context.newPage();
     await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
     await panel.waitForFunction(() => "navi" in window);
+    await panel.evaluate((s) => chrome.storage.local.set({ settings: s }), settings);
     return panel;
   }
 

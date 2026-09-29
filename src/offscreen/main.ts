@@ -5,6 +5,7 @@
 import { Ears } from "../ears/ears";
 import { startDevReload } from "../lib/dev-reload";
 import type { EarsEvent, EarsRequest } from "../lib/messages";
+import { nanoStatus, runNano } from "../lib/nano";
 
 const send = (event: EarsEvent) => void chrome.runtime.sendMessage(event).catch(() => undefined);
 
@@ -42,6 +43,15 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       return false;
     case "ears:dictate":
       void ears.dictate(msg.on).then(() => sendResponse(true));
+      return true;
+    case "nano:prompt":
+      runNano(msg.req).then(
+        (text) => sendResponse({ text }),
+        (err: unknown) => sendResponse({ error: err instanceof Error ? err.message : String(err) }),
+      );
+      return true;
+    case "nano:status":
+      void nanoStatus().then(sendResponse);
       return true;
     case "ears:test":
       sendResponse(test(msg));

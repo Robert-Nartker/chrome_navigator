@@ -3,6 +3,7 @@
 // panel and the floating pill on pages are views of this, so Navi works with the panel closed.
 
 import { routeUtterance } from "../lib/router";
+import { type NanoStatus, setNanoTransport } from "../lib/nano";
 import { LogBook } from "../lib/logbook";
 import {
   EARS_OFF,
@@ -17,7 +18,7 @@ import {
   type WorkerState,
 } from "../lib/messages";
 import type { CommandMetric } from "../lib/metrics";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, withAvailableModels } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, activeSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
 import { Controller, HELP_TEXT } from "../sidepanel/controller";
 
@@ -145,7 +146,7 @@ function log(kind: LogKind, text: string, meta?: string, onPage = true) {
 
 const controller = new Controller(
   // With only one provider's key, that provider's models run.
-  () => withAvailableModels(settings),
+  () => activeSettings(settings),
   {
     log,
     setWorking(on, detail) {
@@ -333,7 +334,7 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       const result = await routeUtterance(
         msg.text ?? "",
         { personalPhrases: [] },
-        withAvailableModels(settings),
+        activeSettings(settings),
         new AbortController().signal,
       );
       return { ...result, ms: Math.round(performance.now() - t0) };
@@ -343,6 +344,20 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       return sendEars(msg.ears!);
   }
 }
+
+// Navi Free's on-device model lives in the background page.
+setNanoTransport({
+  async prompt(req) {
+    if (!(await earsOrProblem())) throw new Error(worker.problem ?? "Navi's background page didn't start.");
+    const res = await sendEars<{ text?: string; error?: string }>({ type: "nano:prompt", req });
+    if (!res || res.error !== undefined || res.text === undefined) throw new Error(res?.error ?? "The on-device model didn't answer.");
+    return res.text;
+  },
+  async status() {
+    if (!(await earsOrProblem())) return "unsupported";
+    return (await sendEars<NanoStatus>({ type: "nano:status" })) ?? "unsupported";
+  },
+});
 
 export function startNavi() {
   // Having a startup listener makes Chrome start this worker with the browser, so Navi resumes

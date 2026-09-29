@@ -4,7 +4,8 @@
 // (b) a real task for the main AI, or (c) noise to ignore silently.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { type Usage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
+import { NO_USAGE, type Usage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
+import { askNano } from "./nano";
 import { createResponse, outputText, usageOf } from "./openai";
 import { keyFor, type Settings } from "./settings";
 
@@ -21,14 +22,8 @@ export interface RouteResult {
 
 const TIMEOUT_MS = 5000;
 
-const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assistant. The text comes from speech recognition, so it may be misheard, cut off, or not meant for Navi at all. Decide what it is:
-
-"command": it's one of Navi's commands below, possibly misheard or phrased loosely. Put the exact command text to run in "command", with any details filled in (e.g. "search youtube for lofi beats", "open github.com", "click sign in", "type hello world", "switch to tab 2"). Personal commands are listed in the message; return their phrase with any {placeholders} filled in.
-"agent": a genuine request that needs understanding the page, several steps, writing, or answering a question (e.g. "open google docs and write a workout plan", "reply to Sarah that I'm running late", "what's this article about", "add the cheapest one to my cart", "add a command that opens wordle").
-"ignore": not a request to Navi: noise transcribed as words ("tiktok tiktok", "click click"), filler, fragments, song lyrics or video audio, or someone talking to another person.
-
-Built-in commands:
-scroll down / up / to the top / to the bottom (optionally "a little", "a lot"); page up / page down
+/** Everything Navi does without an AI, one family per line (also what Navi Free can run). */
+export const BUILT_IN_COMMANDS = `scroll down / up / to the top / to the bottom (optionally "a little", "a lot"); page up / page down
 start scrolling (auto-scroll); stop scrolling; scroll faster; scroll slower
 go back; go back <n> pages; go forward; refresh; go home (site home page); next page (pagination)
 new tab; new window; close tab (the current one); close <site or title> tab; close other tabs; duplicate tab; pin tab; next tab; previous tab; first tab; last tab; switch back; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
@@ -41,7 +36,16 @@ type <text>; type <text> and press enter; press enter; escape
 pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
-go to sleep; stop
+go to sleep; stop`;
+
+const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free browser assistant. The text comes from speech recognition, so it may be misheard, cut off, or not meant for Navi at all. Decide what it is:
+
+"command": it's one of Navi's commands below, possibly misheard or phrased loosely. Put the exact command text to run in "command", with any details filled in (e.g. "search youtube for lofi beats", "open github.com", "click sign in", "type hello world", "switch to tab 2"). Personal commands are listed in the message; return their phrase with any {placeholders} filled in.
+"agent": a genuine request that needs understanding the page, several steps, writing, or answering a question (e.g. "open google docs and write a workout plan", "reply to Sarah that I'm running late", "what's this article about", "add the cheapest one to my cart", "add a command that opens wordle").
+"ignore": not a request to Navi: noise transcribed as words ("tiktok tiktok", "click click"), filler, fragments, song lyrics or video audio, or someone talking to another person.
+
+Built-in commands:
+${BUILT_IN_COMMANDS}
 
 Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore".`;
 
@@ -64,10 +68,13 @@ export async function routeUtterance(
   const model = settings.routerModel;
   const personal = context.personalPhrases.length ? context.personalPhrases.join("; ") : "(none)";
   const message = `Personal commands: ${personal}\nCurrent page: ${context.title ?? "unknown"}\nHeard: "${utterance}"`;
+  const { provider } = modelInfo(model);
   const { text, usage } =
-    modelInfo(model).provider === "openai"
-      ? await askOpenAI(model, message, settings, signal)
-      : await askClaude(model, message, settings, signal);
+    provider === "chrome"
+      ? { text: await askNano({ system: SYSTEM_PROMPT, text: message, schema: SCHEMA }), usage: NO_USAGE }
+      : provider === "openai"
+        ? await askOpenAI(model, message, settings, signal)
+        : await askClaude(model, message, settings, signal);
   return { decision: parseDecision(text), usage, costUsd: costOf(model, usage) };
 }
 

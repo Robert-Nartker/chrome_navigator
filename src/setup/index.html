@@ -36,6 +36,10 @@
       #ai-result.ok { color: var(--text); }
       #ai-result .models { display: block; margin-top: 2px; color: var(--muted); font-weight: 400; }
       #ai-warning { color: var(--warn); }
+      .option { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+      .option h3 { margin: 0; font-size: 13px; font-weight: 600; }
+      .option h3 .hint { font-weight: 400; }
+      #free-result.ok { color: var(--good); }
     </style>
   </head>
   <body class="page">
@@ -56,8 +60,17 @@
       </section>
 
       <section class="card" id="ai">
-        <h2>Connect an AI <span class="hint">(for questions and any task)</span></h2>
-        <p>Built-in commands (scrolling, tabs, opening sites, “click 5”) work without this. For everything else Navi uses your own API key, so you pay the provider directly, usually a few cents an hour.</p>
+        <h2>Choose Navi Free or Pro</h2>
+        <p>Built-in commands (scrolling, tabs, opening sites, “click 5”, the grid) always work, in both.</p>
+        <div class="option">
+          <h3>Free <span class="hint">runs on this computer, no cost</span></h3>
+          <p>Chat, questions about the page, and your own voice commands that chain built-in ones, with Chrome's built-in Gemini Nano. It can't click or type on pages.</p>
+          <button id="use-free">Use Navi Free</button>
+          <p id="free-result" class="hint" role="status" aria-live="polite"></p>
+        </div>
+        <div class="option">
+          <h3>Pro <span class="hint">your API key</span></h3>
+          <p>Everything in Free, and it clicks, types and does multi-step tasks for you. You pay the provider directly, usually a few cents an hour.</p>
         <div class="provider" role="radiogroup" aria-label="Provider">
           <label><input type="radio" name="provider" value="openai" checked /><span>OpenAI</span></label>
           <label><input type="radio" name="provider" value="anthropic" /><span>Anthropic (Claude)</span></label>
@@ -70,6 +83,7 @@
         <p class="hint"><a id="ai-get-key" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Get an OpenAI key</a>. It's stored only in this browser profile and sent only to OpenAI.</p>
         <p id="ai-result" role="status" aria-live="polite"></p>
         <p id="ai-warning" class="hint" hidden></p>
+        </div>
       </section>
 
       <section class="card">

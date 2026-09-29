@@ -28,6 +28,20 @@ The side panel is optional. Once the mic is allowed, Navi keeps listening for "H
 - **Caption:** a small caption at the bottom of the page shows what Navi hears, what it's doing, and its reply.
 - **Toolbar badge:** shows Navi's state: **zz** asleep, **ON** awake, **…** working, **!** a problem.
 
+### Navi Free and Navi Pro
+
+| | Free | Pro |
+|---|---|---|
+| Built-in commands, grid, flags, voice | ✅ | ✅ |
+| Understands loosely worded speech | ✅ on this computer | ✅ |
+| Chat, questions about the page (text or screenshot) | ✅ on this computer | ✅ |
+| Makes your own voice commands (chains of built-in commands and sites) | ✅ | ✅ |
+| Clicks, types and does multi-step tasks on pages | ❌ | ✅ |
+| Cost | none | your OpenAI or Anthropic key (a few cents an hour) |
+
+- **What Free runs on:** Chrome's built-in Gemini Nano. It needs a one-time download of about 4 GB and roughly 16 GB of memory or a 4 GB graphics card; the setup page checks this.
+- **Switching:** the chip at the top of the side panel shows which one is running (and Pro's cost today). Click it to switch.
+
 For day-to-day testing, use the live-reload setup below instead of rebuilding by hand.
 
 ## Testing with live reload on Mac or Windows (recommended)

@@ -1,8 +1,9 @@
 import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { DEFAULT_VOICE_ID, TTS_MODELS, listVoices as listElevenVoices } from "../lib/elevenlabs";
-import { MODEL_CATALOG, PROVIDER_DEFAULTS, type Provider, formatCost, modelInfo } from "../lib/models";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, saveSettings, withAvailableModels } from "../lib/settings";
+import { MODEL_CATALOG, PROVIDER_DEFAULTS, type ApiProvider, formatCost, modelInfo } from "../lib/models";
+import { NANO_STATUS_TEXT, nanoStatus } from "../lib/nano";
+import { DEFAULT_SETTINGS, type Settings, activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
 import { Speaker, pickVoice } from "../lib/voice-output";
 
 const form = document.getElementById("settings") as HTMLFormElement;
@@ -26,7 +27,7 @@ for (const m of routers) {
 routerSelect.add(new Option("Send straight to the main model", "off"));
 
 /** Fills in a provider's recommended models (saved with the rest of the form). */
-function usePreset(provider: Provider) {
+function usePreset(provider: ApiProvider) {
   const preset = PROVIDER_DEFAULTS[provider];
   modelSelect.value = preset.model;
   routerSelect.value = preset.routerModel;
@@ -42,12 +43,18 @@ function updateModelNote() {
   const note = document.getElementById("model-note")!;
   const chosen = {
     ...DEFAULT_SETTINGS,
+    aiMode: "pro" as const,
     apiKey: field<HTMLInputElement>("apiKey").value.trim(),
     openaiKey: field<HTMLInputElement>("openaiKey").value.trim(),
     model: modelSelect.value,
     routerModel: routerSelect.value,
   };
-  const used = withAvailableModels(chosen);
+  if (!providersWithKeys(chosen).length) {
+    note.hidden = false;
+    note.textContent = "No API key yet, so Navi runs as Navi Free (on this computer).";
+    return;
+  }
+  const used = activeSettings(chosen);
   const swaps: string[] = [];
   if (used.model !== chosen.model) swaps.push(`${modelInfo(used.model).label} for tasks`);
   if (used.routerModel !== chosen.routerModel) swaps.push(`${modelInfo(used.routerModel).label} for quick checks`);
@@ -104,6 +111,8 @@ chrome.tts.getVoices((voices) => {
 
 async function fill() {
   const s = await loadSettings();
+  field<HTMLSelectElement>("aiMode").value = aiModeOf(s);
+  void nanoStatus().then((status) => (document.getElementById("nano-note")!.textContent = `On-device AI: ${NANO_STATUS_TEXT[status]}`));
   field<HTMLInputElement>("apiKey").value = s.apiKey;
   field<HTMLInputElement>("openaiKey").value = s.openaiKey;
   selectValue(modelSelect, s.model);
@@ -147,6 +156,7 @@ function clamp(value: string, min: number, max: number, fallback: number) {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   await saveSettings({
+    aiMode: field<HTMLSelectElement>("aiMode").value as Settings["aiMode"],
     apiKey: field<HTMLInputElement>("apiKey").value.trim(),
     openaiKey: field<HTMLInputElement>("openaiKey").value.trim(),
     model: modelSelect.value,

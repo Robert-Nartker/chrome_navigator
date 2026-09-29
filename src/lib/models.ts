@@ -2,7 +2,10 @@
 // Prices are USD per million tokens. Check them against the vendor pages before
 // quoting numbers: GPT-6 figures came from launch coverage, not OpenAI's own page.
 
-export type Provider = "anthropic" | "openai";
+/** Providers reached with the user's own API key. */
+export type ApiProvider = "anthropic" | "openai";
+/** "chrome": Chrome's built-in on-device model (Navi Free). */
+export type Provider = ApiProvider | "chrome";
 
 /** How much the model reasons before answering. "none" = no reasoning at all. */
 export type Effort = "none" | "low" | "medium" | "high";
@@ -61,6 +64,16 @@ export const MODEL_CATALOG: ModelInfo[] = [
     priceNote: "Anthropic pricing (Sep 2026)",
   },
   {
+    // Navi Free: Chrome's built-in model, on this computer. Not in the model menus; the Free/Pro switch picks it.
+    id: "gemini-nano",
+    label: "Gemini Nano (on-device)",
+    provider: "chrome",
+    roles: [],
+    efforts: ["none"],
+    price: { input: 0, cachedInput: 0, cacheWrite: 0, output: 0 },
+    priceNote: "free: runs on this computer",
+  },
+  {
     id: "gpt-6-astra",
     label: "GPT-6 Astra",
     provider: "openai",
@@ -72,7 +85,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
 ];
 
 /** What Navi uses with each provider's key: a thinking-off model for quick checks, a low-reasoning one for tasks. */
-export const PROVIDER_DEFAULTS: Record<Provider, { name: string; model: string; effort: Effort; routerModel: string }> = {
+export const PROVIDER_DEFAULTS: Record<ApiProvider, { name: string; model: string; effort: Effort; routerModel: string }> = {
   openai: { name: "OpenAI", model: "gpt-6-sol", effort: "low", routerModel: "gpt-6-luna" },
   anthropic: { name: "Anthropic", model: "claude-sonnet-5-5", effort: "low", routerModel: "claude-sonnet-5-5" },
 };

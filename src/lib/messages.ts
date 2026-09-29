@@ -5,6 +5,7 @@
 // The side panel is optional: Navi works the same with it closed.
 
 import type { CommandMetric } from "./metrics";
+import type { NanoRequest } from "./nano";
 import type { Settings } from "./settings";
 import type { EarconName } from "./voice-output";
 
@@ -80,6 +81,9 @@ export type EarsRequest =
   | { type: "ears:sound"; name: EarconName }
   | { type: "ears:session"; action: "sleep" | "touch" }
   | { type: "ears:dictate"; on: boolean }
+  /** Navi Free's on-device model runs in the background page too. Answer: { text } or { error }. */
+  | { type: "nano:prompt"; req: NanoRequest }
+  | { type: "nano:status" }
   | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; level?: number; chunks?: number; muted?: boolean };
 
 export type EarsTestAction = "final" | "chromeFinal" | "feedScribe" | "state" | "scribeLive" | "session" | "speakerBusy" | "mute";

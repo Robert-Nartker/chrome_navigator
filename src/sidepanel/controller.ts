@@ -7,6 +7,7 @@ import {
   findTab,
   matchingTabs,
   hostOf,
+  isWebUrl,
   listTabs,
   navigate,
   pageRequest,
@@ -19,18 +20,23 @@ import {
   type CommandMatch,
   type CustomCommand,
   MAX_DEPTH,
+  deleteCommand,
+  describeCommand,
   fillStep,
   isListCommandsRequest,
   loadCommands,
   matchCommand,
   onCommandsChanged,
+  saveCommand,
 } from "../lib/custom-commands";
+import { freeChat } from "../lib/free-chat";
+import { NANO_STATUS_TEXT, nanoStatusRemote } from "../lib/nano";
 import { bestMatch } from "../lib/match";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
-import { formatCost } from "../lib/models";
+import { NO_USAGE, formatCost } from "../lib/models";
 import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
 import { routeUtterance } from "../lib/router";
-import { type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
+import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
 
 export type { LogKind } from "../lib/messages";
@@ -58,6 +64,9 @@ function isDestructive(intent: Intent): boolean {
     (intent.type === "edit" && intent.action === "clear")
   );
 }
+
+/** Words that mean the user is asking about what's visible, so Navi Free looks at a screenshot. */
+const SCREEN_WORDS = /\b(screen|see|look|looks|picture|image|photo|describe|showing|shown|visible)\b/i;
 
 export interface RunOptions {
   /** Spoken, typed in the chat box, or a step of a personal command. */
@@ -322,6 +331,15 @@ export class Controller {
       this.speaker.sound("unknown");
       return { intent: "unknown" };
     }
+    // Navi Free: the on-device model has to be there (a one-time download, and enough memory).
+    if (settings.model === FREE_MODEL) {
+      const status = await nanoStatusRemote();
+      if (status !== "available") {
+        this.ui.log("step", `Not a built-in command, and Navi Free's on-device AI isn't ready: ${NANO_STATUS_TEXT[status]}`);
+        this.speaker.sound("unknown");
+        return { intent: "unknown" };
+      }
+    }
 
     // Never send anything to an AI model from a site the user has blocked.
     const tab = await targetTab().catch(() => undefined);
@@ -365,7 +383,8 @@ export class Controller {
     }
     this.speaker.sound("thinking");
     const typed = options.source === "typed";
-    return { intent: typed ? "chat" : "ai", agent: await this.runAgent(command, signal, typed), routerMs, routerCostUsd };
+    const agent = settings.model === FREE_MODEL ? await this.runFree(command, signal, typed) : await this.runAgent(command, signal, typed);
+    return { intent: typed ? "chat" : "ai", agent, routerMs, routerCostUsd };
   }
 
   private async runCustom(match: CommandMatch, signal: AbortSignal, depth: number): Promise<Outcome> {
@@ -415,6 +434,69 @@ export class Controller {
       `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s · ${formatCost(result.costUsd)}`,
     );
     return result;
+  }
+
+  /**
+   * Navi Free: the on-device model answers, runs built-in commands in a row, and saves or deletes
+   * voice commands. No browser use (clicking and typing on pages is Navi Pro).
+   */
+  private async runFree(command: string, signal: AbortSignal, typed: boolean): Promise<AgentResult> {
+    const started = performance.now();
+    const settings = this.getSettings();
+    this.ui.setWorking(true, "Thinking on this computer…");
+    this.ui.log("step", "Thinking on this computer…");
+    const tab = await targetTab();
+    const web = isWebUrl(tab.url);
+    const pageText =
+      web && settings.allowPageText
+        ? (await pageRequest(tab, { kind: "readPage", maxChars: 3000 }).catch(() => undefined))?.text
+        : undefined;
+    // Questions about what's on screen get a picture of it (the model can see images).
+    const screenshot =
+      web && settings.allowScreenshots && tab.active && SCREEN_WORDS.test(command)
+        ? await chrome.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 70 }).catch(() => undefined)
+        : undefined;
+    const t0 = performance.now();
+    const answer = await freeChat({
+      message: command,
+      typed,
+      page: { title: tab.title ?? "", url: tab.url ?? "" },
+      pageText,
+      screenshot,
+      commands: this.commands.map(describeCommand),
+      recent: this.recent,
+    });
+    const modelMs = performance.now() - t0;
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    let steps = 1;
+    if (answer.delete) {
+      steps++;
+      const removed = await deleteCommand(answer.delete);
+      this.ui.log("step", removed ? `Deleted command “${removed.phrases[0]}”` : `No voice command matches “${answer.delete}”`);
+    }
+    if (answer.save.phrases.length && answer.save.steps.length) {
+      steps++;
+      const { command: saved, replaced } = await saveCommand({
+        phrases: answer.save.phrases,
+        steps: answer.save.steps.map((s) =>
+          s.type === "open" ? { type: "open" as const, url: s.value, newTab: s.new_tab } : { type: "run" as const, command: s.value },
+        ),
+        description: answer.save.description,
+      });
+      this.ui.log("step", `${replaced ? "Updated" : "Saved"} command ${describeCommand(saved)}`);
+    }
+    for (const step of answer.run) {
+      steps++;
+      this.ui.setWorking(true, `Running “${step}”`);
+      await this.dispatch(step, signal, 1, { source: "step", routed: true, fastOnly: true }).catch((err: unknown) => {
+        if (!(err instanceof Unhandled)) throw err;
+        this.ui.log("step", `“${step}” isn't a built-in command`);
+      });
+    }
+    const reply = answer.reply || "Done.";
+    const totalMs = performance.now() - started;
+    this.navi(reply, `Free · on-device · ${(totalMs / 1000).toFixed(1)}s`);
+    return { reply, steps, modelMs: Math.round(modelMs), totalMs: Math.round(totalMs), model: FREE_MODEL, usage: NO_USAGE, costUsd: 0 };
   }
 
   /** Always spoken: answers and errors. Queued behind anything Navi is still saying for this command. */

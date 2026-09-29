@@ -33,7 +33,13 @@
       <form id="settings">
         <fieldset>
           <legend>AI</legend>
-          <p class="section-hint">For questions, chat, and tasks Navi doesn't know by heart. One key is enough; <a href="setup.html#ai">the setup page</a> checks it for you.</p>
+          <p class="section-hint">For questions, chat, and tasks Navi doesn't know by heart. <a href="setup.html#ai">The setup page</a> checks keys and downloads the on-device AI.</p>
+          <label for="aiMode">Mode</label>
+          <select id="aiMode">
+            <option value="free">Free: on this computer (Gemini Nano), no cost, no clicking or typing on pages</option>
+            <option value="pro">Pro: your API key, can click, type and do multi-step tasks</option>
+          </select>
+          <p class="hint" id="nano-note"></p>
           <label for="openaiKey">OpenAI API key</label>
           <input id="openaiKey" type="password" autocomplete="off" placeholder="sk-…" />
           <label for="apiKey">Anthropic (Claude) API key</label>

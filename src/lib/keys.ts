@@ -2,7 +2,7 @@
 // works, and the models Navi would use are on the account.
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Provider } from "./models";
+import type { ApiProvider } from "./models";
 
 export interface KeyCheck {
   ok: boolean;
@@ -13,15 +13,15 @@ export interface KeyCheck {
 }
 
 /** Which provider a pasted key belongs to, when its prefix says so. */
-export function providerOfKey(key: string): Provider | undefined {
+export function providerOfKey(key: string): ApiProvider | undefined {
   if (key.startsWith("sk-ant-")) return "anthropic";
   if (key.startsWith("sk-")) return "openai";
   return undefined;
 }
 
-const NAMES: Record<Provider, string> = { openai: "OpenAI", anthropic: "Anthropic" };
+const NAMES: Record<ApiProvider, string> = { openai: "OpenAI", anthropic: "Anthropic" };
 
-export async function checkKey(provider: Provider, key: string, wanted: string[]): Promise<KeyCheck> {
+export async function checkKey(provider: ApiProvider, key: string, wanted: string[]): Promise<KeyCheck> {
   const name = NAMES[provider];
   let ids: string[];
   try {

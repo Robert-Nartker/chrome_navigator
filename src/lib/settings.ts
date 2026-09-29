@@ -1,13 +1,21 @@
 // User settings, stored locally in this browser profile (chrome.storage.local).
 
 import { DEFAULT_VOICE_ID } from "./elevenlabs";
-import { type Effort, PROVIDER_DEFAULTS, type Provider, RETIRED_MODELS, modelInfo } from "./models";
+import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, modelInfo } from "./models";
 
 /** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
 export type ListenMode = "handsfree" | "open";
 export type Feedback = "minimal" | "spoken";
 
+/** "free": Chrome's on-device model, no browser tasks. "pro": the user's API key. */
+export type AiMode = "free" | "pro";
+
+/** The model Navi Free runs on (Chrome's built-in Gemini Nano). */
+export const FREE_MODEL = "gemini-nano";
+
 export interface Settings {
+  /** Free or Pro; unset means Pro when there's a key, otherwise Free. */
+  aiMode?: AiMode;
   /** Anthropic (Claude) API key. */
   apiKey: string;
   /** OpenAI API key, for GPT models. */
@@ -58,7 +66,7 @@ export type SpeechProvider = "elevenlabs" | "chrome";
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
   openaiKey: "",
-  // OpenAI's defaults; with only a Claude key, Navi uses Anthropic's (see withAvailableModels).
+  // OpenAI's defaults; with only a Claude key, Navi uses Anthropic's (see activeSettings).
   model: PROVIDER_DEFAULTS.openai.model,
   effort: PROVIDER_DEFAULTS.openai.effort,
   fastMode: false,
@@ -85,21 +93,31 @@ export const DEFAULT_SETTINGS: Settings = {
   filterBackgroundAudio: true,
 };
 
-/** The API key for a model's provider ("" if not set). */
+/** The API key for a model's provider ("" if not set). The on-device model needs none. */
 export function keyFor(s: Settings, model: string): string {
-  return modelInfo(model).provider === "openai" ? s.openaiKey : s.apiKey;
+  const { provider } = modelInfo(model);
+  if (provider === "chrome") return "on-device";
+  return provider === "openai" ? s.openaiKey : s.apiKey;
 }
 
 /** Which providers have a key, OpenAI first. */
-export function providersWithKeys(s: Settings): Provider[] {
-  return (["openai", "anthropic"] as Provider[]).filter((p) => (p === "openai" ? s.openaiKey : s.apiKey));
+export function providersWithKeys(s: Settings): ApiProvider[] {
+  return (["openai", "anthropic"] as ApiProvider[]).filter((p) => (p === "openai" ? s.openaiKey : s.apiKey));
+}
+
+/** Free or Pro, as Navi runs: Pro needs a key. */
+export function aiModeOf(s: Settings): AiMode {
+  if (!providersWithKeys(s).length) return "free";
+  return s.aiMode ?? "pro";
 }
 
 /**
- * The settings Navi runs with: a model whose provider has no key is swapped for the defaults of a
- * provider that has one, so an OpenAI-only or Anthropic-only setup just works.
+ * The settings Navi runs with. Free: the on-device model for everything. Pro: a model whose provider
+ * has no key is swapped for the defaults of a provider that has one, so an OpenAI-only or
+ * Anthropic-only setup just works.
  */
-export function withAvailableModels(s: Settings): Settings {
+export function activeSettings(s: Settings): Settings {
+  if (aiModeOf(s) === "free") return { ...s, model: FREE_MODEL, routerModel: FREE_MODEL, effort: "none" };
   const fallback = providersWithKeys(s)[0];
   if (!fallback) return s;
   const next = { ...s };

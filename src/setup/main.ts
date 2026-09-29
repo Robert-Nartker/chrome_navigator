@@ -1,6 +1,7 @@
 import { checkKey, providerOfKey } from "../lib/keys";
-import { PROVIDER_DEFAULTS, type Provider, modelInfo } from "../lib/models";
-import { loadSettings, providersWithKeys, saveSettings, withAvailableModels } from "../lib/settings";
+import { NANO_STATUS_TEXT, downloadNano, nanoStatus } from "../lib/nano";
+import { PROVIDER_DEFAULTS, type ApiProvider, modelInfo } from "../lib/models";
+import { activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
 import { installOnDevice, onDeviceStatus } from "../lib/speech";
 
 // One-time microphone permission. Extension side panels can't show Chrome's
@@ -110,14 +111,14 @@ const connect = document.getElementById("ai-connect") as HTMLButtonElement;
 const aiResult = document.getElementById("ai-result") as HTMLElement;
 const aiWarning = document.getElementById("ai-warning") as HTMLElement;
 
-const PROVIDER_PAGES: Record<Provider, { name: string; placeholder: string; keysUrl: string }> = {
+const PROVIDER_PAGES: Record<ApiProvider, { name: string; placeholder: string; keysUrl: string }> = {
   openai: { name: "OpenAI", placeholder: "sk-…", keysUrl: "https://platform.openai.com/api-keys" },
   anthropic: { name: "Anthropic", placeholder: "sk-ant-…", keysUrl: "https://console.anthropic.com/settings/keys" },
 };
 
-const chosenProvider = () => (providerRadios.find((r) => r.checked)?.value ?? "openai") as Provider;
+const chosenProvider = () => (providerRadios.find((r) => r.checked)?.value ?? "openai") as ApiProvider;
 
-function showProvider(provider: Provider) {
+function showProvider(provider: ApiProvider) {
   const page = PROVIDER_PAGES[provider];
   for (const r of providerRadios) r.checked = r.value === provider;
   keyLabel.textContent = `${page.name} API key`;
@@ -128,12 +129,12 @@ function showProvider(provider: Provider) {
 }
 
 /** What Navi will run with this provider, in a line. */
-function describeSetup(provider: Provider): string {
+function describeSetup(provider: ApiProvider): string {
   const d = PROVIDER_DEFAULTS[provider];
   return `Tasks and chat: ${modelInfo(d.model).label} (low reasoning). Unclear speech: ${modelInfo(d.routerModel).label} (no reasoning).`;
 }
 
-function showConnected(provider: Provider, lead: string) {
+function showConnected(provider: ApiProvider, lead: string) {
   aiResult.className = "ok";
   aiResult.replaceChildren(lead, Object.assign(document.createElement("span"), { className: "models", textContent: describeSetup(provider) }));
 }
@@ -174,13 +175,15 @@ async function connectKey() {
   // This provider's recommended models; upgrades and mixing providers are in settings.
   await saveSettings({
     [provider === "openai" ? "openaiKey" : "apiKey"]: key,
+    aiMode: "pro",
     model: defaults.model,
     effort: defaults.effort,
     routerModel: defaults.routerModel,
   });
   keyInput.value = "";
   keyInput.placeholder = "Connected. Paste a new key to replace it.";
-  showConnected(provider, `Connected to ${PROVIDER_PAGES[provider].name}.`);
+  showConnected(provider, `Connected to ${PROVIDER_PAGES[provider].name}. Navi Pro is on.`);
+  void showFree();
   if (check.missing.length) {
     aiWarning.hidden = false;
     aiWarning.textContent = `Your account doesn't list ${check.missing.join(" or ")} yet. Navi will still try it; if it fails, check model access at ${PROVIDER_PAGES[provider].name}.`;
@@ -190,14 +193,14 @@ async function connectKey() {
 async function showSavedKeys() {
   const s = await loadSettings();
   const have = providersWithKeys(s);
-  const running = modelInfo(withAvailableModels(s).model).provider;
-  const provider = have.includes(running) ? running : have[0];
+  const running = modelInfo(activeSettings({ ...s, aiMode: "pro" }).model).provider;
+  const provider = have.find((p) => p === running) ?? have[0];
   if (!provider) return;
   showProvider(provider);
   keyInput.placeholder = "Connected. Paste a new key to replace it.";
   const others = have.filter((p) => p !== provider).map((p) => PROVIDER_PAGES[p].name);
   showConnected(provider, `Connected to ${PROVIDER_PAGES[provider].name}${others.length ? ` (and ${others.join(", ")})` : ""}.`);
-  const used = withAvailableModels(s);
+  const used = activeSettings({ ...s, aiMode: "pro" });
   const d = PROVIDER_DEFAULTS[provider];
   if (used.model !== d.model || used.routerModel !== d.routerModel) {
     // Custom models chosen in settings: say what actually runs.
@@ -207,6 +210,44 @@ async function showSavedKeys() {
   }
 }
 
+// ---------- Navi Free ----------
+
+const useFree = document.getElementById("use-free") as HTMLButtonElement;
+const freeResult = document.getElementById("free-result") as HTMLElement;
+
+/** Whether Free is on, and whether this computer can run its on-device model. */
+async function showFree() {
+  const s = await loadSettings();
+  const status = await nanoStatus();
+  const on = aiModeOf(s) === "free";
+  freeResult.className = on ? "hint ok" : "hint";
+  freeResult.textContent = on
+    ? `Navi Free is on. ${status === "available" ? "The on-device AI is ready." : `On-device AI: ${NANO_STATUS_TEXT[status]}${status === "downloadable" ? " Click the button to download it." : " Built-in commands still work."}`}`
+    : `On-device AI: ${NANO_STATUS_TEXT[status]}`;
+  useFree.textContent = on ? (status === "downloadable" ? "Download the on-device AI" : "Using Navi Free") : "Use Navi Free";
+  useFree.disabled = on && status !== "downloadable";
+}
+
+useFree.addEventListener("click", async () => {
+  useFree.disabled = true;
+  let status = await nanoStatus();
+  if (status === "downloadable" || status === "downloading") {
+    freeResult.className = "hint";
+    freeResult.textContent = "Downloading the on-device AI (about 4 GB, one time)…";
+    try {
+      await downloadNano((fraction) => (freeResult.textContent = `Downloading the on-device AI… ${Math.round(fraction * 100)}%`));
+    } catch (err) {
+      freeResult.textContent = `The download didn't start: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    status = await nanoStatus();
+  }
+  // Free works without the model too (built-in commands only), so it's always the user's choice.
+  await saveSettings({ aiMode: "free" });
+  aiResult.textContent = "";
+  await showFree();
+});
+
+void showFree();
 void showSavedKeys();
 if (location.hash === "#ai") {
   document.getElementById("ai")!.scrollIntoView({ block: "center" });

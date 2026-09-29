@@ -14,10 +14,19 @@ import {
   type WorkerRequest,
   type WorkerState,
 } from "../lib/messages";
-import type { CommandMetric } from "../lib/metrics";
-import { MODEL_CATALOG } from "../lib/models";
+import { type CommandMetric, loadMetrics } from "../lib/metrics";
+import { MODEL_CATALOG, formatCost, modelInfo } from "../lib/models";
 import { parseCommand } from "../lib/parser";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, providersWithKeys, saveSettings } from "../lib/settings";
+import {
+  DEFAULT_SETTINGS,
+  type Settings,
+  activeSettings,
+  aiModeOf,
+  loadSettings,
+  onSettingsChanged,
+  providersWithKeys,
+  saveSettings,
+} from "../lib/settings";
 import { Feed } from "./feed";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -150,7 +159,41 @@ function addMetric(metric: CommandMetric) {
   const last = metrics[metrics.length - 1];
   if (last && last.t === metric.t && last.command === metric.command) return;
   metrics.push(metric);
+  if (metric.costUsd) spentToday += metric.costUsd;
+  renderPlan();
 }
+
+/** AI cost since midnight (from the usage log, which outlives the worker). */
+let spentToday = 0;
+async function loadSpentToday() {
+  const today = new Date().toDateString();
+  spentToday = (await loadMetrics().catch(() => []))
+    .filter((m) => new Date(m.t).toDateString() === today)
+    .reduce((sum, m) => sum + (Number.isFinite(m.costUsd) ? (m.costUsd ?? 0) : 0), 0);
+  renderPlan();
+}
+
+/** The Free / Pro chip: what's running, and whether it costs anything. */
+function renderPlan() {
+  const button = $<HTMLButtonElement>("plan");
+  const mode = aiModeOf(settings);
+  const active = activeSettings(settings);
+  button.dataset.plan = mode;
+  setText($("plan-label"), mode === "free" ? "Free" : `Pro · ${formatCost(spentToday)} today`);
+  const router = active.routerModel === "off" ? "none" : modelInfo(active.routerModel).label;
+  button.title =
+    mode === "free"
+      ? "Navi Free: built-in commands, plus chat and voice commands on this computer (Gemini Nano). No cost. It can't click or type on pages. Click for Pro."
+      : `Navi Pro, billed to your API key: ${modelInfo(active.model).label} for tasks and chat, ${router} for quick checks. Click for Free (no cost).`;
+  button.setAttribute("aria-label", `${mode === "free" ? "Navi Free, no cost" : `Navi Pro, ${formatCost(spentToday)} spent today`}. Switch to ${mode === "free" ? "Pro" : "Free"}.`);
+}
+
+$("plan").addEventListener("click", () => {
+  if (aiModeOf(settings) === "pro") void saveSettings({ aiMode: "free" });
+  // Pro needs a key: without one, go and connect it.
+  else if (providersWithKeys(settings).length) void saveSettings({ aiMode: "pro" });
+  else void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html#ai") });
+});
 
 async function checkMicPermission(): Promise<boolean> {
   try {
@@ -172,7 +215,9 @@ function applySettings(next: Settings) {
   document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));
   const handsFree = document.querySelector<HTMLElement>("label:has(input[value=handsfree])");
   if (handsFree) handsFree.title = `Say “Hey ${next.wakeName}”, then talk.`;
-  ui.keyBanner.hidden = providersWithKeys(next).length > 0;
+  // Until the user picks Free or connects a key, say which one is running.
+  ui.keyBanner.hidden = providersWithKeys(next).length > 0 || next.aiMode === "free";
+  renderPlan();
   renderStatus();
 }
 
@@ -337,6 +382,7 @@ async function init() {
     for (const m of hello.metrics) addMetric(m);
     feed.restore(hello.log as LogEntry[]);
   }
+  void loadSpentToday();
   const granted = await checkMicPermission();
   // In "Hey Navi" mode, Navi listens for its name whenever it can.
   if (granted && settings.listenMode === "handsfree" && !worker.listening) void toWorker({ type: "navi:listen", on: true });

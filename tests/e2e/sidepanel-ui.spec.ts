@@ -303,7 +303,7 @@ test("fast commands and unrecognized ones stay compact; notes sit between cards"
   const unknown = panel.locator("#log > li.turn").last();
   await expect(unknown.locator("li.navi")).toHaveCount(0);
   await expect(unknown.locator(".trace-label")).toBeVisible();
-  await expect(unknown.locator(".trace-label")).toContainText("Didn't catch that");
+  await expect(unknown.locator(".trace-label")).toContainText("Not a built-in command");
   // Not understood: one faint line rather than a card.
   await expect(unknown).toHaveAttribute("data-kind", "quiet");
 });
