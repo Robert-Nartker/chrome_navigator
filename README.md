@@ -27,6 +27,8 @@ npm run build          # outputs the extension to dist/
 The side panel is optional. Once the mic is allowed, Navi keeps listening for "Hey Navi" with the panel closed:
 - **Caption:** a small caption at the bottom of the page shows what Navi hears, what it's doing, and its reply.
 - **Toolbar badge:** shows Navi's state: **zz** asleep, **ON** awake, **…** working, **!** a problem.
+- **Talk now:** press **Alt+Shift+M** (Option+Shift+M on a Mac) to wake Navi without saying its name, or to put it back to sleep.
+- **Type from the address bar:** type `navi`, a space, and a command or question. The answer shows in the caption on the page.
 
 ### Navi Free and Navi Pro
 

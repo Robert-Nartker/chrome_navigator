@@ -138,6 +138,16 @@ export class Ears {
     this.emit();
   }
 
+  /** Awake without the name (the keyboard shortcut): listening for a command now. */
+  wake() {
+    if (this.session.current === "awake") return this.touch();
+    this.session.wake();
+    this.wasAwake = true;
+    earcons.wake();
+    this.startScribe();
+    this.emit();
+  }
+
   /** "Go to sleep" (hands-free): back to waiting for the name. */
   sleep() {
     this.session.sleep();

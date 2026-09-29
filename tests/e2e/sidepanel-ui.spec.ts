@@ -450,6 +450,23 @@ test.describe("live caption", () => {
     expect(moving).toBe(0);
   });
 
+  test("the talk-now shortcut wakes Navi without its name, and puts it back to sleep", async ({ panel }) => {
+    const voice = panel.locator("#voice");
+    const shortcut = () => panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "wake" }));
+    await expect(voice).toHaveAttribute("data-state", "sleeping");
+    await shortcut();
+    await expect(voice).toHaveAttribute("data-state", "awake");
+    await hear(panel, "scroll down a little", true);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("scroll down a little");
+    await shortcut();
+    await expect(voice).toHaveAttribute("data-state", "sleeping");
+    // Mic off: the shortcut turns it on and listens right away.
+    await panel.evaluate(() => (window as unknown as Hooks).navi.stopListening());
+    await expect(voice).toHaveAttribute("data-state", "off");
+    await shortcut();
+    await expect(voice).toHaveAttribute("data-state", "awake");
+  });
+
   test("dictation: the chat box's mic types what you say instead of running it", async ({ panel }) => {
     const input = panel.locator("#command-input");
     const dictate = panel.locator("#dictate");

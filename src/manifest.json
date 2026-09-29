@@ -38,8 +38,13 @@
     "open-navi": {
       "suggested_key": { "default": "Alt+Shift+N" },
       "description": "Open the Navi side panel"
+    },
+    "wake-navi": {
+      "suggested_key": { "default": "Alt+Shift+M" },
+      "description": "Talk to Navi now (or put it back to sleep)"
     }
   },
+  "omnibox": { "keyword": "navi" },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }

@@ -136,10 +136,11 @@ function log(kind: LogKind, text: string, meta?: string, onPage = true) {
   if (onPage && (kind === "navi" || kind === "error")) {
     reply = { kind, text };
     clearTimeout(replyTimer);
+    // Long enough to read: longer replies stay longer (up to half a minute).
     replyTimer = setTimeout(() => {
       reply = undefined;
       pushPill();
-    }, 8000);
+    }, Math.min(30_000, 5000 + text.length * 60));
     pushPill();
   }
 }
@@ -314,6 +315,22 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
   }
 }
 
+/**
+ * The "talk to Navi" shortcut: wakes Navi (turning the mic on if needed) so the next thing said is a
+ * command, or puts it back to sleep. In open-mic mode it turns the mic on or off.
+ */
+export async function toggleWake() {
+  if (settings.listenMode === "open") return setListening(!worker.listening);
+  if (!worker.listening) await setListening(true);
+  if (!worker.listening) return; // the mic couldn't start (the reason is logged)
+  await sendEars({ type: "ears:session", action: ears.awake ? "sleep" : "wake" });
+}
+
+/** A message typed without the panel (the address bar's "navi" keyword): replies show on the page. */
+export function runTyped(text: string) {
+  void controller.run(text, { source: "typed" });
+}
+
 /** The first note in a fresh log. */
 function greeting(): string {
   const start =
@@ -326,6 +343,9 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
   switch (msg.action) {
     case "reset":
       controller.resetConversation();
+      return true;
+    case "wake":
+      await toggleWake();
       return true;
     case "busy":
       return controller.isBusy;

@@ -31,6 +31,9 @@ const STYLE = `
     overflow-wrap: anywhere;
   }
   .text:empty { display: none; }
+  /* Replies and errors get room to be read (what Navi hears or is doing stays to two lines). */
+  .pill:is([data-kind="reply"], [data-kind="error"]) { border-radius: 16px; }
+  .pill:is([data-kind="reply"], [data-kind="error"]) .text { -webkit-line-clamp: 6; }
   .pill[data-kind="hint"] .text { color: #a1a1aa; }
   .pill[data-kind="error"] .text { color: #fca5a5; }
   .icon { flex: none; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; }

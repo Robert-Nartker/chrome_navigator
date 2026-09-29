@@ -39,6 +39,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       return false;
     case "ears:session":
       if (msg.action === "sleep") ears.sleep();
+      else if (msg.action === "wake") ears.wake();
       else ears.touch();
       return false;
     case "ears:dictate":

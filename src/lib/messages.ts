@@ -79,7 +79,7 @@ export type EarsRequest =
   | { type: "ears:say"; text: string }
   | { type: "ears:stop-speaking" }
   | { type: "ears:sound"; name: EarconName }
-  | { type: "ears:session"; action: "sleep" | "touch" }
+  | { type: "ears:session"; action: "sleep" | "wake" | "touch" }
   | { type: "ears:dictate"; on: boolean }
   /** Navi Free's on-device model runs in the background page too. Answer: { text } or { error }. */
   | { type: "nano:prompt"; req: NanoRequest }
@@ -104,7 +104,7 @@ export type WorkerRequest =
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }
-  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears"; text?: string; ears?: Extract<EarsRequest, { type: "ears:test" }> };
+  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears" | "wake"; text?: string; ears?: Extract<EarsRequest, { type: "ears:test" }> };
 
 /** What a view gets when it opens. */
 export interface WorkerHello {
