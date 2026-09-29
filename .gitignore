@@ -6,3 +6,8 @@ playwright-report/
 *.log
 probe-output/
 bench-results/
+# Speech lab downloads and results
+scripts/speech-lab/models/
+scripts/speech-lab/noise/
+scripts/speech-lab/out/
+scripts/speech-lab/__pycache__/
