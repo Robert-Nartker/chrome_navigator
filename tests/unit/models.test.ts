@@ -23,6 +23,9 @@ describe("model catalog", () => {
     expect(effortFor("gpt-6-luna", "none")).toBe("none");
     expect(effortFor("gpt-6.1-sol", "medium")).toBe("medium");
     expect(effortFor("gpt-6.1-sol", "none")).toBe("low");
+    expect(effortFor("gpt-6-astra", "max")).toBe("max");
+    expect(effortFor("claude-sonnet-5-5", "xhigh")).toBe("high");
+    expect(effortFor("claude-opus-5-5", "max")).toBe("high");
     expect(effortFor("claude-sonnet-5-5", "none")).toBe("none");
   });
 

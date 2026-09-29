@@ -7,8 +7,8 @@ export type ApiProvider = "anthropic" | "openai";
 /** "chrome": Chrome's built-in on-device model (Navi Free). */
 export type Provider = ApiProvider | "chrome";
 
-/** How much the model reasons before answering. "none" = no reasoning at all. */
-export type Effort = "none" | "low" | "medium" | "high";
+/** How much the model reasons before answering. "none" = no reasoning at all; "xhigh" and "max" are OpenAI-only. */
+export type Effort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type Role = "agent" | "router";
 
@@ -30,8 +30,8 @@ export const MODEL_CATALOG: ModelInfo[] = [
     label: "GPT-6.1 Sol",
     provider: "openai",
     roles: ["agent", "router"],
-    // Unlike GPT-6 Sol it can't turn reasoning off; "low" is the least (the API also has xhigh and max).
-    efforts: ["low", "medium", "high"],
+    // Unlike GPT-6 Sol it can't turn reasoning off; "low" is the least.
+    efforts: ["low", "medium", "high", "xhigh", "max"],
     price: { input: 2, cachedInput: 0.1, cacheWrite: 2, output: 10 },
     priceNote: "launch coverage (unverified)",
   },
@@ -40,7 +40,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
     label: "GPT-6 Luna",
     provider: "openai",
     roles: ["router", "agent"],
-    efforts: ["none", "low", "medium", "high"],
+    efforts: ["none", "low", "medium", "high", "xhigh", "max"],
     price: { input: 0.1, cachedInput: 0.01, cacheWrite: 0.1, output: 0.5 },
     priceNote: "launch coverage (unverified); cached input assumed 10%",
   },
@@ -79,7 +79,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
     label: "GPT-6 Astra",
     provider: "openai",
     roles: ["agent"],
-    efforts: ["low", "medium", "high"],
+    efforts: ["low", "medium", "high", "xhigh", "max"],
     price: { input: 10, cachedInput: 1, cacheWrite: 10, output: 50 },
     priceNote: "launch coverage (unverified); cached input assumed 10%",
   },
@@ -119,7 +119,7 @@ export function modelInfo(id: string): ModelInfo {
 export function effortFor(id: string, wanted: Effort): Effort {
   const { efforts } = modelInfo(id);
   if (efforts.includes(wanted)) return wanted;
-  const order: Effort[] = ["none", "low", "medium", "high"];
+  const order: Effort[] = ["none", "low", "medium", "high", "xhigh", "max"];
   const rank = order.indexOf(wanted);
   return efforts.find((e) => order.indexOf(e) >= rank) ?? efforts[efforts.length - 1];
 }
