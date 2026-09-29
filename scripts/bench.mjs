@@ -19,14 +19,23 @@
 //   --repeat N               runs per task and router phrase (default 1)
 //   --budget USD             stop testing a model once it has spent this much (default 1.00)
 //   --mock                   fake API replies (no keys, no cost) to test the harness
+//   --relay                  send the extension's API calls from Node instead of the test browser, for
+//                            networks whose HTTPS proxy the browser doesn't trust (Node checks certificates
+//                            as usual, with its own CA settings such as NODE_EXTRA_CA_CERTS)
 //   --headed                 show the browser
 import { chromium } from "@playwright/test";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// Node's fetch only uses HTTPS_PROXY when told to at startup, so restart with that set.
+if (process.env.HTTPS_PROXY && !process.env.NODE_USE_ENV_PROXY) {
+  const env = { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_NO_WARNINGS: "1" };
+  process.exit(spawnSync(process.execPath, process.argv.slice(1), { stdio: "inherit", env }).status ?? 1);
+}
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, arg, i, all) => {
@@ -132,6 +141,7 @@ try {
   context = await launch();
 }
 if (mock) await installMocks(context);
+else if (args.relay) await installRelay(context);
 
 let [worker] = context.serviceWorkers();
 worker ??= await context.waitForEvent("serviceworker");
@@ -493,6 +503,28 @@ async function report(routerRows, agentRows) {
 
 // ---- Mock APIs (harness test only) ----
 // The mock router answers every labeled phrase correctly, so a mock run should score 100%.
+/** --relay: the browser's requests to the AI providers are made by Node, and the replies handed back. */
+async function installRelay(ctx) {
+  const DROP = new Set(["host", "content-length", "connection", "content-encoding", "transfer-encoding"]);
+  const relay = async (route) => {
+    const req = route.request();
+    const headers = Object.fromEntries(
+      Object.entries(await req.allHeaders()).filter(([name]) => !name.startsWith(":") && !DROP.has(name)),
+    );
+    try {
+      const res = await fetch(req.url(), { method: req.method(), headers, body: req.postDataBuffer() ?? undefined });
+      const body = Buffer.from(await res.arrayBuffer());
+      const out = Object.fromEntries([...res.headers].filter(([name]) => !DROP.has(name)));
+      await route.fulfill({ status: res.status, headers: out, body });
+    } catch (err) {
+      console.warn(`  (relay: ${req.url()} failed: ${String(err.cause ?? err).slice(0, 160)})`);
+      await route.abort("failed");
+    }
+  };
+  await ctx.route("https://api.openai.com/**", relay);
+  await ctx.route("https://api.anthropic.com/**", relay);
+}
+
 async function installMocks(ctx) {
   const labeled = JSON.parse(await readFile("bench/router-cases.json", "utf8"));
   const answer = (message) => {
