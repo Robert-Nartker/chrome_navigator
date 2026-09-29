@@ -42,7 +42,7 @@ typing, air conditioner, a neighbor) 5 dB below, from Microsoft's MS-SNSD record
 | Recognizer | Maker | Quiet | Café chatter | Loud noise | Word-perfect, quiet | Per command | Size |
 |---|---|---|---|---|---|---|---|
 | Whisper small.en | OpenAI (US) | 6.1% | 7.0% | 10.2% | 81% | 1.52 s | 376 MB |
-| Qwen3-ASR 0.6B | Alibaba (Qwen) (China) | 6.1% | 8.2% | 10.9% | 85% | 1.53 s | 987 MB |
+| Qwen3-ASR 0.6B | Alibaba Qwen (China) | 6.1% | 8.2% | 10.9% | 85% | 1.53 s | 987 MB |
 | Parakeet TDT 0.6B v3 | NVIDIA (US) | 4.6% | 8.8% | 15.3% | 89% | 0.41 s | 670 MB |
 | Nemotron streaming 0.6B | NVIDIA (US) | 8.4% | 10.2% | 11.2% | 77% | 1.28 s | 662 MB |
 | Parakeet TDT 0.6B v2 | NVIDIA (US) | 7.5% | 8.1% | 16.1% | 81% | 0.43 s | 661 MB |
