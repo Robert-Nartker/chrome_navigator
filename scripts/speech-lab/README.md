@@ -41,6 +41,7 @@ typing, air conditioner, a neighbor) 5 dB below, from Microsoft's MS-SNSD record
 
 | Recognizer | Maker | Quiet | Café chatter | Loud noise | Word-perfect, quiet | Per command | Size |
 |---|---|---|---|---|---|---|---|
+| Qwen3-ASR 1.7B (4-bit build) | Alibaba Qwen (China) | 5.4% | 7.7% | 7.5% | 88% | 2.08 s | 1468 MB |
 | Whisper small.en | OpenAI (US) | 6.1% | 7.0% | 10.2% | 81% | 1.52 s | 376 MB |
 | Qwen3-ASR 0.6B | Alibaba Qwen (China) | 6.1% | 8.2% | 10.9% | 85% | 1.53 s | 987 MB |
 | Parakeet TDT 0.6B v3 | NVIDIA (US) | 4.6% | 8.8% | 15.3% | 89% | 0.41 s | 670 MB |
@@ -51,3 +52,10 @@ typing, air conditioner, a neighbor) 5 dB below, from Microsoft's MS-SNSD record
 | Moonshine base (v2) | Moonshine AI (US) | 11.4% | 17.7% | 33.2% | 78% | 0.10 s | 141 MB |
 | Canary 180M flash | NVIDIA (US) | 17.7% | 22.8% | 25.8% | 70% | 0.40 s | 207 MB |
 | Moonshine tiny (v2) | Moonshine AI (US) | 11.8% | 19.5% | 40.9% | 71% | 0.05 s | 44 MB |
+
+Qwen3-ASR 1.7B has no sherpa-onnx build, so it ran through [HaujetZhao/Qwen3-ASR-GGUF](https://github.com/HaujetZhao/Qwen3-ASR-GGUF)
+(the `Qwen3-ASR-1.7B-gguf.zip` release: int4 encoder, q4_k decoder) on llama.cpp b11247, with that project's ctypes structs
+updated to match b11247's `llama.h`. Being a 4-bit build, it may score a little worse than the official weights.
+
+Pocket TTS, Supertonic, Kitten and Piper were judged not good enough to ship and were removed from Navi. Kokoro's samples
+read numbers the way Navi's Kokoro (kokoro-js) does, e.g. "$129" as "129 dollars".

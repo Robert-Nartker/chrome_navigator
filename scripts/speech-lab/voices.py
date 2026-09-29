@@ -87,13 +87,28 @@ POCKET_DIR = "sherpa-onnx-pocket-tts-int8-2026-01-26"
 
 # name -> (builder, folder, {voice label: sid or reference wav}, extra generation settings)
 ENGINES = {
-    "Kokoro v1.0": (kokoro, "kokoro-multi-lang-v1_0", {"Heart (af_heart)": 3, "Michael (am_michael)": 16, "Emma (bf_emma)": 21}, {}),
+    "Kokoro v1.0": (kokoro, "kokoro-multi-lang-v1_0", {"Heart (af_heart)": 3, "Bella (af_bella)": 2, "Michael (am_michael)": 16, "Emma (bf_emma)": 21}, {}),
     "Pocket TTS": (pocket, POCKET_DIR, {"Bria": "bria.wav", "Loona": "loona.wav"}, {"num_steps": 5}),
     "Supertonic 3": (supertonic, "sherpa-onnx-supertonic-3-tts-int8-2026-05-11", {"Voice 6": 6, "Voice 1": 1}, {"num_steps": 5, "lang": "en"}),
     "Kitten mini 0.1": (kitten, "kitten-mini-en-v0_1-fp16", {"Voice 2 (f)": 1, "Voice 3 (m)": 2}, {}),
     "Kitten nano 0.2": (kitten, "kitten-nano-en-v0_2-fp16", {"Voice 2 (f)": 1}, {}),
     "Piper lessac": (piper, "vits-piper-en_US-lessac-medium", {"Lessac": 0}, {}),
 }
+
+
+def speakable(text):
+    """What Navi's Kokoro (kokoro-js) reads: "$129" as "129 dollars", "3:30" as "3 30"."""
+    def money(m):
+        dollars, cents = m.group(1), m.group(2)
+        out = f"{dollars} dollar{'' if dollars == '1' else 's'}"
+        return out + (f" and {int(cents)} cents" if cents else "")
+
+    def clock(m):
+        h, mm = m.group(1), int(m.group(2))
+        return f"{h} o'clock" if mm == 0 else f"{h} oh {mm}" if mm < 10 else f"{h} {mm}"
+
+    text = re.sub(r"\$(\d+)(?:\.(\d\d))?", money, text)
+    return re.sub(r"\b(1[0-2]|[1-9]):([0-5]\d)\b", clock, text)
 
 
 def gen_config(voice, extra):
@@ -142,7 +157,8 @@ def main(only=None):
             tts.generate("Warm up.", g)
             synth = audio = 0.0
             first_sentence = []
-            for text in REPLIES:
+            texts = [speakable(t) for t in REPLIES] if builder is kokoro else REPLIES
+            for text in texts:
                 first = text.split(". ")[0] + "."
                 t0 = time.time()
                 a = tts.generate(first, g)
@@ -159,7 +175,7 @@ def main(only=None):
             if threads == 4:
                 for label, voice in voices.items():
                     g = gen_config(voice, extra)
-                    for i, text in enumerate(REPLIES):
+                    for i, text in enumerate(texts):
                         a = tts.generate(text, g)
                         samples = np.clip(np.asarray(a.samples, dtype=np.float32), -1, 1)
                         path = OUT / f"{slug}--{re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')}--{i + 1}.mp3"
