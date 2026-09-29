@@ -2,6 +2,8 @@
 // "Compare" runs every loaded model on each finished phrase, so they're judged on the same audio.
 
 import type { QwenFilesRequest } from "./qwen-files";
+import { startDevReload } from "../lib/dev-reload";
+import { VAD_FRAME, type Vad, loadVad } from "./vad";
 import type { AsrEngine, AsrReply, AsrRequest } from "./worker";
 
 interface Model {
@@ -37,7 +39,6 @@ const MODELS: Model[] = [
   },
   { id: "parakeet-v3", name: "Parakeet v3", note: "NVIDIA · 25 languages", engine: "parakeet", repo: "parakeet-tdt-0.6b-v3", size: "0.7–2.4 GB" },
   { id: "parakeet-v2", name: "Parakeet v2", note: "NVIDIA · English", engine: "parakeet", repo: "parakeet-tdt-0.6b-v2", size: "0.7–2.4 GB" },
-  { id: "whisper-small", name: "Whisper small.en", note: "OpenAI · English", engine: "whisper", repo: "Xenova/whisper-small.en", size: "0.3–1 GB" },
   { id: "whisper-turbo", name: "Whisper large-v3 turbo", note: "OpenAI", engine: "whisper", repo: "onnx-community/whisper-large-v3-turbo", size: "1–1.6 GB" },
 ];
 
@@ -262,14 +263,25 @@ function syncChrome() {
   }
 }
 
+/** Chrome's text that came in before the phrase it belongs to ended. */
+let earlyChrome: { text: string; at: number } | null = null;
+
 function chromeFinal(text: string) {
   if (!text) return;
-  // Joins the phrase that just ended (or starts its own row when Chrome is the only one listening).
-  const row = rows.find((r) => Date.now() - r.endedAt < 2500) ?? (active === "chrome" ? newRow() : null);
-  if (!row) return;
+  if (active === "chrome") $("#live").textContent = "";
+  // Joins the phrase that just ended, or waits for it to end (Chrome often finishes first); starts its
+  // own row when Chrome is the only one listening.
+  const row = rows.find((r) => Date.now() - r.endedAt < 2500) ?? (active === "chrome" && !speaking ? newRow() : null);
+  if (!row) {
+    earlyChrome = { text: earlyChrome ? `${earlyChrome.text} ${text}` : text, at: Date.now() };
+    return;
+  }
+  addChrome(row, text);
+}
+
+function addChrome(row: Row, text: string) {
   const prev = row.results.get("chrome")?.text;
   setResult(row, "chrome", { text: prev ? `${prev} ${text}` : text, ms: 0 });
-  if (active === "chrome") $("#live").textContent = "";
 }
 
 // ---------- Microphone and phrases ----------
@@ -281,12 +293,27 @@ let ctx: AudioContext | null = null;
 let phrase: Float32Array[] = [];
 let phraseSamples = 0;
 let speaking = false;
-let silentMs = 0;
-let noise = 0.005;
 let lastLiveAt = 0;
-/** The last moments before speech starts, so a phrase keeps its first sound. */
+
+// A phrase starts when Silero VAD is fairly sure it hears speech, and ends once it has heard none for
+// HANG_MS. Unlike a loudness check, it isn't fooled by a fan or air conditioner.
+const START = 0.5;
+const STILL = 0.35;
+const HANG_MS = 350;
+/** Kept from before speech is detected, so a phrase keeps its first sound. */
+const PREROLL_MS = 300;
+/** Shorter blips (a cough, a click) aren't phrases. */
+const MIN_VOICED_MS = 150;
+const FRAME_MS = (VAD_FRAME / RATE) * 1000;
+
+let vad: Vad | null = null;
+let frames = Promise.resolve();
+let pendingSamples = new Float32Array(0);
 let preroll: Float32Array[] = [];
-const PREROLL_MS = 700;
+let quietMs = 0;
+let voicedMs = 0;
+// Loudness fallback, used only if the speech detector can't load.
+let noise = 0.005;
 
 async function startMic() {
   // Chrome's noise suppression smears quiet speech, and these models are trained on raw audio; gain
@@ -308,38 +335,70 @@ function stopMic() {
   void ctx?.close();
   stream = null;
   ctx = null;
-  if (speaking) void endPhrase();
+  frames = frames.then(() => {
+    if (speaking) void endPhrase();
+    vad?.reset();
+    pendingSamples = new Float32Array(0);
+    preroll = [];
+  });
   syncChrome();
 }
 
-/** A simple level-based phrase detector: speech starts above the noise floor and ends after 0.8 s of quiet. */
 function onAudio(chunk: Float32Array) {
   let sum = 0;
   for (const s of chunk) sum += s * s;
-  const rms = Math.sqrt(sum / chunk.length);
+  $<HTMLElement>("#level").style.width = `${Math.min(100, Math.sqrt(sum / chunk.length) * 800)}%`;
+  const all = new Float32Array(pendingSamples.length + chunk.length);
+  all.set(pendingSamples);
+  all.set(chunk, pendingSamples.length);
+  let at = 0;
+  for (; at + VAD_FRAME <= all.length; at += VAD_FRAME) {
+    const frame = all.slice(at, at + VAD_FRAME);
+    frames = frames.then(() => onFrame(frame)).catch(() => undefined);
+  }
+  pendingSamples = all.slice(at);
+}
+
+async function speechProbability(frame: Float32Array): Promise<number> {
+  if (vad) return vad.run(frame);
+  let sum = 0;
+  for (const s of frame) sum += s * s;
+  const rms = Math.sqrt(sum / frame.length);
   const loud = rms > Math.max(0.006, noise * 3);
   if (!loud) noise = noise * 0.95 + rms * 0.05;
-  $<HTMLElement>("#level").style.width = `${Math.min(100, rms * 800)}%`;
-  const ms = (chunk.length / RATE) * 1000;
-  if (loud) {
-    if (!speaking) {
-      speaking = true;
-      phrase = preroll;
-      phraseSamples = preroll.reduce((n, c) => n + c.length, 0);
-      preroll = [];
-    }
-    silentMs = 0;
-  } else if (speaking) {
-    silentMs += ms;
-  }
+  return loud ? 1 : 0;
+}
+
+async function onFrame(frame: Float32Array) {
+  const p = await speechProbability(frame);
   if (!speaking) {
-    preroll.push(chunk);
-    if (preroll.length * ms > PREROLL_MS) preroll.shift();
+    preroll.push(frame);
+    if (preroll.length * FRAME_MS > PREROLL_MS) preroll.shift();
+    if (p < START) return;
+    speaking = true;
+    phrase = preroll;
+    phraseSamples = preroll.length * VAD_FRAME;
+    preroll = [];
+    quietMs = 0;
+    voicedMs = FRAME_MS;
     return;
   }
-  phrase.push(chunk);
-  phraseSamples += chunk.length;
-  if (silentMs > 800 || phraseSamples > RATE * 20) void endPhrase();
+  phrase.push(frame);
+  phraseSamples += frame.length;
+  if (p >= STILL) {
+    voicedMs += FRAME_MS;
+    quietMs = 0;
+  } else {
+    quietMs += FRAME_MS;
+  }
+  if (quietMs >= HANG_MS || phraseSamples > RATE * 20) {
+    if (voicedMs >= MIN_VOICED_MS) void endPhrase();
+    else {
+      speaking = false;
+      phrase = [];
+      phraseSamples = 0;
+    }
+  }
 }
 
 function audio(): Float32Array {
@@ -381,6 +440,10 @@ function newRow(seconds = 0): Row {
   rows.unshift(row);
   $("#rows").prepend(el);
   $("#empty").hidden = true;
+  if (earlyChrome) {
+    if (Date.now() - earlyChrome.at < 20_000) addChrome(row, earlyChrome.text);
+    earlyChrome = null;
+  }
   return row;
 }
 
@@ -447,6 +510,15 @@ async function init() {
   $("#compare").addEventListener("change", () => syncChrome());
   renderChips();
   void checkChrome();
+  loadVad(chrome.runtime.getURL("vendor/"))
+    .then((v) => {
+      vad = v;
+      $("#detector").textContent = "Speech detector: Silero VAD (on this computer). A phrase ends about 0.35 s after you stop talking.";
+    })
+    .catch((err) => {
+      $("#detector").textContent = `The speech detector didn't load (${err instanceof Error ? err.message : String(err)}), so phrases are split by loudness.`;
+    });
+  if (__DEV__) void startDevReload(() => undefined, { background: true, reopen: true });
 }
 
 void init();

@@ -3,7 +3,7 @@
 // shows the setup page on first install, and refreshes content scripts on update.
 
 import { runTyped, startNavi, toggleWake } from "./background/navi";
-import { loadedDevBuild, reinjectContentScripts } from "./lib/dev-reload";
+import { loadedDevBuild, reinjectContentScripts, reopenAfterDevRestart } from "./lib/dev-reload";
 
 startNavi();
 
@@ -57,6 +57,7 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 if (__DEV__) {
+  void reopenAfterDevRestart();
   // Which build this worker started with, so the side panel knows when a full reload is needed.
   const started = loadedDevBuild();
   chrome.runtime.onMessage.addListener((msg: { type?: string }, _sender, sendResponse) => {

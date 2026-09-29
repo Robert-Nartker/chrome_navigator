@@ -29,8 +29,64 @@ export async function reinjectContentScripts() {
   );
 }
 
-/** `background`: in Navi's background page, which can't re-inject content scripts (the panel or worker does). */
-export async function startDevReload(onStatus: (text: string) => void, { background = false } = {}) {
+/** Keys sorted at every level, so manifests compare by content (Chrome reports the one it loaded sorted). */
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/** The manifest on disk (canonical), if a build changed it since Chrome loaded it; only a full reload applies it. */
+export async function staleManifest(): Promise<string | null> {
+  try {
+    const onDisk = (await (await fetch(chrome.runtime.getURL("manifest.json"), { cache: "no-store" })).json()) as Record<string, unknown>;
+    const loaded = chrome.runtime.getManifest() as unknown as Record<string, unknown>;
+    return Object.keys(onDisk).some((k) => canonical(onDisk[k]) !== canonical(loaded[k])) ? canonical(onDisk) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Reloads the whole extension. `reopen`: the background opens this page again afterwards (a reload closes it). */
+async function restartExtension(reopen: boolean) {
+  if (reopen) await chrome.storage.local.set({ devReopen: location.pathname.slice(1) });
+  chrome.runtime.reload();
+}
+
+/** Restarts if the manifest on disk is newer than the loaded one; true if it did. */
+async function restartForManifest(reopen: boolean): Promise<boolean> {
+  const disk = await staleManifest();
+  if (!disk) return false;
+  // Once per manifest: if Chrome ever reported a manifest differently from the file, this mustn't loop.
+  const { devRestartedFor } = (await chrome.storage.local.get("devRestartedFor")) as { devRestartedFor?: string };
+  if (devRestartedFor === disk) return false;
+  await chrome.storage.local.set({ devRestartedFor: disk });
+  await restartExtension(reopen);
+  return true;
+}
+
+/** After a restart that `reopen` asked for, opens that page again (called by the background). */
+export async function reopenAfterDevRestart() {
+  const { devReopen } = (await chrome.storage.local.get("devReopen")) as { devReopen?: string };
+  if (!devReopen) return;
+  await chrome.storage.local.remove("devReopen");
+  await chrome.tabs.create({ url: chrome.runtime.getURL(devReopen) });
+}
+
+/**
+ * `background`: don't re-inject content scripts (Navi's background page can't; the panel or worker does).
+ * `reopen`: this is a tab, which the background reopens after a full extension restart.
+ */
+export async function startDevReload(onStatus: (text: string) => void, { background = false, reopen = false } = {}) {
+  // A manifest change (new permissions, cross-origin isolation) needs a full restart, which nothing may
+  // have done if no Navi page was open when the build landed.
+  if (await restartForManifest(reopen)) return onStatus("updating (extension restart)…");
   const mine = await loadedDevBuild();
   // What the background worker loaded; it only changes on a full extension reload.
   const loadedFullHash = (await chrome.runtime.sendMessage({ type: "navi:dev-full-hash" }).catch(() => null)) as
@@ -45,7 +101,11 @@ export async function startDevReload(onStatus: (text: string) => void, { backgro
     if (latest.fullHash && stale) {
       onStatus("updating (extension restart)…");
       source.close();
-      chrome.runtime.reload();
+      await restartExtension(reopen);
+      return;
+    }
+    if (await restartForManifest(reopen)) {
+      source.close();
       return;
     }
     if (mine && latest.buildId !== mine.buildId) {

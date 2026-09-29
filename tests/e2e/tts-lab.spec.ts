@@ -16,6 +16,8 @@ const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 
 type Fixtures = {
+  /** A WAV file the fake microphone plays once (instead of its default beeps). */
+  micFile: string | undefined;
   context: BrowserContext;
   extensionId: string;
   /** CSP errors, page errors and CDN requests seen during the test; should stay empty. */
@@ -24,7 +26,8 @@ type Fixtures = {
 };
 
 const test = base.extend<Fixtures>({
-  context: async ({}, use) => {
+  micFile: [undefined, { option: true }],
+  context: async ({ micFile }, use) => {
     const userDataDir = await mkdtemp(path.join(tmpdir(), "navi-lab-"));
     const context = await chromium.launchPersistentContext(userDataDir, {
       executablePath: CHROMIUM,
@@ -35,6 +38,7 @@ const test = base.extend<Fixtures>({
         `--load-extension=${DIST}`,
         "--use-fake-device-for-media-stream",
         "--use-fake-ui-for-media-stream",
+        ...(micFile ? [`--use-file-for-fake-audio-capture=${micFile}%noloop`] : []),
       ],
     });
     await use(context);
@@ -281,7 +285,7 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   const blocked = await blockHuggingFace(context);
   const page = await watchedPage(context, problems);
   await page.goto(`chrome-extension://${extensionId}/asr-lab.html`);
-  await expect(page.locator("button.model")).toHaveCount(7);
+  await expect(page.locator("button.model")).toHaveCount(6);
   // Qwen's engine needs threads that share memory, which only a cross-origin isolated page gets.
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   // Headless Chromium has no graphics chip for WebGPU.
@@ -290,7 +294,7 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   await expect(page.locator("#mic")).toHaveText("Stop listening");
 
   const model = (name: string) => page.locator("button.model").filter({ hasText: name });
-  for (const name of ["Whisper small.en", "Parakeet v3"]) {
+  for (const name of ["Whisper large-v3 turbo", "Parakeet v3"]) {
     await model(name).click();
     await expect(model(name)).toHaveAttribute("aria-pressed", "true");
     await expect(model(name).locator(".status")).toContainText("Couldn't load", { timeout: 30_000 });
@@ -299,7 +303,7 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   await model("Qwen3-ASR 1.7B").click();
   await expect(model("Qwen3-ASR 1.7B").locator(".status")).toContainText("needs a graphics chip");
   // Each model's worker and runtime loaded, and went to Hugging Face for its files.
-  expect(blocked.some((url) => url.includes("whisper-small.en"))).toBe(true);
+  expect(blocked.some((url) => url.includes("whisper-large-v3-turbo"))).toBe(true);
   expect(blocked.some((url) => /parakeet/i.test(url))).toBe(true);
   expect(problems).toEqual([]);
 });
@@ -376,4 +380,24 @@ test("Qwen3-ASR: downloads (packing the 0.6B's full-precision weights) into brow
   );
   expect(started).toMatch(/^threads: \d+$/);
   expect(problems).toEqual([]);
+});
+
+test.describe("speech recognizer tester with a fan running", () => {
+  test.use({ micFile: path.resolve("tests/fixtures/speech/three-commands-fan.wav") });
+
+  test("its speech detector splits three commands over air-conditioner noise into three phrases", async ({
+    context,
+    extensionId,
+    problems,
+  }) => {
+    const page = await watchedPage(context, problems);
+    await page.goto(`chrome-extension://${extensionId}/asr-lab.html`);
+    await expect(page.locator("#detector")).toContainText("Silero VAD");
+    await page.getByRole("button", { name: "Start listening" }).click();
+    // The file is 8.6 s: three commands with 1.6 s pauses, the fan 12 dB below the voice throughout.
+    await expect(page.locator("#rows > li")).toHaveCount(3, { timeout: 20_000 });
+    await page.waitForTimeout(2000);
+    await expect(page.locator("#rows > li")).toHaveCount(3);
+    expect(problems).toEqual([]);
+  });
 });

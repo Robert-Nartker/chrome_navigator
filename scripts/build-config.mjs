@@ -42,6 +42,8 @@ const vendorFiles = [
   // starts its threads from the same file.
   ["third_party/qwen-asr/qwen_asr.js", "vendor/qwen-asr/qwen_asr.js"],
   ["third_party/qwen-asr/qwen_asr.wasm", "vendor/qwen-asr/qwen_asr.wasm"],
+  // Silero VAD, the tester's speech detector (runs on the ONNX Runtime above).
+  ["third_party/silero-vad/silero_vad.onnx", "vendor/silero-vad/silero_vad.onnx"],
 ];
 
 export async function copyStatic(outdir) {
