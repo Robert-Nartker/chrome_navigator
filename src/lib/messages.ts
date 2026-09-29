@@ -31,6 +31,8 @@ export interface EarsState {
   micError: string;
   /** Which recognizer is listening, e.g. "Chrome (on-device)". */
   engineLabel: string;
+  /** Which voice Navi last spoke with, e.g. "Kokoro (on-device)" ("" before it has spoken). */
+  voiceLabel: string;
   /** Until the hands-free session falls asleep (0 when not counting down). */
   remainingMs: number;
   /** Navi is talking. */
@@ -44,6 +46,7 @@ export const EARS_OFF: EarsState = {
   awake: false,
   micError: "",
   engineLabel: "",
+  voiceLabel: "",
   remainingMs: 0,
   speaking: false,
   dictating: false,

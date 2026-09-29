@@ -98,9 +98,12 @@ function renderStatus() {
   ui.mic.setAttribute("aria-pressed", String(listening));
   ui.mic.setAttribute("aria-label", listening ? "Stop listening" : "Start listening");
   ui.mic.dataset.awake = String(ears.awake && settings.listenMode === "handsfree");
+  // What's hearing and speaking right now, so it's always clear what runs locally and what's paid.
+  const engines = [ears.engineLabel && `Hears: ${ears.engineLabel}`, ears.voiceLabel && `Speaks: ${ears.voiceLabel}`];
+  const engineText = engines.filter(Boolean).join(" · ");
   ui.engine.hidden = !ears.engineLabel;
-  setText(ui.engineLabel, ears.engineLabel);
-  ui.engine.title = ears.engineLabel ? `Speech recognition: ${ears.engineLabel}` : "";
+  setText(ui.engineLabel, engineText);
+  ui.engine.title = engineText;
   renderSessionBar();
   setToggle(ui.numbersButton, worker.numbers, worker.numbers ? "Hide flags" : "Flags");
   setToggle(ui.gridButton, worker.grid, worker.grid ? "Hide grid" : "Grid");

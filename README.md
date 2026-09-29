@@ -143,7 +143,8 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 ## Privacy model
 
 - **Audio:** Navi uses Chrome's speech recognizer in on-device mode only (Chrome 139+; download the model once on the setup page or from the side panel). Audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio. If this computer can't recognize speech on-device, Navi can listen with ElevenLabs instead (your key).
-- **Optional ElevenLabs speech** (Settings → ElevenLabs key): while Navi is awake, commands are transcribed by ElevenLabs Scribe v2 Realtime, which can ignore other people talking nearby. Navi also speaks with an ElevenLabs voice. ElevenLabs' standard data policy applies; zero retention needs an Enterprise plan. While asleep, only Chrome's recognizer listens for the name. The mic socket uses a single-use token, so the API key never goes into the URL. If the key fails, Navi falls back to Chrome's recognizer and voice.
+- **Navi's voice** runs on your computer too: a neural voice from the voice lab below, Kokoro on the graphics chip (WebGPU; 326 MB once, or 92 MB on the processor if you pick it) or Kyutai's Pocket TTS on the processor (about 125 MB once). It downloads from Hugging Face the first time Navi speaks (or from the setup page), and your computer's system voice answers until then. Pick a voice, or the system voices, in Settings. The side panel shows what's hearing and speaking, e.g. "Hears: Chrome (on-device) · Speaks: Kokoro (on-device)".
+- **Optional ElevenLabs speech** (Settings → ElevenLabs key): while Navi is awake, commands are transcribed by ElevenLabs Scribe v2 Realtime, which can ignore other people talking nearby. Navi also speaks with an ElevenLabs voice. ElevenLabs' standard data policy applies; zero retention needs an Enterprise plan. While asleep, only Chrome's recognizer listens for the name. The mic socket uses a single-use token, so the API key never goes into the URL. If the key fails, Navi falls back to Chrome's recognizer and Navi's on-device voice.
 - **Sound from your own computer** (a podcast or video) is cancelled out of the mic when Chrome supports system-wide echo cancellation (`echoCancellation: "all"`).
 - **Nothing is acted on until the wake word.** Speech before "Hey Navi" is ignored and never shown or sent to the AI.
 - **The AI sees labels, not content.** By default Claude receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
@@ -209,6 +210,7 @@ npm run bench:mock        # checks the harness with fake API replies (free)
 **Options:**
 - Change models with `--routers a,b` and `--agents model@effort,...`, e.g. `--agents claude-opus-5-5@medium`.
 - `--budget` stops testing a model once it has spent that much. The default is $1.00 per model.
+- `--relay` sends the extension's API calls from Node instead of the test browser. Use it behind an HTTPS proxy the browser doesn't trust (corporate networks, cloud sandboxes); Node checks certificates as usual.
 
 **Output:**
 - Tables of accuracy, latency and cost per call or per task.

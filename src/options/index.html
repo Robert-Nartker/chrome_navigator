@@ -123,9 +123,25 @@
           </select>
           <label for="speechOutput">Navi's voice comes from</label>
           <select id="speechOutput">
-            <option value="elevenlabs">ElevenLabs (natural; needs the key above)</option>
-            <option value="chrome">Chrome's built-in voices</option>
+            <option value="elevenlabs">ElevenLabs when its key is set above, otherwise Navi's on-device voice</option>
+            <option value="navi">Navi's on-device voice (free, private)</option>
+            <option value="chrome">Your computer's system voices</option>
           </select>
+          <div class="row">
+            <div>
+              <label for="naviVoice">Navi's on-device voice</label>
+              <select id="naviVoice"></select>
+            </div>
+            <div>
+              <label for="naviVoiceEngine">Runs on</label>
+              <select id="naviVoiceEngine">
+                <option value="auto">Automatic: Kokoro with a graphics chip, else Pocket TTS</option>
+                <option value="kokoro">Kokoro (best with a graphics chip; 92 to 326 MB)</option>
+                <option value="pocket">Pocket TTS (quick on any computer; about 125 MB)</option>
+              </select>
+            </div>
+          </div>
+          <p class="hint">A neural voice that runs on this computer, so replies never leave it. It downloads once, the first time Navi speaks (or from the <a href="setup.html">setup page</a>). The voice list is Kokoro's; Pocket TTS has its own voice.</p>
           <div class="row">
             <div>
               <label for="elevenVoiceId">ElevenLabs voice</label>
@@ -144,7 +160,7 @@
             <div>
               <label for="speechRate">Speed</label>
               <input id="speechRate" type="number" min="0.5" max="3" step="0.1" />
-              <p class="hint">ElevenLabs uses 0.7 to 1.2.</p>
+              <p class="hint">ElevenLabs uses 0.7 to 1.2. Navi's on-device voice always speaks at its normal speed.</p>
             </div>
           </div>
           <div class="row">

@@ -3,6 +3,7 @@ import { NANO_STATUS_TEXT, downloadNano, nanoStatus } from "../lib/nano";
 import { PROVIDER_DEFAULTS, type ApiProvider, modelInfo } from "../lib/models";
 import { activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
 import { installOnDevice, onDeviceProblem, onDeviceStatus } from "../lib/speech";
+import { Speaker } from "../lib/voice-output";
 
 // One-time microphone permission. Extension side panels can't show Chrome's
 // permission prompt, so it is granted here in a normal tab.
@@ -101,6 +102,39 @@ onDeviceButton.addEventListener("click", async () => {
 });
 
 void showOnDevice();
+
+// ---------- Navi's voice ----------
+
+const naviVoiceButton = document.getElementById("navi-voice") as HTMLButtonElement;
+const naviVoiceResult = document.getElementById("navi-voice-result") as HTMLElement;
+
+naviVoiceButton.addEventListener("click", async () => {
+  const s = await loadSettings();
+  const speaker = new Speaker(() => ({
+    rate: 1,
+    voiceName: s.voiceName,
+    lang: s.lang,
+    volume: s.volume,
+    neural: { voice: s.naviVoice, engine: s.naviVoiceEngine },
+  }));
+  naviVoiceButton.disabled = true;
+  naviVoiceResult.className = "";
+  naviVoiceResult.textContent = "Downloading… (this can take a minute)";
+  try {
+    // Stored in the browser, where Navi's background page finds it.
+    await speaker.prepareVoice(s.naviVoiceEngine);
+  } catch {
+    naviVoiceResult.className = "err";
+    naviVoiceResult.textContent = "The download didn't finish. Check your connection and try again.";
+    naviVoiceButton.disabled = false;
+    return;
+  }
+  naviVoiceResult.className = "ok";
+  naviVoiceResult.textContent = "Navi's voice is ready.";
+  naviVoiceButton.textContent = "Play Navi's voice";
+  naviVoiceButton.disabled = false;
+  await speaker.say("Hi, I'm Navi. This is my voice, running on your computer.");
+});
 
 // ---------- Connect an AI ----------
 

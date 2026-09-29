@@ -11,6 +11,11 @@ export class ChunkPlayer {
 
   constructor(private volume: number) {}
 
+  setVolume(volume: number) {
+    this.volume = volume;
+    if (this.gain) this.gain.gain.value = volume;
+  }
+
   /** Call from a click so Chrome lets audio start. */
   async resume(): Promise<void> {
     this.ctx ??= new AudioContext();

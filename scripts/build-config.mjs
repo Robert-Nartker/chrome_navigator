@@ -71,12 +71,17 @@ export function esbuildOptions({ outdir, dev = false }) {
 /**
  * The voice lab is a separate ES-module build with code splitting, so each speech engine (several MB of
  * JavaScript) loads only when you try it, and never enters the other pages' bundles. Kokoro runs in its
- * own worker module.
+ * own worker module. Navi's own on-device voice shares these engines.
  */
 export function labEsbuildOptions({ outdir, dev = false }) {
   return {
     ...esbuildOptions({ outdir, dev }),
-    entryPoints: { "tts-lab": "src/tts-lab/main.ts", "lab/kokoro-worker": "src/tts-lab/kokoro-worker.ts" },
+    entryPoints: {
+      "tts-lab": "src/tts-lab/main.ts",
+      "lab/kokoro-worker": "src/tts-lab/kokoro-worker.ts",
+      // Navi's on-device voice, which its background page imports when it first speaks.
+      "voice/neural": "src/voice/neural.ts",
+    },
     format: "esm",
     splitting: true,
     chunkNames: "lab/[name]-[hash]",

@@ -5,6 +5,7 @@ import { MODEL_CATALOG, PROVIDER_DEFAULTS, type ApiProvider, formatCost, modelIn
 import { NANO_STATUS_TEXT, nanoStatus } from "../lib/nano";
 import { DEFAULT_SETTINGS, type Settings, activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
 import { Speaker, pickVoice } from "../lib/voice-output";
+import { KOKORO_VOICES } from "../tts-lab/kokoro-voices";
 
 const form = document.getElementById("settings") as HTMLFormElement;
 const saved = document.getElementById("saved") as HTMLElement;
@@ -72,6 +73,7 @@ function selectValue(select: HTMLSelectElement, value: string) {
   select.value = value;
 }
 for (const m of TTS_MODELS) field<HTMLSelectElement>("elevenModel").add(new Option(m.label, m.id));
+for (const v of KOKORO_VOICES) field<HTMLSelectElement>("naviVoice").add(new Option(`${v.name} (${v.detail})`, v.id));
 
 const elevenVoice = field<HTMLSelectElement>("elevenVoiceId");
 let loadedVoicesFor = "";
@@ -137,6 +139,8 @@ async function fill() {
   field<HTMLInputElement>("elevenLabsKey").value = s.elevenLabsKey;
   field<HTMLSelectElement>("speechInput").value = s.speechInput;
   field<HTMLSelectElement>("speechOutput").value = s.speechOutput;
+  field<HTMLSelectElement>("naviVoice").value = s.naviVoice;
+  field<HTMLSelectElement>("naviVoiceEngine").value = s.naviVoiceEngine;
   field<HTMLInputElement>("filterBackgroundAudio").checked = s.filterBackgroundAudio;
   field<HTMLSelectElement>("elevenModel").value = s.elevenModel;
   if (![...elevenVoice.options].some((o) => o.value === s.elevenVoiceId)) {
@@ -181,6 +185,8 @@ form.addEventListener("submit", async (e) => {
     elevenLabsKey: field<HTMLInputElement>("elevenLabsKey").value.trim(),
     speechInput: field<HTMLSelectElement>("speechInput").value as Settings["speechInput"],
     speechOutput: field<HTMLSelectElement>("speechOutput").value as Settings["speechOutput"],
+    naviVoice: field<HTMLSelectElement>("naviVoice").value,
+    naviVoiceEngine: field<HTMLSelectElement>("naviVoiceEngine").value as Settings["naviVoiceEngine"],
     filterBackgroundAudio: field<HTMLInputElement>("filterBackgroundAudio").checked,
     elevenVoiceId: elevenVoice.value || DEFAULT_VOICE_ID,
     elevenModel: field<HTMLSelectElement>("elevenModel").value,
@@ -276,25 +282,50 @@ document.getElementById("cmd-add")?.addEventListener("click", async () => {
 onCommandsChanged(() => void showCommands());
 void showCommands();
 
-document.getElementById("test-voice")?.addEventListener("click", async () => {
-  const voiceName = field<HTMLSelectElement>("voiceName").value;
+/** What "Test voice" plays: the form's current choices (kept, so Navi's voice loads only once here). */
+function testVoice() {
   const lang = field<HTMLInputElement>("lang").value || "en-US";
   const apiKey = field<HTMLInputElement>("elevenLabsKey").value.trim();
-  const useEleven = !!apiKey && field<HTMLSelectElement>("speechOutput").value === "elevenlabs";
-  const speaker = new Speaker(
-    () => ({
-      voiceName,
+  const output = field<HTMLSelectElement>("speechOutput").value;
+  const eleven = !!apiKey && output === "elevenlabs";
+  const engine = field<HTMLSelectElement>("naviVoiceEngine").value as Settings["naviVoiceEngine"];
+  return {
+    lang,
+    eleven,
+    navi: !eleven && output !== "chrome",
+    engine,
+    settings: {
+      voiceName: field<HTMLSelectElement>("voiceName").value,
       lang,
       rate: Number(field<HTMLInputElement>("speechRate").value) || 1,
       volume: Number(field<HTMLInputElement>("volume").value),
-      eleven: useEleven
+      eleven: eleven
         ? { apiKey, voiceId: elevenVoice.value || DEFAULT_VOICE_ID, model: field<HTMLSelectElement>("elevenModel").value }
         : undefined,
-    }),
-    (message) => (saved.textContent = `${message} Falling back to Chrome's voice.`),
+      neural: output === "chrome" ? undefined : { voice: field<HTMLSelectElement>("naviVoice").value, engine },
+    },
+  };
+}
+
+let testSpeaker: Speaker | null = null;
+
+document.getElementById("test-voice")?.addEventListener("click", async () => {
+  const test = testVoice();
+  testSpeaker ??= new Speaker(
+    () => testVoice().settings,
+    (message, instead) => (saved.textContent = `${message} Using ${instead}.`),
   );
-  const name = useEleven
-    ? (elevenVoice.selectedOptions[0]?.text.split(" (")[0] ?? "an ElevenLabs voice")
-    : voiceName || (await pickVoice(lang)) || "the default voice";
-  await speaker.say(`Hi, I'm Navi. This is ${name}.`);
+  let name = test.settings.voiceName || (await pickVoice(test.lang)) || "the default voice";
+  if (test.eleven) name = elevenVoice.selectedOptions[0]?.text.split(" (")[0] ?? "an ElevenLabs voice";
+  if (test.navi) {
+    saved.textContent = "Loading Navi's voice (the first time, it downloads 90 to 330 MB)…";
+    try {
+      await testSpeaker.prepareVoice(test.engine);
+      saved.textContent = "";
+      name = "Navi's on-device voice";
+    } catch {
+      saved.textContent = "Couldn't load Navi's voice. Using Chrome's voice.";
+    }
+  }
+  await testSpeaker.say(`Hi, I'm Navi. This is ${name}.`);
 });

@@ -1,7 +1,8 @@
-// Spoken replies (ElevenLabs streaming, or the system voices) and short sounds ("earcons") for wake/sleep/error.
-// System voices go through chrome.tts where it exists, and through speechSynthesis in Navi's background
-// page, which has no chrome.tts (they're the same voices).
+// Spoken replies (ElevenLabs streaming, Navi's on-device neural voice, or the system voices) and short
+// sounds ("earcons") for wake/sleep/error. System voices go through chrome.tts where it exists, and through
+// speechSynthesis in Navi's background page, which has no chrome.tts (they're the same voices).
 
+import type * as NeuralModule from "../voice/neural";
 import { pcm16ToFloat, speechStream } from "./elevenlabs";
 
 /**
@@ -58,9 +59,23 @@ export interface VoiceSettings {
   voiceName: string;
   lang: string;
   volume: number;
-  /** When set, Navi speaks with this ElevenLabs voice (Chrome's voice is the fallback). */
+  /** When set, Navi speaks with this ElevenLabs voice (Navi's own voice, then Chrome's, are the fallbacks). */
   eleven?: { apiKey: string; voiceId: string; model: string };
+  /** When set, Navi's on-device voice (downloaded the first time; Chrome's voice speaks until it's ready). */
+  neural?: { voice: string; engine: "auto" | "kokoro" | "pocket" };
 }
+
+/** Navi's on-device voice for one engine choice, and how its download is going. */
+interface NeuralEntry {
+  choice: string;
+  voice: NeuralModule.NeuralVoice | null;
+  state: "loading" | "ready" | "failed";
+  /** When a failed download may be tried again. */
+  retryAt: number;
+}
+
+/** A failed download of Navi's voice is tried again after this long (or when the setting changes). */
+const NEURAL_RETRY_MS = 10 * 60_000;
 
 export class Speaker implements Voice {
   private speakingUntil = 0;
@@ -69,10 +84,14 @@ export class Speaker implements Voice {
   private abort: AbortController | null = null;
   private sources: AudioBufferSourceNode[] = [];
 
+  private neural: NeuralEntry | null = null;
+
   constructor(
     private readonly getVoice: () => VoiceSettings,
-    /** Told when ElevenLabs fails and Chrome's voice is used instead. */
-    private readonly onFallback?: (message: string) => void,
+    /** Told when ElevenLabs or Navi's own voice fails, and which voice speaks instead. */
+    private readonly onFallback?: (message: string, instead: "Navi's voice" | "Chrome's voice") => void,
+    /** Told about Navi's own voice: its one-time download, when it's ready, and if the download failed. */
+    private readonly onNote?: (message: string) => void,
   ) {}
 
   /** True while speaking and briefly after, so the mic doesn't hear Navi's own voice as a command. */
@@ -86,6 +105,9 @@ export class Speaker implements Voice {
   /** Called when audio actually starts playing (used by the voice lab to time voices). */
   onAudioStart?: () => void;
 
+  /** The voice of the last reply, e.g. "Kokoro (on-device)", so people can see what's in use. */
+  lastVoice = "";
+
   async say(text: string): Promise<void> {
     const clean = text.replace(/[*_`#>]/g, "").trim();
     if (!clean || this.muted) return;
@@ -97,13 +119,24 @@ export class Speaker implements Voice {
       if (voice.eleven) {
         const played = await this.sayEleven(clean, voice, voice.eleven, id).catch((err: unknown) => {
           if (id === this.utterance && !(err instanceof DOMException && err.name === "AbortError")) {
-            this.onFallback?.(err instanceof Error ? err.message : String(err));
+            const instead = voice.neural && this.neural?.state === "ready" ? "Navi's voice" : "Chrome's voice";
+            this.onFallback?.(err instanceof Error ? err.message : String(err), instead);
           }
           return false;
         });
-        // Fall back to Chrome's voice only if nothing was heard yet.
+        // Fall back to another voice only if nothing was heard yet.
+        if (played) this.lastVoice = "ElevenLabs";
         if (played || id !== this.utterance) return;
       }
+      if (voice.neural) {
+        const played = await this.sayNeural(clean, voice, voice.neural).catch((err: unknown) => {
+          if (id === this.utterance) this.onFallback?.(`Navi's voice: ${err instanceof Error ? err.message : String(err)}`, "Chrome's voice");
+          return false;
+        });
+        if (played) this.lastVoice = `${this.neural?.voice?.engine === "pocket" ? "Pocket TTS" : "Kokoro"} (on-device)`;
+        if (played || id !== this.utterance) return;
+      }
+      if (id === this.utterance) this.lastVoice = "System voice";
       await this.sayChrome(clean, voice, id);
     } finally {
       // A newer utterance may have started; only the latest one controls the flag.
@@ -176,6 +209,71 @@ export class Speaker implements Voice {
       });
     });
     return true;
+  }
+
+  /**
+   * Speaks with Navi's on-device voice once it's loaded. The first time, this starts the download and
+   * returns false, so Chrome's voice answers meanwhile.
+   */
+  private async sayNeural(text: string, voice: VoiceSettings, neural: NonNullable<VoiceSettings["neural"]>): Promise<boolean> {
+    const entry = this.neuralVoice(neural.engine);
+    if (entry.state !== "ready" || !entry.voice) return false;
+    const abort = new AbortController();
+    this.abort = abort;
+    return entry.voice.speak({ text, voice: neural.voice, volume: voice.volume, signal: abort.signal });
+  }
+
+  /** Navi's on-device voice for this engine choice, starting its load (and first download) if needed. */
+  private neuralVoice(choice: string): NeuralEntry {
+    const current = this.neural;
+    if (current && current.choice === choice && (current.state !== "failed" || Date.now() < current.retryAt)) return current;
+    const entry: NeuralEntry = { choice, voice: null, state: "loading", retryAt: 0 };
+    this.neural = entry;
+    void this.loadNeural(entry);
+    return entry;
+  }
+
+  /** Downloads (the first time) and loads Navi's voice now, e.g. from a "Download" button. */
+  prepareVoice(engine: "auto" | "kokoro" | "pocket"): Promise<void> {
+    if (this.neural?.state === "failed") this.neural = null;
+    const entry = this.neuralVoice(engine);
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (entry.state === "ready") resolve();
+        else if (entry.state === "failed") reject(new Error("Navi's voice couldn't be loaded."));
+        else window.setTimeout(check, 250);
+      };
+      check();
+    });
+  }
+
+  /** Loads Navi's voice (a separate module, so its libraries load only here), noting a slow first download. */
+  private async loadNeural(entry: NeuralEntry) {
+    let noted = false;
+    const timer = window.setTimeout(() => {
+      noted = true;
+      const size = entry.voice ? `, about ${entry.voice.downloadMb} MB` : "";
+      this.onNote?.(`Downloading Navi's voice (once${size}). Chrome's voice speaks until it's ready.`);
+    }, 1500);
+    try {
+      const neural = (await import(chrome.runtime.getURL("voice/neural.js"))) as typeof NeuralModule;
+      const gpu = await neural.hasWebGpu();
+      const engine = entry.choice === "auto" ? neural.pickEngine(gpu) : (entry.choice as NeuralModule.NeuralEngineId);
+      entry.voice = neural.createNeuralVoice(engine, gpu);
+      await entry.voice.load(() => undefined);
+      entry.state = "ready";
+      if (noted) this.onNote?.("Navi's voice is ready.");
+    } catch (err) {
+      entry.state = "failed";
+      entry.retryAt = Date.now() + NEURAL_RETRY_MS;
+      // A notice, not an error: the reply is still spoken, and the download is tried again later.
+      if (this.neural === entry) {
+        const why = err instanceof Error ? err.message : String(err);
+        this.onNote?.(`Couldn't download Navi's voice (${why}), so Chrome's voice speaks for now. Navi tries again later.`);
+      }
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
 
   private async sayChrome(text: string, voice: VoiceSettings, id: number): Promise<void> {

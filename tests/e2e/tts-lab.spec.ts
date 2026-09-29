@@ -9,6 +9,8 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { KOKORO, KOKORO_STAND_INS } from "./fake-models";
+
 const DIST = path.resolve("dist");
 const MODELS = path.resolve("tests/fixtures/tts");
 const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
@@ -72,41 +74,14 @@ async function watchedPage(context: BrowserContext, problems: string[]): Promise
 }
 
 const HF = "https://huggingface.co/";
-const KOKORO = `${HF}onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/`;
 const POCKET = `${HF}vlapky/pocket-tts-onnx/resolve/main/onnx/english_2026-04/`;
 const PIPER = `${HF}diffusionstudio/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium`;
 
 const model = (name: string) => readFile(path.join(MODELS, name));
 
-/** Kokoro-style tokenizer: one token per character, wrapped in "$". */
-function kokoroTokenizer() {
-  const vocab: Record<string, number> = { $: 0 };
-  for (const ch of " .,!?abcdefghijklmnopqrstuvwxyzæðŋɑɔəɛɪʃʊʌʒˈˌː") vocab[ch] = Object.keys(vocab).length;
-  const $ = { SpecialToken: { id: "$", type_id: 0 } };
-  return {
-    version: "1.0",
-    added_tokens: [{ id: 0, content: "$", single_word: false, lstrip: false, rstrip: false, normalized: false, special: true }],
-    normalizer: null,
-    pre_tokenizer: { type: "Split", pattern: { Regex: "" }, behavior: "Isolated", invert: false },
-    post_processor: {
-      type: "TemplateProcessing",
-      single: [$, { Sequence: { id: "A", type_id: 0 } }, $],
-      pair: [],
-      special_tokens: { $: { id: "$", ids: [0], tokens: ["$"] } },
-    },
-    decoder: null,
-    model: { vocab },
-  };
-}
-
 /** Stand-ins for the files each engine downloads from Hugging Face. */
 const STAND_INS: Record<string, () => Promise<Buffer> | Buffer | string> = {
-  [`${KOKORO}config.json`]: () => JSON.stringify({ model_type: "style_text_to_speech_2" }),
-  [`${KOKORO}tokenizer.json`]: () => JSON.stringify(kokoroTokenizer()),
-  [`${KOKORO}tokenizer_config.json`]: () => JSON.stringify({ model_max_length: 512, unk_token: "$", pad_token: "$" }),
-  [`${KOKORO}onnx/model_quantized.onnx`]: () => model("kokoro-tone.onnx"),
-  // One 256-value style vector per input length.
-  [`${KOKORO}voices/af_heart.bin`]: () => Buffer.alloc(510 * 256 * 4),
+  ...KOKORO_STAND_INS,
   [`${PIPER}.onnx.json`]: () =>
     JSON.stringify({
       audio: { sample_rate: 22050 },

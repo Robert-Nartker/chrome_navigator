@@ -68,6 +68,8 @@ const test = base.extend<Fixtures>({
       args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...media],
     });
     if (fakeSpeech) await context.addInitScript(installFakeRecognizer, "available");
+    // Navi's on-device voice downloads its model from Hugging Face; tests never do.
+    await context.route("https://huggingface.co/**", (route) => route.abort());
     await use(context);
     await context.close();
   },

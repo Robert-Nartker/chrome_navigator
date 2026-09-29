@@ -10,6 +10,8 @@ import type { KokoroDevice } from "./kokoro";
 import type { KokoroReply, KokoroRequest } from "./kokoro-worker";
 import type { TtsSession } from "./piper";
 
+export { KOKORO_VOICES } from "./kokoro-voices";
+
 export type EngineId = "system" | "kokoro" | "pocket" | "piper" | "eleven";
 
 export interface LabVoice {
@@ -66,21 +68,6 @@ export interface Engine {
   speak(voice: LabVoice, o: SpeakOptions): Promise<RunStats>;
   stop(): void;
 }
-
-export const KOKORO_VOICES: LabVoice[] = [
-  ["af_heart", "Heart", "US English · female · rated A by Kokoro's authors"],
-  ["af_bella", "Bella", "US English · female · rated A-"],
-  ["af_nicole", "Nicole", "US English · female, soft · rated B-"],
-  ["bf_emma", "Emma", "British English · female · rated B-"],
-  ["af_sarah", "Sarah", "US English · female · rated C+"],
-  ["af_aoede", "Aoede", "US English · female · rated C+"],
-  ["af_kore", "Kore", "US English · female · rated C+"],
-  ["af_sky", "Sky", "US English · female · rated C-"],
-  ["bf_isabella", "Isabella", "British English · female · rated C"],
-  ["am_michael", "Michael", "US English · male · rated C+"],
-  ["am_fenrir", "Fenrir", "US English · male · rated C+"],
-  ["bm_george", "George", "British English · male · rated C"],
-].map(([id, name, detail]) => ({ key: `kokoro:${id}`, engine: "kokoro", id, name, detail }));
 
 export const PIPER_VOICES: LabVoice[] = [
   ["en_US-hfc_female-medium", "HFC female", "US English · female"],

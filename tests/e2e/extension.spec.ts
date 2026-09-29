@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { KOKORO, KOKORO_STAND_INS } from "./fake-models";
 import { installFakeRecognizer } from "./fake-speech";
 
 const DIST = path.resolve("dist");
@@ -149,6 +150,8 @@ const test = base.extend<Fixtures>({
     });
     if (fakeNano) await context.addInitScript(installFakeNano);
     if (fakeSpeech) await context.addInitScript(installFakeRecognizer, fakeSpeech);
+    // Navi's on-device voice downloads its model from Hugging Face; tests never do (voice tests serve stand-ins).
+    await context.route("https://huggingface.co/**", (route) => route.abort());
     await use(context);
     await context.close();
   },
@@ -1235,6 +1238,21 @@ test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch
     .toContain("Navi Test Page");
 });
 
+/**
+ * Opens the panel, then saves settings. Routes only reliably apply to pages opened after they're
+ * registered, so the panel (which opens Navi's background page, where the mic and ElevenLabs run)
+ * opens only once the test's routes are set.
+ */
+async function openPanel(context: BrowserContext, extensionId: string, site: Page, settings: Record<string, unknown>) {
+  for (const p of context.pages()) if (p.url().includes("setup.html")) await p.close();
+  await site.bringToFront();
+  const panel = await context.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+  await panel.waitForFunction(() => "navi" in window);
+  await panel.evaluate((s) => chrome.storage.local.set({ settings: s }), settings);
+  return panel;
+}
+
 test.describe("ElevenLabs speech", () => {
   test.use({ fakeMic: true, fakeSpeech: "available" });
 
@@ -1250,21 +1268,6 @@ test.describe("ElevenLabs speech", () => {
       session: { current: string };
     };
   };
-
-  /**
-   * Opens the panel, then saves settings. Routes only reliably apply to pages opened after they're
-   * registered, so the panel (which opens Navi's background page, where the mic and ElevenLabs run)
-   * opens only once the test's routes are set.
-   */
-  async function openPanel(context: BrowserContext, extensionId: string, site: Page, settings: Record<string, unknown>) {
-    for (const p of context.pages()) if (p.url().includes("setup.html")) await p.close();
-    await site.bringToFront();
-    const panel = await context.newPage();
-    await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
-    await panel.waitForFunction(() => "navi" in window);
-    await panel.evaluate((s) => chrome.storage.local.set({ settings: s }), settings);
-    return panel;
-  }
 
   /** 0.4 s of a quiet 440 Hz tone as 24 kHz 16-bit PCM, like ElevenLabs' pcm_24000 stream. */
   function tonePcm(): Buffer {
@@ -1433,5 +1436,55 @@ test.describe("On-device speech download", () => {
     await expect
       .poll(() => ears!.evaluate(() => (window as unknown as { __recognition?: { processLocally: boolean } }).__recognition?.processLocally))
       .toBe(true);
+  });
+});
+
+test.describe("Navi's on-device voice", () => {
+  test.use({ fakeMic: true, fakeSpeech: "available" });
+  type Listen = { navi: { startListening(): Promise<void> } };
+
+  /** Serves the Kokoro stand-ins from "Hugging Face" (or fails every download) and returns the URLs asked for. */
+  async function huggingFace(context: BrowserContext, serve: boolean): Promise<string[]> {
+    const requested: string[] = [];
+    await context.route("https://huggingface.co/**", async (route) => {
+      const url = route.request().url();
+      requested.push(url);
+      const file = serve ? KOKORO_STAND_INS[url] : undefined;
+      return file ? route.fulfill({ status: 200, body: await file() }) : route.fulfill({ status: 404, body: "Entry not found" });
+    });
+    return requested;
+  }
+
+  test("replies use Kokoro once it's downloaded; the system voice speaks meanwhile", async ({ context, extensionId, site }) => {
+    const requested = await huggingFace(context, true);
+    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi", naviVoiceEngine: "kokoro" });
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    await run(panel, "what time is it");
+    const label = panel.locator("#engine-label");
+    await expect(label).toContainText("Hears: Chrome (on-device)");
+    await expect
+      .poll(
+        async () => {
+          await run(panel, "what time is it");
+          return label.textContent();
+        },
+        { timeout: 30_000 },
+      )
+      .toContain("Speaks: Kokoro (on-device)");
+    // No graphics chip here, so Kokoro runs on the CPU with its 8-bit model.
+    expect(requested).toContain(`${KOKORO}onnx/model_quantized.onnx`);
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
+  });
+
+  test("if the voice can't download, the system voice speaks and the log says why", async ({ context, extensionId, site }) => {
+    await huggingFace(context, false);
+    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi", naviVoiceEngine: "kokoro" });
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    await run(panel, "what time is it");
+    const note = panel.locator("#log li").filter({ hasText: "Couldn't download Navi's voice" }).last();
+    await expect(note).toContainText("Chrome's voice speaks for now", { timeout: 20_000 });
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
+    await run(panel, "what time is it");
+    await expect(panel.locator("#engine-label")).toContainText("Speaks: System voice");
   });
 });

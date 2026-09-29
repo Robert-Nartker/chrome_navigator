@@ -51,8 +51,15 @@ export interface Settings {
   elevenLabsKey: string;
   /** Who transcribes commands while Navi is awake. ElevenLabs is used only when a key is set. */
   speechInput: SpeechProvider;
-  /** Who speaks Navi's replies. ElevenLabs is used only when a key is set. */
-  speechOutput: SpeechProvider;
+  /**
+   * Who speaks Navi's replies: ElevenLabs (when a key is set; otherwise Navi's on-device voice), Navi's
+   * on-device voice, or the computer's system voices.
+   */
+  speechOutput: VoiceOutput;
+  /** Navi's on-device voice: a Kokoro voice ("af_heart"; Pocket TTS has its own). */
+  naviVoice: string;
+  /** Which model runs it. "auto": Kokoro with a graphics chip (WebGPU), Pocket TTS on the CPU otherwise. */
+  naviVoiceEngine: "auto" | "kokoro" | "pocket";
   elevenVoiceId: string;
   elevenModel: string;
   /** Ignore nearby conversations and background audio (ElevenLabs speech-to-text). */
@@ -60,6 +67,7 @@ export interface Settings {
 }
 
 export type SpeechProvider = "elevenlabs" | "chrome";
+export type VoiceOutput = "elevenlabs" | "navi" | "chrome";
 
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
@@ -85,6 +93,8 @@ export const DEFAULT_SETTINGS: Settings = {
   elevenLabsKey: "",
   speechInput: "elevenlabs",
   speechOutput: "elevenlabs",
+  naviVoice: "af_heart",
+  naviVoiceEngine: "auto",
   elevenVoiceId: DEFAULT_VOICE_ID,
   elevenModel: "eleven_flash_v2_5",
   filterBackgroundAudio: true,
@@ -134,6 +144,11 @@ export function usesElevenInput(s: Settings): boolean {
 /** True when Navi should speak with ElevenLabs. */
 export function usesElevenOutput(s: Settings): boolean {
   return !!s.elevenLabsKey && s.speechOutput === "elevenlabs";
+}
+
+/** Navi's on-device voice, unless system voices were chosen (it also stands in when ElevenLabs fails). */
+export function naviVoiceOf(s: Settings): { voice: string; engine: Settings["naviVoiceEngine"] } | undefined {
+  return s.speechOutput === "chrome" ? undefined : { voice: s.naviVoice, engine: s.naviVoiceEngine };
 }
 
 /** Defaults for anything missing, and renames from older versions. */

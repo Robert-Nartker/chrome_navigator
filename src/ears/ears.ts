@@ -6,7 +6,7 @@
 import type { EarsState, LogKind } from "../lib/messages";
 import { ScribeEngine } from "../lib/scribe";
 import { WakeSession } from "../lib/session";
-import { DEFAULT_SETTINGS, type Settings, usesElevenInput, usesElevenOutput } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, naviVoiceOf, usesElevenInput, usesElevenOutput } from "../lib/settings";
 import { type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 
@@ -62,11 +62,13 @@ export class Ears {
         eleven: usesElevenOutput(this.settings)
           ? { apiKey: this.settings.elevenLabsKey, voiceId: this.settings.elevenVoiceId, model: this.settings.elevenModel }
           : undefined,
+        neural: naviVoiceOf(this.settings),
       }),
-      (message) => {
-        if (message !== this.lastVoiceError) this.out.log("error", `Voice: ${message} Using Chrome's voice.`);
+      (message, instead) => {
+        if (message !== this.lastVoiceError) this.out.log("error", `Voice: ${message} Using ${instead}.`);
         this.lastVoiceError = message;
       },
+      (note) => this.out.log("info", note),
     );
     setInterval(() => this.tick(), 1000);
   }
@@ -206,6 +208,7 @@ export class Ears {
       awake: this.listening && this.session.current === "awake",
       micError: this.micError,
       engineLabel: this.listening ? eleven || this.chromeLabel : "",
+      voiceLabel: this.speaker.lastVoice,
       remainingMs: this.listening && this.settings.listenMode === "handsfree" ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
       dictating: this.dictating,
