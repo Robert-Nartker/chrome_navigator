@@ -19,6 +19,7 @@ const staticFiles = [
   ["src/options/index.html", "options.html"],
   ["src/offscreen/index.html", "offscreen.html"],
   ["src/tts-lab/index.html", "tts-lab.html"],
+  ["src/asr-lab/index.html", "asr-lab.html"],
   ["src/shared.css", "shared.css"],
   ["src/icons", "icons"],
 ];
@@ -28,6 +29,15 @@ const staticFiles = [
 const vendorFiles = [
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.wasm", "vendor/transformers/ort-wasm-simd-threaded.jsep.wasm"],
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.mjs", "vendor/transformers/ort-wasm-simd-threaded.jsep.mjs"],
+  // Parakeet's runtime (parakeet.js on ONNX Runtime 1.24), for the speech recognizer tester.
+  ...["asyncify", "jsep"].flatMap((build) =>
+    ["mjs", "wasm"].map((ext) => [
+      `node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.${build}.${ext}`,
+      `vendor/ort-1.24/ort-wasm-simd-threaded.${build}.${ext}`,
+    ]),
+  ),
+  ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs", "vendor/ort-1.24/ort-wasm-simd-threaded.mjs"],
+  ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "vendor/ort-1.24/ort-wasm-simd-threaded.wasm"],
 ];
 
 export async function copyStatic(outdir) {
@@ -65,6 +75,9 @@ export function labEsbuildOptions({ outdir, dev = false }) {
     entryPoints: {
       "tts-lab": "src/tts-lab/main.ts",
       "lab/kokoro-worker": "src/tts-lab/kokoro-worker.ts",
+      // The speech recognizer tester, and the worker that runs each model.
+      "asr-lab": "src/asr-lab/main.ts",
+      "lab/asr-worker": "src/asr-lab/worker.ts",
       // Navi's on-device voice, which its background page imports when it first speaks.
       "voice/neural": "src/voice/neural.ts",
     },

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Try speech recognizers · Navi</title>
+    <link rel="stylesheet" href="shared.css" />
+    <style>
+      main { display: grid; gap: 16px; }
+      #models { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+      button.model { display: grid; gap: 2px; text-align: left; padding: 10px 12px; margin: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); color: var(--text); cursor: pointer; }
+      button.model[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+      button.model .name { font-weight: 600; }
+      button.model .note, button.model .status { font-size: 12px; color: var(--muted); }
+      button.model[data-state="ready"] .status { color: var(--good); }
+      button.model[data-state="error"] .status { color: var(--warn); }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .meter { flex: 1; min-width: 120px; height: 6px; border-radius: 3px; background: var(--surface); overflow: hidden; }
+      .meter div { height: 100%; width: 0; background: var(--accent); }
+      .live { min-height: 3.2em; padding: 12px 14px; border-radius: 8px; background: var(--surface); font-size: 20px; line-height: 1.4; }
+      .live-label { font-size: 12px; color: var(--muted); }
+      #rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      .row { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+      .result { display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; align-items: baseline; }
+      .result .who { font-size: 12px; color: var(--muted); }
+      .result .time { font: 12px var(--mono); color: var(--muted); }
+    </style>
+  </head>
+  <body class="page">
+    <header class="page-header">
+      <img src="icons/icon48.png" width="28" height="28" alt="" />
+      <div>
+        <h1>Try speech recognizers</h1>
+        <p class="lead">Pick a model, talk, and watch what it hears. Switch models any time, even mid-sentence. Everything runs on this computer.</p>
+      </div>
+    </header>
+    <main>
+      <p id="hardware" class="hint"></p>
+      <div id="models" role="group" aria-label="Models"></div>
+      <div class="controls">
+        <button id="mic" class="primary" aria-pressed="false">Start listening</button>
+        <div class="meter" aria-hidden="true"><div id="level"></div></div>
+        <label class="check"><input id="compare" type="checkbox" /> Compare: every loaded model transcribes each phrase</label>
+      </div>
+      <div>
+        <p class="live-label">Hearing now · <span id="live-model"></span></p>
+        <p id="live" class="live" aria-live="polite"></p>
+      </div>
+      <p id="empty" class="hint">Finished phrases show up here, newest first.</p>
+      <ol id="rows"></ol>
+      <p class="hint">The first click on a model downloads it once from Hugging Face; after that it loads from the browser. Parakeet and Whisper re-read your phrase as you talk, so their live text can change until you pause.</p>
+    </main>
+    <script type="module" src="asr-lab.js"></script>
+  </body>
+</html>

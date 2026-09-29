@@ -29,7 +29,13 @@ const test = base.extend<Fixtures>({
     const context = await chromium.launchPersistentContext(userDataDir, {
       executablePath: CHROMIUM,
       headless: true,
-      args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+      // A fake microphone, allowed without a prompt, for the speech recognizer tester.
+      args: [
+        `--disable-extensions-except=${DIST}`,
+        `--load-extension=${DIST}`,
+        "--use-fake-device-for-media-stream",
+        "--use-fake-ui-for-media-stream",
+      ],
     });
     await use(context);
     await context.close();
@@ -265,4 +271,30 @@ test("ratings are saved, blind mode hides names and shuffles, and favorites are 
   // Ratings survive a reload.
   await lab.goto(`chrome-extension://${extensionId}/tts-lab.html`);
   await expect(lab.getByLabel("Rating for Nicole (Kokoro)")).toHaveValue(first === "Nicole (Kokoro)" ? "4" : "3");
+});
+
+test("speech recognizer tester: loads cleanly, listens, and explains a failed model download", async ({
+  context,
+  extensionId,
+  problems,
+}) => {
+  const blocked = await blockHuggingFace(context);
+  const page = await watchedPage(context, problems);
+  await page.goto(`chrome-extension://${extensionId}/asr-lab.html`);
+  await expect(page.locator("button.model")).toHaveCount(5);
+  // Headless Chromium has no graphics chip for WebGPU.
+  await expect(page.locator("#hardware")).toContainText("run on the processor");
+  await page.getByRole("button", { name: "Start listening" }).click();
+  await expect(page.locator("#mic")).toHaveText("Stop listening");
+
+  const model = (name: string) => page.locator("button.model").filter({ hasText: name });
+  for (const name of ["Whisper small.en", "Parakeet v3"]) {
+    await model(name).click();
+    await expect(model(name)).toHaveAttribute("aria-pressed", "true");
+    await expect(model(name).locator(".status")).toContainText("Couldn't load", { timeout: 30_000 });
+  }
+  // Each model's worker and runtime loaded, and went to Hugging Face for its files.
+  expect(blocked.some((url) => url.includes("whisper-small.en"))).toBe(true);
+  expect(blocked.some((url) => /parakeet/i.test(url))).toBe(true);
+  expect(problems).toEqual([]);
 });
