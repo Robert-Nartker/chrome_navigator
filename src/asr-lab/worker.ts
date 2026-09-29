@@ -41,9 +41,8 @@ async function loadWhisper(model: string, device: "webgpu" | "wasm", vendor: str
   const onProgress = (p: { status: string; file?: string; loaded?: number; total?: number }) => {
     if (p.status === "progress" && p.file) update(p.file, p.loaded ?? 0, p.total ?? 0);
   };
-  // Full-precision encoder and 4-bit decoder on the GPU (what transformers.js' WebGPU demos use); 8-bit on the CPU.
-  const tries: unknown[] =
-    device === "webgpu" ? [{ encoder_model: "fp32", decoder_model_merged: "q4" }, "fp32"] : ["q8", "fp32"];
+  // Full precision on the GPU (a 4-bit decoder costs small Whisper models real accuracy); 8-bit on the CPU.
+  const tries: unknown[] = device === "webgpu" ? ["fp32"] : ["q8", "fp32"];
   let lastError: unknown;
   for (const dtype of tries) {
     try {
@@ -56,7 +55,7 @@ async function loadWhisper(model: string, device: "webgpu" | "wasm", vendor: str
         const out = (await asr(pcm)) as { text: string } | { text: string }[];
         return (Array.isArray(out) ? out[0]?.text : out.text) ?? "";
       };
-      return `${device === "webgpu" ? "graphics chip" : "processor"}, ${typeof dtype === "string" ? dtype : "fp32 + q4"}`;
+      return `${device === "webgpu" ? "graphics chip" : "processor"}, ${dtype}`;
     } catch (err) {
       lastError = err;
     }
@@ -70,8 +69,9 @@ async function loadParakeet(model: string, device: "webgpu" | "wasm", vendor: st
   const { fromHub } = await import("parakeet.js");
   const update = progress();
   const onProgress = (p: { file?: string; loaded?: number; total?: number }) => update(p.file ?? "model", p.loaded ?? 0, p.total ?? 0);
-  // Half-precision encoder on the GPU if the repo has it, else full precision; 8-bit on the CPU.
-  const tries = device === "webgpu" ? ["fp16", "fp32"] : ["int8"];
+  // Full-precision encoder on the GPU, as parakeet.js recommends (its half-precision export can drop
+  // words); 8-bit on the CPU.
+  const tries = device === "webgpu" ? ["fp32"] : ["int8"];
   let lastError: unknown;
   for (const encoderQuant of tries) {
     try {

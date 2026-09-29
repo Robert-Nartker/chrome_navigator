@@ -1,20 +1,40 @@
 // Speech recognizer tester: pick a model, talk, and watch it transcribe live; switch models while talking.
 // "Compare" runs every loaded model on each finished phrase, so they're judged on the same audio.
 
+import type { QwenFilesRequest } from "./qwen-files";
 import type { AsrEngine, AsrReply, AsrRequest } from "./worker";
 
 interface Model {
   id: string;
   name: string;
   note: string;
-  engine: AsrEngine | "chrome";
+  engine: AsrEngine | "chrome" | "qwen";
   repo?: string;
+  qwen?: QwenFilesRequest;
   /** Rough one-time download, for the chip. */
   size: string;
 }
 
+const HF = "https://huggingface.co";
 const MODELS: Model[] = [
   { id: "chrome", name: "Chrome on-device", note: "What Navi uses today", engine: "chrome", size: "built in" },
+  {
+    id: "qwen-1.7b",
+    name: "Qwen3-ASR 1.7B",
+    note: "Alibaba · graphics chip only",
+    engine: "qwen",
+    qwen: { dir: "1.7b", base: `${HF}/ainoya/qwen3-asr-1.7b-q8-packed/resolve/main`, packed: "qwen-asr-q8.bin" },
+    size: "2.2 GB",
+  },
+  {
+    id: "qwen-0.6b",
+    name: "Qwen3-ASR 0.6B",
+    note: "Alibaba · graphics chip only",
+    engine: "qwen",
+    // Only published at full precision, so it's packed to 8 bits on the way in.
+    qwen: { dir: "0.6b", base: `${HF}/Qwen/Qwen3-ASR-0.6B/resolve/main` },
+    size: "~1.9 GB download, 0.9 GB kept",
+  },
   { id: "parakeet-v3", name: "Parakeet v3", note: "NVIDIA · 25 languages", engine: "parakeet", repo: "parakeet-tdt-0.6b-v3", size: "0.7–2.4 GB" },
   { id: "parakeet-v2", name: "Parakeet v2", note: "NVIDIA · English", engine: "parakeet", repo: "parakeet-tdt-0.6b-v2", size: "0.7–2.4 GB" },
   { id: "whisper-small", name: "Whisper small.en", note: "OpenAI · English", engine: "whisper", repo: "Xenova/whisper-small.en", size: "0.3–1 GB" },
@@ -22,12 +42,12 @@ const MODELS: Model[] = [
 ];
 
 type State = "idle" | "loading" | "ready" | "error";
+type Heard = { text: string; ms: number } | null;
 interface Loaded {
-  worker: Worker;
   state: State;
   status: string;
   busy: boolean;
-  pending: Map<number, (r: { text: string; ms: number } | null) => void>;
+  run: (pcm: Float32Array) => Promise<Heard>;
 }
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -64,10 +84,34 @@ function renderChips() {
 function load(m: Model): Loaded {
   const existing = loaded.get(m.id);
   if (existing && existing.state !== "error") return existing;
-  existing?.worker.terminate();
-  const worker = new Worker(chrome.runtime.getURL("lab/asr-worker.js"), { type: "module" });
-  const entry: Loaded = { worker, state: "loading", status: "Starting…", busy: false, pending: new Map() };
+  const entry = m.engine === "qwen" ? loadQwenModel(m) : loadInWorker(m);
   loaded.set(m.id, entry);
+  renderChips();
+  return entry;
+}
+
+/** Whisper and Parakeet each run in their own worker. */
+function loadInWorker(m: Model): Loaded {
+  const worker = new Worker(chrome.runtime.getURL("lab/asr-worker.js"), { type: "module" });
+  const pending = new Map<number, (r: Heard) => void>();
+  const entry: Loaded = {
+    state: "loading",
+    status: "Starting…",
+    busy: false,
+    run: (pcm) =>
+      new Promise((resolve) => {
+        const id = ++nextId;
+        pending.set(id, resolve);
+        worker.postMessage({ type: "transcribe", id, pcm } satisfies AsrRequest);
+      }),
+  };
+  const stop = (status: string) => {
+    entry.state = "error";
+    entry.status = status;
+    worker.terminate();
+    for (const resolve of pending.values()) resolve(null);
+    pending.clear();
+  };
   worker.onmessage = ({ data }: MessageEvent<AsrReply>) => {
     if (data.type === "progress") {
       entry.status = data.total ? `Downloading ${mb(data.loaded)} of ${mb(data.total)}` : "Downloading…";
@@ -75,27 +119,54 @@ function load(m: Model): Loaded {
       entry.state = "ready";
       entry.status = `Ready in ${(data.ms / 1000).toFixed(1)} s (${data.detail})`;
     } else if (data.type === "text") {
-      entry.pending.get(data.id)?.({ text: data.text, ms: data.ms });
-      entry.pending.delete(data.id);
+      pending.get(data.id)?.({ text: data.text, ms: data.ms });
+      pending.delete(data.id);
     } else if (data.id !== undefined) {
-      entry.pending.get(data.id)?.(null);
-      entry.pending.delete(data.id);
+      pending.get(data.id)?.(null);
+      pending.delete(data.id);
       entry.status = `Couldn't transcribe: ${data.message}`;
     } else {
-      entry.state = "error";
-      entry.status = `Couldn't load: ${data.message}. Click to retry.`;
+      stop(`Couldn't load: ${data.message}. Click to retry.`);
     }
     renderChips();
   };
   worker.onerror = (e) => {
     e.preventDefault();
-    entry.state = "error";
-    entry.status = `The model stopped: ${e.message || "out of memory?"}. Click to retry.`;
+    stop(`The model stopped: ${e.message || "out of memory?"}. Click to retry.`);
     renderChips();
   };
   const request: AsrRequest = { type: "load", engine: m.engine as AsrEngine, model: m.repo!, device, vendor: chrome.runtime.getURL("vendor/") };
   worker.postMessage(request);
-  renderChips();
+  return entry;
+}
+
+/** Qwen3-ASR runs on this page (its engine needs the page's thread for the graphics chip). */
+function loadQwenModel(m: Model): Loaded {
+  const entry: Loaded = { state: "loading", status: "Starting…", busy: false, run: async () => null };
+  const start = performance.now();
+  const onStatus = (s: string) => {
+    entry.status = s;
+    renderChips();
+  };
+  void import("./qwen")
+    .then(({ loadQwen }) => loadQwen(m.qwen!, onStatus))
+    .then((model) => {
+      entry.run = async (pcm) => {
+        const t0 = performance.now();
+        try {
+          return { text: (await model.transcribe(pcm)).trim(), ms: performance.now() - t0 };
+        } catch (err) {
+          onStatus(`Couldn't transcribe: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
+        }
+      };
+      entry.state = "ready";
+      onStatus(`Ready in ${((performance.now() - start) / 1000).toFixed(1)} s (${model.detail})`);
+    })
+    .catch((err) => {
+      entry.state = "error";
+      onStatus(`Couldn't load: ${err instanceof Error ? err.message : String(err)}. Click to retry.`);
+    });
   return entry;
 }
 
@@ -109,18 +180,15 @@ async function select(id: string) {
 }
 
 /** Transcribes with one loaded model; null if it's not ready or failed. */
-function transcribe(id: string, pcm: Float32Array): Promise<{ text: string; ms: number } | null> {
+async function transcribe(id: string, pcm: Float32Array): Promise<Heard> {
   const l = loaded.get(id);
-  if (!l || l.state !== "ready") return Promise.resolve(null);
-  const reqId = ++nextId;
+  if (!l || l.state !== "ready") return null;
   l.busy = true;
-  return new Promise((resolve) => {
-    l.pending.set(reqId, (r) => {
-      l.busy = false;
-      resolve(r);
-    });
-    l.worker.postMessage({ type: "transcribe", id: reqId, pcm } satisfies AsrRequest);
-  });
+  try {
+    return await l.run(pcm);
+  } finally {
+    l.busy = false;
+  }
 }
 
 const mb = (bytes: number) => `${Math.round(bytes / 1e6)} MB`;
@@ -216,9 +284,14 @@ let speaking = false;
 let silentMs = 0;
 let noise = 0.005;
 let lastLiveAt = 0;
+/** The last moments before speech starts, so a phrase keeps its first sound. */
+let preroll: Float32Array[] = [];
+const PREROLL_MS = 700;
 
 async function startMic() {
-  stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  // Chrome's noise suppression smears quiet speech, and these models are trained on raw audio; gain
+  // control stays on so a quiet mic still reaches them at a normal level.
+  stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
   ctx = new AudioContext({ sampleRate: RATE });
   const source = ctx.createMediaStreamSource(stream);
   const node = ctx.createScriptProcessor(1024, 1, 1);
@@ -244,21 +317,26 @@ function onAudio(chunk: Float32Array) {
   let sum = 0;
   for (const s of chunk) sum += s * s;
   const rms = Math.sqrt(sum / chunk.length);
-  const loud = rms > Math.max(0.012, noise * 3);
+  const loud = rms > Math.max(0.006, noise * 3);
   if (!loud) noise = noise * 0.95 + rms * 0.05;
   $<HTMLElement>("#level").style.width = `${Math.min(100, rms * 800)}%`;
   const ms = (chunk.length / RATE) * 1000;
   if (loud) {
     if (!speaking) {
       speaking = true;
-      phrase = [];
-      phraseSamples = 0;
+      phrase = preroll;
+      phraseSamples = preroll.reduce((n, c) => n + c.length, 0);
+      preroll = [];
     }
     silentMs = 0;
   } else if (speaking) {
     silentMs += ms;
   }
-  if (!speaking) return;
+  if (!speaking) {
+    preroll.push(chunk);
+    if (preroll.length * ms > PREROLL_MS) preroll.shift();
+    return;
+  }
   phrase.push(chunk);
   phraseSamples += chunk.length;
   if (silentMs > 800 || phraseSamples > RATE * 20) void endPhrase();

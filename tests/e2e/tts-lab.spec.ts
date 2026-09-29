@@ -4,7 +4,7 @@
 // playback, all under the extension's content security policy.
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -281,7 +281,9 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   const blocked = await blockHuggingFace(context);
   const page = await watchedPage(context, problems);
   await page.goto(`chrome-extension://${extensionId}/asr-lab.html`);
-  await expect(page.locator("button.model")).toHaveCount(5);
+  await expect(page.locator("button.model")).toHaveCount(7);
+  // Qwen's engine needs threads that share memory, which only a cross-origin isolated page gets.
+  expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   // Headless Chromium has no graphics chip for WebGPU.
   await expect(page.locator("#hardware")).toContainText("run on the processor");
   await page.getByRole("button", { name: "Start listening" }).click();
@@ -293,8 +295,85 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
     await expect(model(name)).toHaveAttribute("aria-pressed", "true");
     await expect(model(name).locator(".status")).toContainText("Couldn't load", { timeout: 30_000 });
   }
+  // Qwen3-ASR runs only on a graphics chip, and says so.
+  await model("Qwen3-ASR 1.7B").click();
+  await expect(model("Qwen3-ASR 1.7B").locator(".status")).toContainText("needs a graphics chip");
   // Each model's worker and runtime loaded, and went to Hugging Face for its files.
   expect(blocked.some((url) => url.includes("whisper-small.en"))).toBe(true);
   expect(blocked.some((url) => /parakeet/i.test(url))).toBe(true);
+  expect(problems).toEqual([]);
+});
+
+test("Qwen3-ASR: downloads (packing the 0.6B's full-precision weights) into browser storage, and its engine starts", async ({
+  context,
+  extensionId,
+  problems,
+}) => {
+  // Tiny synthetic checkpoints, and what the engine's own C packer makes of them (tests/fixtures/qwen-pack).
+  const fixture = (file: string) => readFileSync(path.resolve("tests/fixtures/qwen-pack", file));
+  const files: Record<string, Buffer> = {
+    "single/model.safetensors": fixture("single/model.safetensors"),
+    "sharded/model-00001-of-00002.safetensors": fixture("sharded/model-00001-of-00002.safetensors"),
+    "sharded/model-00002-of-00002.safetensors": fixture("sharded/model-00002-of-00002.safetensors"),
+    "sharded/model.safetensors.index.json": Buffer.from(
+      JSON.stringify({ weight_map: { a: "model-00002-of-00002.safetensors", b: "model-00001-of-00002.safetensors" } }),
+    ),
+    "packed/qwen-asr-q8.bin": fixture("single/expected.bin"),
+  };
+  await context.route(`${HF}test/**`, (route) => {
+    const [, repo, file] = new URL(route.request().url()).pathname.match(/^\/test\/(\w+)\/resolve\/main\/(.+)$/)!;
+    const body = /^(vocab\.json|merges\.txt)$/.test(file) ? Buffer.from(`${repo} ${file}`) : files[`${repo}/${file}`];
+    return body ? route.fulfill({ body, headers: { "access-control-allow-origin": "*" } }) : route.fulfill({ status: 404 });
+  });
+  const page = await watchedPage(context, problems);
+  await page.goto(`chrome-extension://${extensionId}/asr-lab.html`);
+
+  const prepare = (req: { dir: string; base: string; packed?: string }) =>
+    page.evaluate(
+      (req) =>
+        new Promise<string>((resolve) => {
+          const worker = new Worker("lab/qwen-files.js", { type: "module" });
+          worker.onmessage = ({ data }) => data.type !== "progress" && resolve(data.type === "done" ? "done" : data.message);
+          worker.postMessage(req);
+        }),
+      req,
+    );
+  const stored = (dir: string, name: string) =>
+    page.evaluate(
+      async ([dir, name]) => {
+        const root = await navigator.storage.getDirectory();
+        const folder = await (await root.getDirectoryHandle("qwen-asr")).getDirectoryHandle(dir);
+        return [...new Uint8Array(await (await (await folder.getFileHandle(name)).getFile()).arrayBuffer())];
+      },
+      [dir, name],
+    );
+  const expected = (file: string) => [...fixture(file)];
+
+  for (const repo of ["single", "sharded"]) {
+    expect(await prepare({ dir: repo, base: `${HF}test/${repo}/resolve/main` })).toBe("done");
+    expect(await stored(repo, "model.bin")).toEqual(expected(`${repo}/expected.bin`));
+    expect(Buffer.from(await stored(repo, "vocab.json")).toString()).toBe(`${repo} vocab.json`);
+  }
+  expect(await prepare({ dir: "packed", base: `${HF}test/packed/resolve/main`, packed: "qwen-asr-q8.bin" })).toBe("done");
+  expect(await stored("packed", "model.bin")).toEqual(expected("single/expected.bin"));
+  // A missing model is reported, not stored.
+  expect(await prepare({ dir: "gone", base: `${HF}test/gone/resolve/main`, packed: "qwen-asr-q8.bin" })).toContain("404");
+
+  // The engine (WebAssembly with threads) starts on this page under the extension's policies.
+  const started = await page.evaluate(
+    () =>
+      new Promise<string>((resolve) => {
+        const s = document.createElement("script");
+        s.src = "vendor/qwen-asr/qwen_asr.js";
+        s.onload = async () => {
+          const create = (window as unknown as { createQwenASR: (o: object) => Promise<Record<string, (...a: number[]) => number>> }).createQwenASR;
+          const M = await create({ pthreadPoolSize: 2 });
+          resolve(M._qwen_wasm_alloc(1024) ? `threads: ${M._qwen_wasm_threads()}` : "no memory");
+        };
+        s.onerror = () => resolve("didn't load");
+        document.head.append(s);
+      }),
+  );
+  expect(started).toMatch(/^threads: \d+$/);
   expect(problems).toEqual([]);
 });

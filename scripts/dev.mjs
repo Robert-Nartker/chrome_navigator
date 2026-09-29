@@ -77,8 +77,10 @@ const contexts = await Promise.all([
 
 let building = false;
 let queued = false;
+// While a pull is merging and installing, the files on disk are half old, half new: wait.
+let pulling = false;
 async function rebuild(reason) {
-  if (building) {
+  if (building || pulling) {
     queued = true;
     return;
   }
@@ -98,6 +100,8 @@ async function rebuild(reason) {
     await writeFile(`${outdir}/dev-build.json`, JSON.stringify(state));
     log(`Built #${state.buildId} in ${Date.now() - started} ms (${reason})${full ? ", extension will restart" : ""}`);
     broadcast();
+  } catch (err) {
+    log(`Build failed: ${String(err.message ?? err).split("\n")[0]} (the extension keeps the last good build)`);
   } finally {
     building = false;
     if (queued) {
@@ -144,6 +148,7 @@ async function pull() {
       await git("checkout", "--", ".");
     }
     warnedDirty = false;
+    pulling = true;
     const changed = await git("diff", "--name-only", `HEAD..origin/${branch}`);
     const subjects = await git("log", "--format=  • %s", `HEAD..origin/${branch}`);
     await git("merge", "-q", "--ff-only", `origin/${branch}`);
@@ -156,9 +161,13 @@ async function pull() {
     // This process built its build setup (entry points, copied files) at startup; a new setup needs a fresh start.
     if (/^(scripts\/|package(-lock)?\.json$)/m.test(changed)) return restart("The build setup changed");
     // The file watcher rebuilds automatically; this covers watchers that miss git's writes.
+    pulling = false;
+    queued = false;
     await rebuild("pulled from GitHub");
   } catch (err) {
     log(`Auto-pull skipped: ${String(err.message ?? err).split("\n")[0]}`);
+  } finally {
+    pulling = false;
   }
 }
 

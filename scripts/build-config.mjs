@@ -38,6 +38,10 @@ const vendorFiles = [
   ),
   ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs", "vendor/ort-1.24/ort-wasm-simd-threaded.mjs"],
   ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "vendor/ort-1.24/ort-wasm-simd-threaded.wasm"],
+  // Qwen3-ASR's browser engine (third_party/qwen-asr): the page loads it as a classic script, which
+  // starts its threads from the same file.
+  ["third_party/qwen-asr/qwen_asr.js", "vendor/qwen-asr/qwen_asr.js"],
+  ["third_party/qwen-asr/qwen_asr.wasm", "vendor/qwen-asr/qwen_asr.wasm"],
 ];
 
 export async function copyStatic(outdir) {
@@ -78,6 +82,7 @@ export function labEsbuildOptions({ outdir, dev = false }) {
       // The speech recognizer tester, and the worker that runs each model.
       "asr-lab": "src/asr-lab/main.ts",
       "lab/asr-worker": "src/asr-lab/worker.ts",
+      "lab/qwen-files": "src/asr-lab/qwen-files.ts",
       // Navi's on-device voice, which its background page imports when it first speaks.
       "voice/neural": "src/voice/neural.ts",
     },
