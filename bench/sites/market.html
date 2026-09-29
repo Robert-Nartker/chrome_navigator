@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Buckeye Market</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; }
+  header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .grid { display: grid; grid-template-columns: repeat(4, 200px); gap: 12px; margin-top: 12px; }
+  .card { border: 1px solid #ddd; padding: 10px; border-radius: 8px; }
+  .price { font-weight: 700; }
+  .muted { color: #666; font-size: 13px; }
+  .detail { max-width: 520px; display: grid; gap: 10px; }
+</style></head>
+<body>
+  <header>
+    <strong>Buckeye Market</strong>
+    <form id="search" role="search"><input type="search" name="q" aria-label="Search products" placeholder="Search"> <button>Search</button></form>
+    <a href="#cart" id="cartlink">Cart (<span id="count">0</span>)</a>
+  </header>
+  <main id="main"></main>
+<script>
+  // Harder shopping: ratings and stock matter, variants need choosing, and half the catalog is behind "Load more".
+  const products = [
+    { id: "pixel-buds", name: "Pixel Buds Pro 3", cat: "earbuds", price: 199, rating: 4.6, reviews: 812, stock: true, wireless: true },
+    { id: "soundcore", name: "Soundcore Liberty 5", cat: "earbuds", price: 89, rating: 4.4, reviews: 2210, stock: true, wireless: true },
+    { id: "earpods", name: "Apple EarPods (wired, USB-C)", cat: "earbuds", price: 19, rating: 4.8, reviews: 5130, stock: true, wireless: false },
+    { id: "anker-pb", name: "Anker 10K Power Bank", cat: "power banks", price: 29, rating: 4.5, reviews: 1804, stock: true },
+    { id: "sony-wfc", name: "Sony WF-C700N", cat: "earbuds", price: 98, rating: 4.7, reviews: 640, stock: false, wireless: true },
+    { id: "hoodie", name: "Buckeye Hoodie", cat: "apparel", price: 55, rating: 4.3, reviews: 97, stock: true, variants: true },
+    { id: "baseus-pb", name: "Baseus 20K Power Bank", cat: "power banks", price: 39, rating: 4.4, reviews: 950, stock: true },
+    { id: "jabra", name: "Jabra Elite 5", cat: "earbuds", price: 99, rating: 4.5, reviews: 1320, stock: true, wireless: true },
+    // Page 2
+    { id: "jlab", name: "JLab Go Air Pop 2", cat: "earbuds", price: 29, rating: 4.0, reviews: 3890, stock: true, wireless: true },
+    { id: "iniu-pb", name: "INIU 10K Slim Power Bank", cat: "power banks", price: 19, rating: 4.3, reviews: 4400, stock: true },
+    { id: "tee", name: "Block O T-Shirt", cat: "apparel", price: 25, rating: 4.1, reviews: 230, stock: true, variants: true },
+    { id: "bottle", name: "Stanley Quencher 30oz", cat: "drinkware", price: 35, rating: 4.7, reviews: 12040, stock: true },
+    { id: "usb-c", name: "USB-C Cable 2m", cat: "cables", price: 12, rating: 4.6, reviews: 780, stock: true },
+    { id: "mug", name: "Ohio Stadium Mug", cat: "drinkware", price: 16, rating: 4.2, reviews: 88, stock: true },
+    { id: "lamp", name: "Desk Lamp with USB Port", cat: "home", price: 32, rating: 4.4, reviews: 510, stock: true },
+    { id: "backpack", name: "Buckeye Backpack", cat: "bags", price: 59, rating: 4.5, reviews: 330, stock: true },
+  ];
+  const PAGE = 8;
+  window.__bench = { cart: [], query: "", shown: PAGE, viewing: null };
+  const main = document.getElementById("main");
+  const count = () => (document.getElementById("count").textContent = __bench.cart.reduce((n, l) => n + l.qty, 0));
+  const add = (line) => {
+    const same = __bench.cart.find((l) => l.id === line.id && l.color === line.color && l.size === line.size);
+    if (same) same.qty += line.qty; else __bench.cart.push(line);
+    count();
+  };
+  const stars = (p) => `${p.rating} ★ (${p.reviews.toLocaleString()} reviews)`;
+  function list() {
+    __bench.viewing = null;
+    const q = __bench.query.toLowerCase();
+    const matches = products.filter((p) => !q || `${p.name} ${p.cat}`.toLowerCase().includes(q) || q.split(/\s+/).every((w) => `${p.name} ${p.cat}`.toLowerCase().includes(w.replace(/s$/, ""))));
+    const items = matches.slice(0, __bench.shown);
+    main.innerHTML = `<p class="muted">Showing ${items.length} of ${matches.length} products</p><div class="grid">${items.map((p) => `
+      <div class="card"><a href="#${p.id}" data-open="${p.id}">${p.name}</a>
+        <p class="price">$${p.price}</p><p class="muted">${stars(p)}</p>
+        ${p.variants ? `<button data-open="${p.id}">Choose options</button>`
+          : p.stock ? `<button data-add="${p.id}" aria-label="Add ${p.name} to cart">Add to cart</button>`
+          : `<button disabled aria-label="${p.name} is out of stock">Out of stock</button>`}
+      </div>`).join("")}</div>
+      ${matches.length > items.length ? `<p><button id="more">Load more</button></p>` : ""}`;
+    main.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => add({ id: b.dataset.add, qty: 1 })));
+    main.querySelectorAll("[data-open]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); detail(a.dataset.open); }));
+    const more = document.getElementById("more");
+    if (more) more.onclick = () => { __bench.shown += PAGE; list(); };
+  }
+  function detail(id) {
+    const p = products.find((x) => x.id === id);
+    __bench.viewing = id;
+    main.innerHTML = `<div class="detail"><a href="#" id="back">← All products</a><h1>${p.name}</h1>
+      <p class="price">$${p.price}</p><p class="muted">${stars(p)}</p>
+      ${p.variants ? `
+        <label>Color <select id="color"><option value="">Choose a color</option><option>Scarlet</option><option>Gray</option><option>Black</option></select></label>
+        <fieldset><legend>Size</legend>${["S", "M", "L", "XL"].map((s) => `<label><input type="radio" name="size" value="${s}"> ${s}</label>`).join(" ")}</fieldset>` : ""}
+      <label>Quantity <input id="qty" type="number" min="1" max="9" value="1"></label>
+      <p id="error" role="alert" class="muted"></p>
+      <button id="add" ${p.stock ? "" : "disabled"}>${p.stock ? "Add to cart" : "Out of stock"}</button></div>`;
+    document.getElementById("back").onclick = (e) => { e.preventDefault(); list(); };
+    document.getElementById("add").onclick = () => {
+      const qty = Number(document.getElementById("qty").value) || 1;
+      if (!p.variants) return add({ id, qty });
+      const color = document.getElementById("color").value;
+      const size = main.querySelector("input[name=size]:checked")?.value;
+      if (!color || !size) return (document.getElementById("error").textContent = "Choose a color and a size first.");
+      add({ id, qty, color, size });
+      document.getElementById("error").textContent = `Added ${qty} to your cart.`;
+    };
+  }
+  document.getElementById("search").onsubmit = (e) => { e.preventDefault(); __bench.query = e.target.q.value.trim(); __bench.shown = PAGE; list(); };
+  list();
+</script></body></html>

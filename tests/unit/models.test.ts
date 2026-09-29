@@ -21,12 +21,13 @@ describe("model catalog", () => {
     expect(effortFor("claude-opus-5-5", "none")).toBe("low");
     expect(effortFor("gpt-6-astra", "none")).toBe("low");
     expect(effortFor("gpt-6-luna", "none")).toBe("none");
-    expect(effortFor("gpt-6-sol", "medium")).toBe("medium");
+    expect(effortFor("gpt-6.1-sol", "medium")).toBe("medium");
+    expect(effortFor("gpt-6.1-sol", "none")).toBe("low");
     expect(effortFor("claude-sonnet-5-5", "none")).toBe("none");
   });
 
   it("offers only current-generation models", () => {
-    expect(MODEL_CATALOG.map((m) => m.id)).toEqual(["gpt-6-sol", "gpt-6-luna", "claude-sonnet-5-5", "claude-opus-5-5", "gemini-nano", "gpt-6-astra"]);
+    expect(MODEL_CATALOG.map((m) => m.id)).toEqual(["gpt-6.1-sol", "gpt-6-luna", "claude-sonnet-5-5", "claude-opus-5-5", "gemini-nano", "gpt-6-astra"]);
     // The on-device model is free and never in the model menus (the Free/Pro switch picks it).
     expect(costOf("gemini-nano", { input: 5000, cachedInput: 0, cacheWrite: 0, output: 500 })).toBe(0);
     expect(modelInfo("gemini-nano").roles).toEqual([]);
@@ -62,7 +63,7 @@ describe("which models run", () => {
   };
 
   it("OpenAI key: Luna for quick checks, Sol at low reasoning for tasks", () => {
-    expect(pick({ openaiKey: "oai" })).toEqual({ model: "gpt-6-sol", effort: "low", routerModel: "gpt-6-luna" });
+    expect(pick({ openaiKey: "oai" })).toEqual({ model: "gpt-6.1-sol", effort: "low", routerModel: "gpt-6-luna" });
   });
 
   it("Claude key only: Sonnet 5.5 for both, without thinking for quick checks", () => {
@@ -88,12 +89,14 @@ describe("which models run", () => {
     expect(pick({ openaiKey: "oai", aiMode: "free" })).toEqual(free);
     // Pro without a key isn't possible: it stays Free.
     expect(pick({ aiMode: "pro" })).toEqual(free);
-    expect(pick({ openaiKey: "oai", aiMode: "pro" }).model).toBe("gpt-6-sol");
+    expect(pick({ openaiKey: "oai", aiMode: "pro" }).model).toBe("gpt-6.1-sol");
   });
 
   it("moves saved settings off retired models", () => {
     const s = normalizeSettings({ model: "claude-sonnet-5", routerModel: "claude-haiku-4-5" });
     expect([s.model, s.routerModel]).toEqual(["claude-sonnet-5-5", "claude-sonnet-5-5"]);
+    const g = normalizeSettings({ model: "gpt-6-sol", routerModel: "gpt-6-sol" });
+    expect([g.model, g.routerModel]).toEqual(["gpt-6.1-sol", "gpt-6.1-sol"]);
   });
 });
 

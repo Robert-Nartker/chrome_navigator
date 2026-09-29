@@ -26,13 +26,14 @@ export interface ModelInfo {
 // Current-generation models only. Menus list them in this order (each provider's defaults first).
 export const MODEL_CATALOG: ModelInfo[] = [
   {
-    id: "gpt-6-sol",
-    label: "GPT-6 Sol",
+    id: "gpt-6.1-sol",
+    label: "GPT-6.1 Sol",
     provider: "openai",
     roles: ["agent", "router"],
-    efforts: ["none", "low", "medium", "high"],
-    price: { input: 2, cachedInput: 0.2, cacheWrite: 2, output: 10 },
-    priceNote: "launch coverage (unverified); cached input assumed 10%",
+    // Unlike GPT-6 Sol it can't turn reasoning off; "low" is the least (the API also has xhigh and max).
+    efforts: ["low", "medium", "high"],
+    price: { input: 2, cachedInput: 0.1, cacheWrite: 2, output: 10 },
+    priceNote: "launch coverage (unverified)",
   },
   {
     id: "gpt-6-luna",
@@ -86,12 +87,13 @@ export const MODEL_CATALOG: ModelInfo[] = [
 
 /** What Navi uses with each provider's key: a thinking-off model for quick checks, a low-reasoning one for tasks. */
 export const PROVIDER_DEFAULTS: Record<ApiProvider, { name: string; model: string; effort: Effort; routerModel: string }> = {
-  openai: { name: "OpenAI", model: "gpt-6-sol", effort: "low", routerModel: "gpt-6-luna" },
+  openai: { name: "OpenAI", model: "gpt-6.1-sol", effort: "low", routerModel: "gpt-6-luna" },
   anthropic: { name: "Anthropic", model: "claude-sonnet-5-5", effort: "low", routerModel: "claude-sonnet-5-5" },
 };
 
 /** Models Navi no longer offers, and what replaces them in saved settings. */
 export const RETIRED_MODELS: Record<string, string> = {
+  "gpt-6-sol": "gpt-6.1-sol",
   "claude-sonnet-5": "claude-sonnet-5-5",
   "claude-haiku-4-5": "claude-sonnet-5-5",
 };

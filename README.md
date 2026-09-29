@@ -18,7 +18,7 @@ npm run build          # outputs the extension to dist/
 1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick the `dist/` folder.
 2. A setup tab opens. Click **Allow microphone**. Chrome only lets extensions ask for the mic from a normal tab, so this one-time step is required.
 3. Optional: under **Connect an AI**, pick OpenAI or Anthropic and paste an API key. Navi checks the key and turns on that provider's recommended models:
-   - **OpenAI:** GPT-6 Sol for tasks and GPT-6 Luna for quick checks.
+   - **OpenAI:** GPT-6.1 Sol for tasks and GPT-6 Luna for quick checks.
    - **Anthropic:** Claude Sonnet 5.5 for both.
 
    Built-in commands work without a key.
@@ -138,7 +138,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
   - **Noise or someone else talking:** fails quietly ("tiktok tiktok", a TV in the background).
 
   There's no hardcoded ignore list; noise that gets transcribed as words is a speech-recognition problem to fix at the source. Looser phrasing of built-in commands ("scroll down further", "scrawl down") is still matched locally.
-- **AI path** (`src/lib/agent.ts`): the model gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. The default is GPT-6 Sol at low reasoning with an OpenAI key, or Claude Sonnet 5.5 at low reasoning with a Claude key. Low reasoning keeps thinking short, so actions start quickly. With only one key, Navi uses that provider's defaults. Upgrades are in settings: more reasoning, Claude Opus 5.5 (optional 2x-price fast mode), GPT-6 Astra, or mixing providers when you have both keys.
+- **AI path** (`src/lib/agent.ts`): the model gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. The default is GPT-6.1 Sol at low reasoning with an OpenAI key, or Claude Sonnet 5.5 at low reasoning with a Claude key. Low reasoning keeps thinking short, so actions start quickly. With only one key, Navi uses that provider's defaults. Upgrades are in settings: more reasoning, Claude Opus 5.5 (optional 2x-price fast mode), GPT-6 Astra, or mixing providers when you have both keys.
 
 ## Privacy model
 
@@ -184,7 +184,7 @@ The e2e suite covers clicking by label and by number, badges, scrolling, typing 
 NaviBench compares models on cost, accuracy and speed, and ends with what 20 hours of use would cost. It runs through the real extension in a test browser.
 
 - **Router suite:** `bench/router-cases.json` has 69 labeled phrases, 7 of them follow-ups that need the last command ("again" after "scroll down"). That's 29 loosely worded or misheard commands ("Havi go to sleep", "scroll down a smidge more"), 19 real tasks for the AI, and 14 bits of background chatter to ignore ("mom I'm on a call", song lyrics, YouTuber intros). It scores the route, the exact command, latency, and cost per call.
-- **Agent suite:** `bench/sites/` has small, realistic web apps: an inbox, a shop, a video site, a signup form, and an article containing a prompt-injection line. `bench/tasks.json` has 17 spoken tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must not send without a yes, and the summary must not repeat the injected instruction. By default 8 core tasks run; pass `--tasks all` for all 17.
+- **Agent suite:** `bench/sites/` has small, realistic web apps: an inbox, a shop, a video site, a signup form, an article containing a prompt-injection line, a bigger shop, and an office app with mail, a calendar and settings. `bench/tasks.json` has 23 spoken tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must not send without a yes, and the summary must not repeat the injected instruction. Six of them are harder, multi-step tasks on a bigger shop and an office app (`market.html`, `workspace.html`): the best-rated earbuds that are wireless and in stock, a hoodie in a chosen color, size and quantity, the cheapest item behind "Load more", an email's plan turned into a calendar event, replies to only the emails that asked a question, and one setting inside a collapsed section and a tab. By default 8 core tasks run; pass `--tasks hard` for the six harder ones or `--tasks all` for all 23.
 
 **Setup:** put your keys in a `.env` file in the repo root. It's git-ignored. You only need the providers you want to test:
 
@@ -204,7 +204,7 @@ npm run bench:mock        # checks the harness with fake API replies (free)
 
 **Default models** (any without a key are skipped):
 - Routers (reasoning off): GPT-6 Luna, Claude Sonnet 5.5.
-- Agents: GPT-6 Sol and Claude Sonnet 5.5 at low reasoning (the defaults), Claude Opus 5.5 at low, GPT-6 Luna with reasoning off.
+- Agents: GPT-6.1 Sol and Claude Sonnet 5.5 at low reasoning (the defaults), Claude Opus 5.5 at low, GPT-6 Luna with reasoning off.
 - GPT-6 Astra costs about 5x more than the rest together, so add it on purpose: `--agents gpt-6-astra@low`.
 
 **Options:**

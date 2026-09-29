@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BuckeyeWork</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; display: flex; min-height: 100vh; }
+  aside { width: 170px; background: #f3f4f6; padding: 12px; display: grid; align-content: start; gap: 6px; }
+  main { flex: 1; padding: 12px 16px; }
+  .row { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid #ddd; cursor: pointer; }
+  .row .from { width: 150px; font-weight: 600; }
+  textarea { width: 100%; height: 100px; }
+  .day { border: 1px solid #ddd; padding: 8px; min-height: 60px; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  details { border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+  [role=tab][aria-selected=true] { font-weight: 700; }
+</style></head>
+<body>
+  <aside>
+    <strong>BuckeyeWork</strong>
+    <div role="link" tabindex="0" data-nav="mail">Mail</div>
+    <div role="link" tabindex="0" data-nav="calendar">Calendar</div>
+    <div role="link" tabindex="0" data-nav="settings">Settings</div>
+  </aside>
+  <main id="main"></main>
+<script>
+  // Harder office tasks: carry facts from one view to another, act on several emails, and find nested settings.
+  const emails = [
+    { id: "sarah", from: "Sarah Chen", subject: "Study session", body: "Hey! Can we do the Logistics study session Thursday at 4:30? Library room 2 works for me." },
+    { id: "prof", from: "Prof. Alan Pritchard", subject: "CEA 2 due Friday", body: "Reminder: the case analysis is due Friday at 11:59pm. Office hours are Wednesday." },
+    { id: "mike", from: "Mike Alvarez", subject: "Rides for Saturday", body: "Are you driving to the game Saturday, or should I?" },
+    { id: "club", from: "BDAA", subject: "BDAA weekly newsletter", body: "This week: the ML track kicks off, and research expo sign-ups are open. Questions? Reply to this email." },
+    { id: "honda", from: "Honda Recruiting", subject: "Onboarding documents", body: "Please complete your onboarding documents by October 3." },
+    { id: "promo", from: "Chipotle", subject: "Free guac this week", body: "Show this email for free guac." },
+  ];
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  window.__bench = {
+    opened: [], replies: {}, sent: [], events: [],
+    notify: { email: { comments: true, mentions: true, digest: true }, push: { comments: true, mentions: true, digest: true } },
+  };
+  const main = document.getElementById("main");
+
+  function mail() {
+    main.innerHTML = "<h1>Inbox</h1>" + emails.map((e) =>
+      `<div class="row" data-id="${e.id}"><span class="from">${e.from}</span><span>${e.subject}</span>${__bench.sent.includes(e.id) ? " <em>(replied)</em>" : ""}</div>`).join("");
+    main.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => open(r.dataset.id)));
+  }
+  function open(id) {
+    const e = emails.find((x) => x.id === id);
+    __bench.opened.push(id);
+    main.innerHTML = `<button id="back" aria-label="Back to inbox">←</button>
+      <h1>${e.subject}</h1><p><b>${e.from}</b></p><p>${e.body}</p>
+      <button id="reply">Reply</button>
+      <div id="replybox" hidden><textarea aria-label="Reply to ${e.from}"></textarea><br><button id="send">Send</button></div>`;
+    document.getElementById("back").onclick = mail;
+    document.getElementById("reply").onclick = () => { document.getElementById("replybox").hidden = false; main.querySelector("textarea").focus(); };
+    main.querySelector("textarea").addEventListener("input", (ev) => { __bench.replies[id] = ev.target.value; });
+    document.getElementById("send").onclick = () => { __bench.sent.push(id); main.innerHTML = `<p>Reply to ${e.from} sent.</p><button id="back2">Back to inbox</button>`; document.getElementById("back2").onclick = mail; };
+  }
+
+  function calendar() {
+    main.innerHTML = `<h1>This week</h1><button id="new">New event</button>
+      <form id="form" hidden><p><label>Title <input name="title"></label></p>
+        <p><label>Day <select name="day"><option value="">Choose a day</option>${DAYS.map((d) => `<option>${d}</option>`).join("")}</select></label>
+        <label>Start time <input type="time" name="time"></label></p>
+        <p><label>Location <input name="where"></label></p><button>Save event</button></form>
+      <div class="week">${DAYS.map((d) => `<div class="day"><b>${d}</b>${__bench.events.filter((e) => e.day === d).map((e) => `<div>${e.time} ${e.title}</div>`).join("")}</div>`).join("")}</div>`;
+    document.getElementById("new").onclick = () => (document.getElementById("form").hidden = false);
+    document.getElementById("form").onsubmit = (ev) => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      __bench.events.push({ title: f.get("title"), day: f.get("day"), time: f.get("time"), where: f.get("where") });
+      calendar();
+    };
+  }
+
+  function settings() {
+    main.innerHTML = `<h1>Settings</h1>
+      <details><summary>Profile</summary><p><label>Display name <input value="Robert"></label></p></details>
+      <details><summary>Notifications</summary>
+        <div role="tablist"><button role="tab" data-tab="email" aria-selected="true">Email</button> <button role="tab" data-tab="push" aria-selected="false">Push</button></div>
+        <div id="panel"></div></details>
+      <details><summary>Privacy</summary><p><label><input type="checkbox" checked> Show my status</label></p></details>`;
+    const render = (tab) => {
+      main.querySelectorAll("[role=tab]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === tab)));
+      const n = __bench.notify[tab];
+      document.getElementById("panel").innerHTML = ["comments", "mentions", "digest"].map((k) =>
+        `<p><label><input type="checkbox" data-k="${k}" ${n[k] ? "checked" : ""}> ${tab === "email" ? "Email" : "Push"} me about ${k === "digest" ? "the weekly digest" : k}</label></p>`).join("");
+      document.querySelectorAll("#panel input").forEach((i) => (i.onchange = () => (n[i.dataset.k] = i.checked)));
+    };
+    main.querySelectorAll("[role=tab]").forEach((t) => (t.onclick = () => render(t.dataset.tab)));
+    render("email");
+  }
+
+  const views = { mail, calendar, settings };
+  document.querySelectorAll("[data-nav]").forEach((n) => n.addEventListener("click", () => views[n.dataset.nav]()));
+  mail();
+</script></body></html>

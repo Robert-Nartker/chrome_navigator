@@ -13,9 +13,9 @@
 // Options:
 //   --suite router,agent     which suites to run (default: both)
 //   --routers a,b            router models, run without reasoning (default: gpt-6-luna,claude-sonnet-5-5)
-//   --agents model@effort,…  agent models (default: gpt-6-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none;
+//   --agents model@effort,…  agent models (default: gpt-6.1-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none;
 //                            add gpt-6-astra@low explicitly, it costs ~5x more than the rest together)
-//   --tasks core|all|id,…    agent tasks (default: core, 8 tasks)
+//   --tasks core|hard|all|id,…  agent tasks (default: core, 8 tasks; hard: the 6 multi-step ones)
 //   --repeat N               runs per task and router phrase (default 1)
 //   --budget USD             stop testing a model once it has spent this much (default 1.00)
 //   --mock                   fake API replies (no keys, no cost) to test the harness
@@ -49,7 +49,7 @@ const repeat = Number(args.repeat ?? 1);
 const budget = Number(args.budget ?? 1);
 const list = (value, fallback) => String(value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean);
 const routerModels = list(args.routers, "gpt-6-luna,claude-sonnet-5-5");
-const agentConfigs = list(args.agents, "gpt-6-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none").map(
+const agentConfigs = list(args.agents, "gpt-6.1-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none").map(
   (spec) => {
     const [model, effort = "low"] = spec.split("@");
     return { model, effort, label: `${model}@${effort}` };
@@ -166,7 +166,8 @@ let cases = JSON.parse(await readFile("bench/router-cases.json", "utf8"));
 let tasks = JSON.parse(await readFile("bench/tasks.json", "utf8"));
 const taskFilter = String(args.tasks ?? "core");
 if (taskFilter !== "all") {
-  const wanted = new Set(taskFilter === "core" ? CORE_TASKS : taskFilter.split(","));
+  const hard = tasks.filter((t) => t.id.startsWith("hard-")).map((t) => t.id);
+  const wanted = new Set(taskFilter === "core" ? CORE_TASKS : taskFilter === "hard" ? hard : taskFilter.split(","));
   tasks = tasks.filter((t) => wanted.has(t.id));
 }
 

@@ -307,7 +307,7 @@ test("setup: connecting a key checks it, then turns on that provider's recommend
       },
     });
   });
-  await context.route("https://api.openai.com/v1/models", (route) => route.fulfill({ json: { data: [{ id: "gpt-6-sol" }] } }));
+  await context.route("https://api.openai.com/v1/models", (route) => route.fulfill({ json: { data: [{ id: "gpt-6.1-sol" }] } }));
 
   // The panel's banner leads straight to this step.
   await expect(panel.locator("#key-banner")).toBeVisible();
@@ -343,7 +343,7 @@ test("setup: connecting a key checks it, then turns on that provider's recommend
   await expect(result).toContainText("Connected to OpenAI.");
   await expect(setup.locator("#ai-warning")).toContainText("doesn't list gpt-6-luna");
   settings = await setup.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Record<string, string>);
-  expect(settings).toMatchObject({ openaiKey: "sk-proj-test", apiKey: "sk-ant-good", model: "gpt-6-sol", routerModel: "gpt-6-luna" });
+  expect(settings).toMatchObject({ openaiKey: "sk-proj-test", apiKey: "sk-ant-good", model: "gpt-6.1-sol", routerModel: "gpt-6-luna" });
 
   // Reopening shows what's connected.
   await setup.reload();
@@ -405,7 +405,7 @@ test.describe("Navi Free", () => {
 
     await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-test" } }));
     await expect(panel.locator("#plan")).toHaveText(/^Pro · \$0(\.0+)? today$/);
-    await expect(panel.locator("#plan")).toHaveAttribute("title", /GPT-6 Sol for tasks and chat, GPT-6 Luna for quick checks/);
+    await expect(panel.locator("#plan")).toHaveAttribute("title", /GPT-6.1 Sol for tasks and chat, GPT-6 Luna for quick checks/);
     await panel.locator("#plan").click();
     await expect(panel.locator("#plan")).toHaveText("Free");
     expect(await panel.evaluate(async () => ((await chrome.storage.local.get("settings")).settings as { aiMode: string }).aiMode)).toBe("free");
@@ -1039,7 +1039,7 @@ test("typed: a message goes straight to the main model as chat, with the tabs bu
     );
   });
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", routerModel: "gpt-6-luna" } }),
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6.1-sol", routerModel: "gpt-6-luna" } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
@@ -1092,7 +1092,7 @@ test("typed: a task looks at the page first, then acts, and knows what happened 
     );
   });
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", routerModel: "off" } }),
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6.1-sol", routerModel: "off" } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
 
@@ -1129,7 +1129,7 @@ test("GPT agent: reasoning is carried between steps and screenshots are sent as 
     );
   });
   await panel.evaluate(() =>
-    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-sol", effort: "low", routerModel: "off" } }),
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6.1-sol", effort: "low", routerModel: "off" } }),
   );
   await site.bringToFront();
   await run(panel, "what's on the screen");
@@ -1184,7 +1184,7 @@ test("no key: Navi runs Free, and says when its on-device AI isn't ready", async
     calls++;
     return route.abort();
   });
-  await panel.evaluate(() => chrome.storage.local.set({ settings: { model: "gpt-6-sol", routerModel: "gpt-6-luna" } }));
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { model: "gpt-6.1-sol", routerModel: "gpt-6-luna" } }));
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === false);
   await run(panel, "which of these plans is the best deal");
   // This test browser can't run Chrome's on-device model.
