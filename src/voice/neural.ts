@@ -36,6 +36,8 @@ export interface NeuralVoice {
   load(onProgress: (d: Download) => void): Promise<void>;
   /** Speaks and resolves once playback has finished; false if no audio came out. */
   speak(o: NeuralSpeech): Promise<boolean>;
+  /** Unloads the model (its worker and memory). */
+  dispose(): void;
 }
 
 /** `gpu`: run Kokoro on the graphics chip at full precision; otherwise on the CPU with 8-bit weights. */
@@ -79,6 +81,10 @@ export function createNeuralVoice(engine: NeuralEngineId, gpu: boolean): NeuralV
       } finally {
         o.signal.removeEventListener("abort", onAbort);
       }
+    },
+    dispose() {
+      player.stop();
+      (kokoro ?? pocket!).dispose();
     },
   };
 }

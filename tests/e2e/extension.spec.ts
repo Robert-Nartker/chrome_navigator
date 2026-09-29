@@ -1474,6 +1474,18 @@ test.describe("Navi's on-device voice", () => {
     // No graphics chip here, so Kokoro runs on the CPU with its 8-bit model.
     expect(requested).toContain(`${KOKORO}onnx/model_quantized.onnx`);
     await expect(panel.locator("#log li.error")).toHaveCount(0);
+
+    // Choosing another engine unloads Kokoro (its worker holds the whole model in memory).
+    const ears = context.pages().find((p) => p.url().endsWith("/offscreen.html"))!;
+    const kokoroWorkers = () => ears.workers().filter((w) => w.url().endsWith("/lab/kokoro-worker.js")).length;
+    expect(kokoroWorkers()).toBe(1);
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { speechOutput: "navi", naviVoiceEngine: "pocket" } }));
+    await expect
+      .poll(async () => {
+        await run(panel, "what time is it");
+        return kokoroWorkers();
+      })
+      .toBe(0);
   });
 
   test("if the voice can't download, the system voice speaks and the log says why", async ({ context, extensionId, site }) => {

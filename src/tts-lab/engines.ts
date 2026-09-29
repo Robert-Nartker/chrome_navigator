@@ -321,7 +321,13 @@ export function kokoroEngine() {
     stop() {
       // speak() tells the worker through the abort signal.
     },
-  } satisfies Engine & { device: KokoroDevice };
+
+    /** Ends the worker, freeing the model's memory. */
+    dispose() {
+      for (const load of loader.loads.values()) void load.then(({ value }) => value.terminate()).catch(() => {});
+      loader.loads.clear();
+    },
+  } satisfies Engine & { device: KokoroDevice; dispose(): void };
 }
 
 /** Kyutai's Pocket TTS, running in its own worker. One model with a set of built-in voices. */
@@ -384,7 +390,14 @@ export function pocketEngine() {
     stop() {
       void tts?.stop();
     },
-  } satisfies Engine & { voices(): LabVoice[] };
+
+    /** Ends Pocket TTS's worker, freeing the model's memory. */
+    dispose() {
+      for (const load of loader.loads.values()) void load.then(({ value }) => value.destroy()).catch(() => {});
+      loader.loads.clear();
+      tts = null;
+    },
+  } satisfies Engine & { voices(): LabVoice[]; dispose(): void };
 }
 
 /** Piper: one small model per voice, downloaded when the voice is first played. */

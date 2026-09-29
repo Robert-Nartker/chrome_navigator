@@ -228,6 +228,8 @@ export class Speaker implements Voice {
     const current = this.neural;
     if (current && current.choice === choice && (current.state !== "failed" || Date.now() < current.retryAt)) return current;
     const entry: NeuralEntry = { choice, voice: null, state: "loading", retryAt: 0 };
+    // A different engine was chosen: unload the old model rather than keep both in memory.
+    current?.voice?.dispose();
     this.neural = entry;
     void this.loadNeural(entry);
     return entry;
@@ -261,6 +263,8 @@ export class Speaker implements Voice {
       const engine = entry.choice === "auto" ? neural.pickEngine(gpu) : (entry.choice as NeuralModule.NeuralEngineId);
       entry.voice = neural.createNeuralVoice(engine, gpu);
       await entry.voice.load(() => undefined);
+      // Replaced while loading (the setting changed again): don't keep it.
+      if (this.neural !== entry) return entry.voice.dispose();
       entry.state = "ready";
       if (noted) this.onNote?.("Navi's voice is ready.");
     } catch (err) {
