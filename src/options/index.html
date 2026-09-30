@@ -88,11 +88,17 @@
             <option value="handsfree">Hey Navi (say the wake name, then talk)</option>
             <option value="open">Open mic (every word is a command until you turn the mic off)</option>
           </select>
+          <label for="recognizer">Recognizer</label>
+          <select id="recognizer">
+            <option value="chrome">Chrome's (default: light, starts instantly)</option>
+            <option value="parakeet">Parakeet by NVIDIA (open model: often catches more, a 0.7–2.5 GB download)</option>
+          </select>
+          <p class="hint">Both run on this computer. Parakeet runs on the graphics chip when there is one; while it downloads or loads, Chrome's recognizer listens. English and 24 European languages.</p>
           <label for="sessionTimeoutSec">Stay awake for (seconds of silence)</label>
           <input id="sessionTimeoutSec" type="number" min="10" max="1800" />
           <label for="lang">Language</label>
           <input id="lang" type="text" placeholder="en-US" />
-          <p class="hint">Chrome's recognizer always runs on this computer (Chrome 139+; download it on the <a href="setup.html">setup page</a>). Navi never uses Google's cloud speech service.</p>
+          <p class="hint">Chrome's recognizer runs on this computer (Chrome 139+; download it on the <a href="setup.html">setup page</a>). Navi never uses Google's cloud speech service.</p>
         </fieldset>
 
         <fieldset>

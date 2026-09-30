@@ -4,6 +4,8 @@ import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, model
 
 /** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
 export type ListenMode = "handsfree" | "open";
+/** Who turns speech into text, both on this computer: Chrome's built-in recognizer, or NVIDIA's Parakeet. */
+export type Recognizer = "chrome" | "parakeet";
 export type Feedback = "minimal" | "spoken";
 
 /** "free": Chrome's on-device model, no browser tasks. "pro": the user's API key. */
@@ -26,6 +28,7 @@ export interface Settings {
   fastMode: boolean;
   wakeName: string;
   listenMode: ListenMode;
+  recognizer: Recognizer;
   /** Seconds of silence before an active session goes back to sleep. */
   sessionTimeoutSec: number;
   /** "spoken" confirms every action out loud (for screen-free use). */
@@ -63,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fastMode: false,
   wakeName: "Navi",
   listenMode: "handsfree",
+  recognizer: "chrome",
   sessionTimeoutSec: 120,
   feedback: "minimal",
   speechRate: 1.0,
@@ -125,6 +129,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
   const s = { ...DEFAULT_SETTINGS, ...raw };
   // "Click to talk" ("push") became "Open mic".
   if ((s.listenMode as string) === "push") s.listenMode = "open";
+  if (s.recognizer !== "parakeet") s.recognizer = "chrome";
   // The old default step limit (12) was too few for tasks that span several emails or pages.
   if (s.maxAgentSteps === 12) s.maxAgentSteps = 20;
   // Older models are replaced by their current-generation successors.

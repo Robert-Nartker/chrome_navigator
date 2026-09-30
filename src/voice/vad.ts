@@ -3,14 +3,11 @@
 // about a third of a second after you stop talking.
 
 import type { Tensor } from "onnxruntime-web";
-
-/** Samples per frame at 16 kHz (32 ms). */
-export const VAD_FRAME = 512;
 /** The model also sees the end of the previous frame, as the reference implementation feeds it. */
 const CONTEXT = 64;
 
 export interface Vad {
-  /** Speech probability (0-1) of the next frame of VAD_FRAME samples. */
+  /** Speech probability (0-1) of the next frame of 512 samples (32 ms at 16 kHz). */
   run(frame: Float32Array): Promise<number>;
   /** Forgets the audio so far (before a new stream). */
   reset(): void;

@@ -79,6 +79,13 @@ function test(msg: Extract<EarsRequest, { type: "ears:test" }>): unknown {
     case "mute":
       ears.speaker.muted = !!msg.muted;
       return true;
+    case "fakeParakeet": {
+      // Parakeet "hears" these phrases in order, one per phrase the speech detector finds in the mic.
+      const said = [...(msg.phrases ?? [])];
+      let next = 0;
+      ears.fakeParakeet = async (_pcm, final) => (final ? (said[next++] ?? "") : (said[next] ?? "").split(" ")[0]);
+      return true;
+    }
   }
 }
 

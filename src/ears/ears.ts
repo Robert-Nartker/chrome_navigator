@@ -6,8 +6,10 @@
 import type { EarsState, LogKind } from "../lib/messages";
 import { WakeSession } from "../lib/session";
 import { DEFAULT_SETTINGS, type Settings, naviVoiceOf } from "../lib/settings";
-import { type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
+import { type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
+import type * as ParakeetModule from "../voice/parakeet";
+import { parakeetModelFor } from "../voice/parakeet-langs";
 
 export interface EarsOutput {
   /** A command to run (the wake word is already handled). */
@@ -39,13 +41,24 @@ export function isEcho(heard: string, saying: string): boolean {
 }
 /** Dictation ends by itself after this long without hearing anything. */
 const DICTATION_IDLE_MS = 8000;
+/** After Parakeet fails to load, Navi tries again this much later. */
+const PARAKEET_RETRY_MS = 10 * 60_000;
 
 export class Ears {
   private settings: Settings = DEFAULT_SETTINGS;
-  /** Chrome's on-device recognizer: always on while listening. */
+  /** The recognizer while listening: Chrome's, or Parakeet once it's loaded (if chosen). */
   private engine: SpeechEngine | null = null;
+  /** Parakeet, loaded and kept between mic sessions while it's the chosen recognizer. */
+  private parakeet: ParakeetModule.ParakeetEngine | null = null;
+  private parakeetLoading = false;
+  private parakeetProgress = "";
+  private parakeetRetryAt = 0;
+  /** Tests: stands in for Parakeet's model. */
+  fakeParakeet: ParakeetModule.FakeModel | undefined;
+  /** The mic should be on (even while a recognizer is between starts). */
+  private wantListening = false;
   private micError = "";
-  private chromeLabel = "";
+  private hearsLabel = "";
   private lastInfo = "";
   private lastState = "";
   private listenGeneration = 0;
@@ -86,8 +99,18 @@ export class Ears {
   configure(next: Settings) {
     const restart =
       this.listening &&
-      (next.lang !== this.settings.lang || next.wakeName !== this.settings.wakeName || next.listenMode !== this.settings.listenMode);
+      (next.lang !== this.settings.lang ||
+        next.wakeName !== this.settings.wakeName ||
+        next.listenMode !== this.settings.listenMode ||
+        next.recognizer !== this.settings.recognizer);
     if (next.speechOutput !== this.settings.speechOutput || next.naviVoice !== this.settings.naviVoice) this.lastVoiceError = "";
+    // Parakeet was turned off (or hears another language now): free its memory.
+    if (this.parakeet && (next.recognizer !== "parakeet" || next.lang !== this.settings.lang)) {
+      this.parakeet.dispose();
+      this.parakeet = null;
+    }
+    // Chosen again: try loading it right away.
+    if (next.recognizer === "parakeet" && this.settings.recognizer !== "parakeet") this.parakeetRetryAt = 0;
     this.settings = next;
     setSoundVolume(next.volume);
     this.session.configure({ mode: next.listenMode, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
@@ -126,6 +149,7 @@ export class Ears {
     } else if (this.dictating) {
       this.dictating = false;
       if (this.dictationOnly) this.stop();
+      else if (this.parakeet && this.engine !== this.parakeet && this.wantsParakeet()) void this.start();
       this.dictationOnly = false;
     }
     this.emit();
@@ -191,7 +215,7 @@ export class Ears {
       listening: this.listening,
       awake: this.listening && this.session.current === "awake",
       micError: this.micError,
-      engineLabel: this.listening ? this.chromeLabel : "",
+      engineLabel: this.listening ? this.hearsLabel + (this.parakeetProgress ? ` · Parakeet ${this.parakeetProgress}` : "") : "",
       voiceLabel: this.speaker.lastVoice,
       remainingMs: this.listening && this.settings.listenMode === "handsfree" ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
@@ -240,33 +264,90 @@ export class Ears {
     this.out.interim(asleep && !this.session.hearsWakePhrase(text) ? "" : text);
   }
 
-  private buildEngine(): SpeechEngine {
-    // No word boosting: it made Chrome "hear" boosted words in background noise.
-    return new WebSpeechEngine(
-      { lang: this.settings.lang },
-      {
-        onInterim: (text) => this.interim(text),
-        onFinal: (text, confidence) => this.final(text, confidence),
-        onRunningChange: () => this.emit(),
-        onError: (message, fatal) => void this.onChromeError(message, fatal),
-        onInfo: (message) => {
-          if (message.startsWith("Speech: ")) {
-            this.chromeLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
-            this.emit();
-            return;
-          }
-          // Restarts (e.g. after a settings change) repeat the same notes; show each once.
-          if (message !== this.lastInfo) this.out.log("info", message);
-          this.lastInfo = message;
-        },
-      },
-    );
+  /** What either recognizer reports to. */
+  private readonly callbacks: SpeechCallbacks = {
+    onInterim: (text) => this.interim(text),
+    onFinal: (text, confidence) => this.final(text, confidence),
+    onRunningChange: () => this.emit(),
+    onError: (message, fatal) => void this.onEngineError(message, fatal),
+    onInfo: (message) => {
+      if (message.startsWith("Speech: ")) {
+        this.hearsLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
+        this.emit();
+        return;
+      }
+      // Restarts (e.g. after a settings change) repeat the same notes; show each once.
+      if (message !== this.lastInfo) this.out.log("info", message);
+      this.lastInfo = message;
+    },
+  };
+
+  private wantsParakeet(): boolean {
+    return this.settings.recognizer === "parakeet" && !!parakeetModelFor(this.settings.lang);
   }
 
-  private async onChromeError(message: string, fatal: boolean) {
+  /**
+   * Loads Parakeet (downloading it the first time) while Chrome's recognizer listens, then swaps it in.
+   * Its libraries are a separate module, loaded only here.
+   */
+  private async loadParakeet() {
+    if (this.parakeet || this.parakeetLoading || Date.now() < this.parakeetRetryAt) return;
+    const lang = this.settings.lang;
+    this.parakeetLoading = true;
+    this.parakeetProgress = "loading";
+    this.emit();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const mod = (await import(chrome.runtime.getURL("voice/parakeet.js"))) as typeof ParakeetModule;
+      const engine = await mod.createParakeetEngine(lang, this.callbacks, this.fakeParakeet);
+      let noted = false;
+      timer = setTimeout(() => {
+        noted = true;
+        this.out.log("info", `Downloading Parakeet (once, about ${engine.downloadGb} GB). Chrome's recognizer listens until it's ready.`);
+      }, 1500);
+      let shown = -1;
+      await engine.load((loaded, total) => {
+        const pct = total ? Math.floor((loaded / total) * 100) : 0;
+        if (pct === shown) return;
+        shown = pct;
+        this.parakeetProgress = `${pct}%`;
+        this.emit();
+      });
+      if (!this.wantsParakeet() || this.settings.lang !== lang) return engine.dispose();
+      this.parakeet = engine;
+      if (noted) this.out.log("info", "Parakeet is ready, and listening from now on.");
+      // Swap it in for Chrome's recognizer (after any dictation in progress).
+      if (this.wantListening && !this.dictating) void this.start();
+    } catch (err) {
+      this.parakeetRetryAt = Date.now() + PARAKEET_RETRY_MS;
+      const why = err instanceof Error ? err.message : String(err);
+      this.out.log("error", `Parakeet couldn't load (${why}), so Chrome's recognizer is listening. Navi tries again later.`);
+    } finally {
+      clearTimeout(timer);
+      this.parakeetLoading = false;
+      this.parakeetProgress = "";
+      this.emit();
+    }
+  }
+
+  private chromeEngine(): SpeechEngine {
+    // No word boosting: it made Chrome "hear" boosted words in background noise.
+    return new WebSpeechEngine({ lang: this.settings.lang }, this.callbacks);
+  }
+
+  private async onEngineError(message: string, fatal: boolean) {
     if (!fatal) {
       this.out.log("error", message);
       this.emit();
+      return;
+    }
+    // Parakeet stopped working (not a blocked mic, which Chrome's recognizer can't fix): Chrome's takes over.
+    if (this.parakeet && this.engine === this.parakeet && !/microphone access is blocked/i.test(message)) {
+      this.out.log("error", `${message}. Chrome's recognizer is listening instead; Navi tries Parakeet again later.`);
+      this.parakeet.dispose();
+      this.parakeet = null;
+      this.parakeetRetryAt = Date.now() + PARAKEET_RETRY_MS;
+      void this.start();
       return;
     }
     this.engine = null;
@@ -280,17 +361,24 @@ export class Ears {
   }
 
   private async start() {
-    if (!speechSupported()) {
+    this.micError = "";
+    this.wantListening = true;
+    const generation = ++this.listenGeneration;
+    this.engine?.stop();
+    this.engine = null;
+    const parakeet = this.wantsParakeet() ? this.parakeet : null;
+    if (this.settings.recognizer === "parakeet" && !parakeetModelFor(this.settings.lang)) {
+      this.callbacks.onInfo?.(`Parakeet doesn't recognize ${this.settings.lang}, so Chrome's recognizer is listening.`);
+    }
+    // Chosen but not loaded yet: load it while Chrome's recognizer listens.
+    if (this.wantsParakeet() && !parakeet) void this.loadParakeet();
+    if (!parakeet && !speechSupported()) {
       this.micError = "Speech recognition isn't available in this browser.";
       this.out.log("error", this.micError);
       this.emit();
       return;
     }
-    this.micError = "";
-    const generation = ++this.listenGeneration;
-    this.engine?.stop();
-    this.engine = null;
-    const next = this.buildEngine();
+    const next = parakeet ?? this.chromeEngine();
     this.engine = next;
     await next.start();
     // A newer start or a stop happened meanwhile: never leave two recognizers running.
@@ -305,6 +393,7 @@ export class Ears {
   }
 
   private stop() {
+    this.wantListening = false;
     this.listenGeneration++;
     this.engine?.stop();
     this.engine = null;

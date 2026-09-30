@@ -1,6 +1,6 @@
-// Runs one speech recognition model for the recognizer tester (asr-lab.html), off the page's thread:
-// Whisper through transformers.js, Parakeet through parakeet.js. One worker per model, so switching
-// models never mixes runtimes, and closing a model frees its memory.
+// Runs one speech recognition model off the page's thread, for the recognizer tester (asr-lab.html) and
+// Navi's Parakeet listener: Whisper through transformers.js, Parakeet through parakeet.js. One worker per
+// model, so switching models never mixes runtimes, and closing a model frees its memory.
 
 export type AsrEngine = "whisper" | "parakeet";
 
@@ -70,19 +70,21 @@ async function loadParakeet(model: string, device: "webgpu" | "wasm", vendor: st
   const update = progress();
   const onProgress = (p: { file?: string; loaded?: number; total?: number }) => update(p.file ?? "model", p.loaded ?? 0, p.total ?? 0);
   // Full-precision encoder on the GPU, as parakeet.js recommends (its half-precision export can drop
-  // words); 8-bit on the CPU.
-  const tries = device === "webgpu" ? ["fp32"] : ["int8"];
+  // words); 8-bit on the CPU, also if the graphics chip can't run it.
+  const tries: [string, string][] = device === "webgpu" ? [["webgpu", "fp32"], ["wasm", "int8"]] : [["wasm", "int8"]];
   let lastError: unknown;
-  for (const encoderQuant of tries) {
+  for (const [backend, encoderQuant] of tries) {
     try {
-      const m = await fromHub(model, { backend: device, encoderQuant, decoderQuant: "int8", progress: onProgress } as never);
+      const m = await fromHub(model, { backend, encoderQuant, decoderQuant: "int8", progress: onProgress } as never);
       transcribe = async (pcm) => {
         const r = (await m.transcribe(pcm, 16000)) as { utterance_text?: string; text?: string };
         return r.utterance_text ?? r.text ?? "";
       };
-      return `${device === "webgpu" ? "graphics chip" : "processor"}, encoder ${encoderQuant}`;
+      return `${backend === "webgpu" ? "graphics chip" : "processor"}, encoder ${encoderQuant}`;
     } catch (err) {
       lastError = err;
+      // Offline: the other build won't download either.
+      if (/fetch|network/i.test(String(err))) break;
     }
   }
   throw lastError;

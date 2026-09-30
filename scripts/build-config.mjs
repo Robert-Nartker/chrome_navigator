@@ -29,7 +29,7 @@ const staticFiles = [
 const vendorFiles = [
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.wasm", "vendor/transformers/ort-wasm-simd-threaded.jsep.wasm"],
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.mjs", "vendor/transformers/ort-wasm-simd-threaded.jsep.mjs"],
-  // Parakeet's runtime (parakeet.js on ONNX Runtime 1.24), for the speech recognizer tester.
+  // Parakeet's runtime (parakeet.js on ONNX Runtime 1.24), for Navi's Parakeet listener and the tester.
   ...["asyncify", "jsep"].flatMap((build) =>
     ["mjs", "wasm"].map((ext) => [
       `node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.${build}.${ext}`,
@@ -42,7 +42,7 @@ const vendorFiles = [
   // starts its threads from the same file.
   ["third_party/qwen-asr/qwen_asr.js", "vendor/qwen-asr/qwen_asr.js"],
   ["third_party/qwen-asr/qwen_asr.wasm", "vendor/qwen-asr/qwen_asr.wasm"],
-  // Silero VAD, the tester's speech detector (runs on the ONNX Runtime above).
+  // Silero VAD, the speech detector for Parakeet and the tester (runs on the ONNX Runtime above).
   ["third_party/silero-vad/silero_vad.onnx", "vendor/silero-vad/silero_vad.onnx"],
 ];
 
@@ -85,8 +85,10 @@ export function labEsbuildOptions({ outdir, dev = false }) {
       "asr-lab": "src/asr-lab/main.ts",
       "lab/asr-worker": "src/asr-lab/worker.ts",
       "lab/qwen-files": "src/asr-lab/qwen-files.ts",
-      // Navi's on-device voice, which its background page imports when it first speaks.
+      // Navi's on-device voice, which its background page imports when it first speaks, and Parakeet,
+      // which it imports only if chosen as the recognizer.
       "voice/neural": "src/voice/neural.ts",
+      "voice/parakeet": "src/voice/parakeet.ts",
     },
     format: "esm",
     splitting: true,

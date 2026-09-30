@@ -28,6 +28,8 @@ type Fixtures = {
   fakeMic: boolean;
   /** Replace Chrome's speech recognizer in extension pages with a scripted one (see `hear`). */
   fakeSpeech: boolean;
+  /** With fakeMic: the microphone plays this WAV file once instead of a tone. */
+  micFile: string | undefined;
 };
 
 function startServer(): Promise<{ server: Server; baseUrl: string }> {
@@ -53,14 +55,21 @@ function startServer(): Promise<{ server: Server; baseUrl: string }> {
 const test = base.extend<Fixtures>({
   fakeMic: [false, { option: true }],
   fakeSpeech: [false, { option: true }],
+  micFile: [undefined, { option: true }],
   baseUrl: async ({}, use) => {
     const { server, baseUrl } = await startServer();
     await use(baseUrl);
     server.close();
   },
-  context: async ({ fakeMic, fakeSpeech, deviceScaleFactor }, use) => {
+  context: async ({ fakeMic, fakeSpeech, micFile, deviceScaleFactor }, use) => {
     const userDataDir = await mkdtemp(path.join(tmpdir(), "navi-e2e-"));
-    const media = fakeMic ? ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] : [];
+    const media = fakeMic
+      ? [
+          "--use-fake-device-for-media-stream",
+          "--use-fake-ui-for-media-stream",
+          ...(micFile ? [`--use-file-for-fake-audio-capture=${micFile}%noloop`] : []),
+        ]
+      : [];
     const context = await chromium.launchPersistentContext(userDataDir, {
       executablePath: CHROMIUM,
       headless: true,
@@ -570,6 +579,45 @@ test.describe("live caption", () => {
     await reopened.goto(`chrome-extension://${extensionId}/sidepanel.html`);
     await expect(reopened.locator("#log > li.turn").last().locator("li.user")).toContainText("what time is it");
     await expect(reopened.locator("#voice")).toHaveAttribute("data-state", "awake");
+  });
+});
+
+test.describe("Parakeet recognizer", () => {
+  test.use({ fakeMic: true, fakeSpeech: true, micFile: path.resolve("tests/fixtures/speech/three-commands-fan.wav") });
+
+  const ears = (panel: Page, e: Record<string, unknown>) =>
+    panel.evaluate((e) => chrome.runtime.sendMessage({ type: "navi:test", action: "ears", ears: { type: "ears:test", ...e } }), e);
+  const useParakeet = (panel: Page) =>
+    panel.evaluate(() => chrome.storage.local.set({ settings: { recognizer: "parakeet", listenMode: "open" } }));
+
+  test("its speech detector splits the mic into phrases, and each one Parakeet hears runs (model stubbed)", async ({ panel }) => {
+    // Hugging Face is out of reach here, so a stub stands in for the model; the mic, the speech detector,
+    // live captions and commands are all real. The file: three commands over air-conditioner noise.
+    await ears(panel, { action: "fakeParakeet", phrases: ["Scroll down a little.", "Scroll down.", "Go to the top."] });
+    await useParakeet(panel);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#engine-label")).toContainText("Hears: Parakeet (on-device, test model)");
+    const said = panel.locator("#log li.user");
+    await expect(said).toHaveText([/Scroll down a little/, /Scroll down\./, /Go to the top/], { timeout: 20_000 });
+    await panel.waitForTimeout(1500);
+    await expect(said).toHaveCount(3);
+  });
+
+  test("while Parakeet can't download, Chrome's recognizer keeps listening", async ({ panel, context }) => {
+    const asked: string[] = [];
+    await context.route("https://huggingface.co/**", (route) => {
+      asked.push(route.request().url());
+      return route.abort();
+    });
+    await useParakeet(panel);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#log")).toContainText("Parakeet couldn't load", { timeout: 30_000 });
+    await expect(panel.locator("#log")).toContainText("Chrome's recognizer is listening");
+    // Its worker and runtime started, and went for the English model's files.
+    expect(asked.some((url) => url.includes("parakeet-tdt-0.6b-v2"))).toBe(true);
+    await expect(panel.locator("#engine-label")).toContainText("Hears: Chrome");
+    await hear(panel, "scroll down a little", true);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("scroll down a little");
   });
 });
 

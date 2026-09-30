@@ -101,6 +101,12 @@ describe("which models run", () => {
     const g = normalizeSettings({ model: "gpt-6-sol", routerModel: "gpt-6-sol" });
     expect([g.model, g.routerModel]).toEqual(["gpt-6.1-sol", "gpt-6.1-sol"]);
   });
+
+  it("listens with Chrome's recognizer unless Parakeet was chosen", () => {
+    expect(normalizeSettings({}).recognizer).toBe("chrome");
+    expect(normalizeSettings({ recognizer: "parakeet" }).recognizer).toBe("parakeet");
+    expect(normalizeSettings({ recognizer: "whisper" as never }).recognizer).toBe("chrome");
+  });
 });
 
 describe("router decisions", () => {
