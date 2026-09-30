@@ -7,7 +7,7 @@ export type ApiProvider = "anthropic" | "openai";
 /** "chrome": Chrome's built-in on-device model (Navi Free). */
 export type Provider = ApiProvider | "chrome";
 
-/** How much the model reasons before answering. "none" = no reasoning at all; "xhigh" and "max" are OpenAI-only. */
+/** How much the model reasons before answering. "none" = no reasoning at all. */
 export type Effort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type Role = "agent" | "router";
@@ -49,8 +49,8 @@ export const MODEL_CATALOG: ModelInfo[] = [
     label: "Claude Sonnet 5.5",
     provider: "anthropic",
     roles: ["agent", "router"],
-    // "none" turns thinking off (Anthropic's lowest setting, "between_tools").
-    efforts: ["none", "low", "medium", "high"],
+    // "none" turns thinking off (Anthropic's lowest setting, "between_tools", allowed at high effort or below).
+    efforts: ["none", "low", "medium", "high", "xhigh", "max"],
     price: { input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 10 },
     priceNote: "Anthropic pricing (Sep 2026)",
   },
@@ -60,7 +60,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
     provider: "anthropic",
     roles: ["agent"],
     // Always thinks; "low" is the least.
-    efforts: ["low", "medium", "high"],
+    efforts: ["low", "medium", "high", "xhigh", "max"],
     price: { input: 4, cachedInput: 0.2, cacheWrite: 5, output: 20 },
     priceNote: "Anthropic pricing (Sep 2026)",
   },
