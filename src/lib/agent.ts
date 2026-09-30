@@ -101,6 +101,14 @@ const TOOLS: ToolDef[] = [
   tool("press_key", "Press a key on the focused element.", {
     key: { type: "string", enum: [...KEYS] },
   }),
+  tool(
+    "type_keys",
+    "Type text as key presses on the page itself, for pages that react to the keyboard instead of a text field: games like Wordle, keyboard shortcuts. Much faster than clicking on-screen keys one at a time.",
+    {
+      text: { type: "string" },
+      submit: { type: "boolean", description: "Press Enter afterwards (e.g. to enter a Wordle guess)." },
+    },
+  ),
   tool("look_at_screen", "Take a screenshot of the visible page with yellow number tags on clickable elements. Use only when the element list isn't enough.", {}),
   tool("click_at", "Click a point in the most recent screenshot, in its pixel coordinates. For targets without a number tag.", {
     x: { type: "integer" },
@@ -667,6 +675,11 @@ export class NaviAgent {
         const res = await pageRequest(tab, { kind: "pressKey", key: input.key as Key });
         if (input.key === "Enter") await waitForLoad(tab.id!, 5000);
         return res.detail ?? "pressed";
+      }
+      case "type_keys": {
+        hooks.onStep?.(`Typing “${String(input.text)}”`);
+        const res = await pageRequest(tab, { kind: "typeKeys", text: String(input.text), submit: !!input.submit });
+        return res.detail ?? "typed";
       }
       case "look_at_screen": {
         if (!settings.allowScreenshots) return "Screenshots are turned off in the user's settings. Work from the element list.";

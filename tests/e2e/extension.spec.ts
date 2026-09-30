@@ -312,6 +312,40 @@ test("router: one tab closes from loose speech (reopen brings it back), but othe
   await expect.poll(count).toBe(2);
 });
 
+test("keyboard games: the agent types a whole guess in one step, and “type … and press enter” works with no text box", async ({
+  panel,
+  site,
+  baseUrl,
+  context,
+}) => {
+  await site.goto(`${baseUrl}/keys.html`);
+  const guesses = site.locator("#guesses li");
+  // Spoken: nothing to type into, so the letters go to the page. A focused on-screen key doesn't take the Enter.
+  await site.focus("button[data-key=q]");
+  await run(panel, "type crane and press enter");
+  await expect(guesses).toHaveText(["CRANE"]);
+
+  const calls: string[] = [];
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      const messages = body.messages as unknown[];
+      calls.push(messages.length === 1 ? "look" : "done");
+      return messages.length === 1
+        ? [{ type: "tool_use", id: "t1", name: "type_keys", input: { text: "slate", submit: true } }]
+        : [{ type: "text", text: "[done] Guessed SLATE." }];
+    }),
+  );
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "off" } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await type(panel, "guess slate in this game");
+  await expect(guesses).toHaveText(["CRANE", "SLATE"]);
+  expect(calls).toEqual(["look", "done"]);
+  await expect(panel.locator("#log li.navi").last()).toContainText("Guessed SLATE.");
+});
+
 test("video volume: set to a level, and turned up or down however it's said", async ({ panel, site, baseUrl }) => {
   await site.goto(`${baseUrl}/video.html`);
   const volume = () => site.locator("#player").evaluate((v: HTMLVideoElement) => Math.round(v.volume * 100));

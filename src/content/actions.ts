@@ -59,7 +59,10 @@ function findEditableWithin(el: Element): Element | null {
 }
 
 export function typeText(target: Element | null, text: string, submit: boolean, clear: boolean): string {
-  let el = target ? findEditableWithin(target) : deepActiveElement();
+  // No box named and none focused: type on the page itself (games like Wordle listen to the keyboard).
+  const focused = deepActiveElement();
+  if (!target && !(focused && (isTextField(focused) || (focused as HTMLElement).isContentEditable))) return typeKeys(text, submit);
+  let el = target ? findEditableWithin(target) : focused;
   if (!el) {
     if (target) {
       // Some search boxes only appear after clicking a button.
@@ -113,6 +116,36 @@ function dispatchKey(el: Element, key: Key): boolean {
   if (key === "Enter") el.dispatchEvent(new KeyboardEvent("keypress", init));
   el.dispatchEvent(new KeyboardEvent("keyup", init));
   return notCancelled;
+}
+
+/** Key event fields for one typed character. */
+function charEventInit(ch: string) {
+  const upper = ch.toUpperCase();
+  const letter = /^[a-z]$/i.test(ch);
+  const digit = /^\d$/.test(ch);
+  const code = letter ? `Key${upper}` : digit ? `Digit${ch}` : ch === " " ? "Space" : "";
+  const keyCode = letter || digit ? upper.charCodeAt(0) : ch.charCodeAt(0);
+  return { key: ch, code, keyCode, which: keyCode, charCode: ch.charCodeAt(0), bubbles: true, cancelable: true, composed: true };
+}
+
+/**
+ * Types on the page as key presses, for pages that react to the keyboard rather than a text field
+ * (games like Wordle, keyboard shortcuts). Into a focused text field, it types normally.
+ */
+export function typeKeys(text: string, submit: boolean): string {
+  const focused = deepActiveElement();
+  if (focused && (isTextField(focused) || (focused as HTMLElement).isContentEditable)) return typeText(focused, text, submit, false);
+  // A focused button (like an on-screen key just clicked) would take Enter as another click.
+  if (focused && focused !== document.body) (focused as HTMLElement).blur?.();
+  const target = document.activeElement ?? document.body;
+  for (const ch of text) {
+    const init = charEventInit(ch);
+    target.dispatchEvent(new KeyboardEvent("keydown", init));
+    target.dispatchEvent(new KeyboardEvent("keypress", init));
+    target.dispatchEvent(new KeyboardEvent("keyup", init));
+  }
+  if (submit) dispatchKey(target, "Enter");
+  return submit ? `typed "${text}" and pressed Enter` : `typed "${text}"`;
 }
 
 function pressEnter(el: Element) {

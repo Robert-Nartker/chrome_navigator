@@ -53,6 +53,7 @@ export type ContentRequest =
   | { kind: "select"; id: number; gen?: number; option: string }
   | { kind: "scroll"; direction: ScrollDirection; amount: ScrollAmount }
   | { kind: "pressKey"; key: Key }
+  | { kind: "typeKeys"; text: string; submit: boolean }
   | { kind: "readPage"; maxChars: number }
   | { kind: "media"; action: MediaAction; seconds?: number; volume?: number }
   // Cells are keypad numbers 1-9, one per grid level: [5, 3] is block 3 inside block 5.

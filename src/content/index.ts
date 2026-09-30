@@ -2,7 +2,7 @@
 
 import type { PillUpdate } from "../lib/messages";
 import type { ContentRequest, ContentResponse } from "../lib/protocol";
-import { autoScroll, click, edit, findOnPage, media, pressKey, readPage, scroll, selectOption, typeText } from "./actions";
+import { autoScroll, click, edit, findOnPage, media, pressKey, readPage, scroll, selectOption, typeKeys, typeText } from "./actions";
 import { clickAtPoint, gridActive, hideGrid, runGrid } from "./grid";
 import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
 import { destroyPill, startPill, updatePill } from "./pill";
@@ -47,6 +47,8 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
       return { ok: true, detail: scroll(req.direction, req.amount) };
     case "pressKey":
       return { ok: true, detail: pressKey(req.key) };
+    case "typeKeys":
+      return { ok: true, detail: typeKeys(req.text, req.submit) };
     case "readPage":
       return { ok: true, text: readPage(req.maxChars) };
     case "media":

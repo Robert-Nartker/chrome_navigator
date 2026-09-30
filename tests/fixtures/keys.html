@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Keys Game</title></head>
+<body>
+  <h1>Keys Game</h1>
+  <p>Type a five-letter word and press Enter. There's no text box: the game listens to the keyboard, like Wordle.</p>
+  <div id="current" aria-live="polite"></div>
+  <ol id="guesses"></ol>
+  <div id="keyboard"><button data-key="q">Q</button><button data-key="w">W</button><button data-key="Enter">Enter</button></div>
+<script>
+  let current = "";
+  function key(k) {
+    if (k === "Enter") {
+      if (current) {
+        const li = document.createElement("li");
+        li.textContent = current.toUpperCase();
+        document.getElementById("guesses").append(li);
+        current = "";
+      }
+    } else if (k === "Backspace") current = current.slice(0, -1);
+    else if (/^[a-z]$/i.test(k)) current += k.toLowerCase();
+    document.getElementById("current").textContent = current.toUpperCase();
+  }
+  window.addEventListener("keydown", (e) => key(e.key));
+  document.querySelectorAll("#keyboard button").forEach((b) => b.addEventListener("click", () => key(b.dataset.key)));
+</script>
+</body></html>
