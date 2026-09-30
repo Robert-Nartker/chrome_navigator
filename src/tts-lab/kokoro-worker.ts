@@ -1,11 +1,12 @@
 // Runs Kokoro in a worker, so the voice lab stays responsive (and screen readers keep working)
 // while the model loads and speaks. Built as its own module (lab/kokoro-worker.js).
 
-import { type KokoroDevice, type KokoroProgress, isCached, loadKokoro, speakKokoro } from "./kokoro";
+import { type KokoroDevice, type KokoroProgress, isCached, loadKokoro, speakKokoro, warmUpKokoro } from "./kokoro";
 
 export type KokoroRequest =
-  | { type: "load"; device: KokoroDevice; wasmPaths: string }
-  | { type: "speak"; id: number; text: string; voice: string }
+  /** `warmUp`: a voice to say a word in, unheard, once loaded. */
+  | { type: "load"; device: KokoroDevice; wasmPaths: string; warmUp?: string }
+  | { type: "speak"; id: number; text: string; voice: string; speed?: number }
   | { type: "stop" };
 
 export type KokoroReply =
@@ -30,7 +31,8 @@ self.onmessage = async ({ data }: MessageEvent<KokoroRequest>) => {
     if (data.type === "load") {
       const cached = await isCached(data.device);
       tts ??= loadKokoro(data.device, data.wasmPaths, (p) => post({ type: "progress", ...p }));
-      await tts;
+      const model = await tts;
+      if (data.warmUp) await warmUpKokoro(model, data.warmUp).catch(() => undefined);
       post({ type: "loaded", cached });
     } else {
       if (!tts) throw new Error("Kokoro isn't loaded.");
@@ -38,7 +40,14 @@ self.onmessage = async ({ data }: MessageEvent<KokoroRequest>) => {
       speaking?.abort();
       const current = new AbortController();
       speaking = current;
-      await speakKokoro(model, data.text, data.voice, (samples, sampleRate) => post({ type: "audio", id: data.id, samples, sampleRate }), current.signal);
+      await speakKokoro(
+        model,
+        data.text,
+        data.voice,
+        (samples, sampleRate) => post({ type: "audio", id: data.id, samples, sampleRate }),
+        current.signal,
+        data.speed,
+      );
       post({ type: "done", id: data.id });
     }
   } catch (err) {

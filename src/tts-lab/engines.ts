@@ -51,6 +51,8 @@ export interface SpeakOptions {
   player: ChunkPlayer;
   volume: number;
   signal: AbortSignal;
+  /** Speaking pace for engines that support it (1 is the voice's own). */
+  speed?: number;
 }
 
 export interface Engine {
@@ -228,8 +230,12 @@ export function kokoroEngine() {
   return {
     device: "wasm" as KokoroDevice,
 
+    /** A voice to say a word in, unheard, once loaded (for Navi's voice: its first reply comes quicker). */
+    warmUp: undefined as string | undefined,
+
     async prepare(onProgress: (d: Download) => void) {
       const device = this.device;
+      const warmUp = this.warmUp;
       // One model in memory at a time: switching devices ends the other one's worker.
       for (const [key, load] of loader.loads) {
         if (key === device) continue;
@@ -242,7 +248,7 @@ export function kokoroEngine() {
         const start = performance.now();
         try {
           const wasmPaths = chrome.runtime.getURL("vendor/transformers/");
-          const cached = await worker.request({ type: "load", device, wasmPaths }, (reply) => {
+          const cached = await worker.request({ type: "load", device, wasmPaths, warmUp }, (reply) => {
             if (reply.type === "progress" && reply.status === "progress" && reply.file) {
               files.update(reply.file, reply.loaded ?? 0, reply.total ?? 0);
             }
@@ -266,7 +272,7 @@ export function kokoroEngine() {
       o.signal.addEventListener("abort", onAbort);
       try {
         return await timed(o, async (emit) => {
-          await worker.request({ type: "speak", id, text: o.text, voice: voice.id }, (reply) => {
+          await worker.request({ type: "speak", id, text: o.text, voice: voice.id, speed: o.speed }, (reply) => {
             if (reply.type === "audio") emit(reply.samples, reply.sampleRate);
             return reply.type === "done" || undefined;
           });
@@ -285,5 +291,5 @@ export function kokoroEngine() {
       for (const load of loader.loads.values()) void load.then(({ value }) => value.terminate()).catch(() => {});
       loader.loads.clear();
     },
-  } satisfies Engine & { device: KokoroDevice; dispose(): void };
+  } satisfies Engine & { device: KokoroDevice; warmUp: string | undefined; dispose(): void };
 }

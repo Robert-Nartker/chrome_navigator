@@ -2,6 +2,7 @@
 // (kokoro-worker.ts) imports this, so these libraries (several MB) never load anywhere else.
 
 import { KokoroTTS, TextSplitterStream, env } from "kokoro-js";
+import { splitFirstClause } from "./audio";
 
 const MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
@@ -42,20 +43,40 @@ export async function isCached(device: KokoroDevice): Promise<boolean> {
   }
 }
 
-/** Speaks `text` sentence by sentence, calling `onAudio` as each one is ready. */
+/**
+ * Speaks `text` sentence by sentence, calling `onAudio` as each one is ready. A long first sentence
+ * starts with its opening clause, so the first sound comes sooner. `speed`: 1 is Kokoro's own pace.
+ */
 export async function speakKokoro(
   tts: KokoroTTS,
   text: string,
   voice: string,
   onAudio: (samples: Float32Array, sampleRate: number) => void,
   signal: AbortSignal,
+  speed = 1,
 ): Promise<void> {
-  // kokoro-js leaves a plain string's splitter open, so the last sentence would never be spoken.
-  const splitter = new TextSplitterStream();
-  splitter.push(text);
-  splitter.close();
-  for await (const { audio } of tts.stream(splitter, { voice: voice as "af_heart" })) {
+  const options = { voice: voice as "af_heart", speed };
+  const [head, rest] = splitFirstClause(text);
+  if (head) {
+    const audio = await tts.generate(head, options);
     if (signal.aborted) return;
     onAudio(audio.audio, audio.sampling_rate);
   }
+  if (!rest) return;
+  // kokoro-js leaves a plain string's splitter open, so the last sentence would never be spoken.
+  const splitter = new TextSplitterStream();
+  splitter.push(rest);
+  splitter.close();
+  for await (const { audio } of tts.stream(splitter, options)) {
+    if (signal.aborted) return;
+    onAudio(audio.audio, audio.sampling_rate);
+  }
+}
+
+/**
+ * Makes a moment of speech and throws it away, so the first real reply doesn't also pay for compiling
+ * the graphics chip's programs and fetching the voice.
+ */
+export async function warmUpKokoro(tts: KokoroTTS, voice: string): Promise<void> {
+  await tts.generate("Ready.", { voice: voice as "af_heart" });
 }

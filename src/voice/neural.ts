@@ -12,14 +12,16 @@ export interface NeuralSpeech {
   /** A Kokoro voice, e.g. "af_heart". */
   voice: string;
   volume: number;
+  /** 1 is Kokoro's own pace. */
+  speed: number;
   signal: AbortSignal;
 }
 
 export interface NeuralVoice {
   /** Roughly what it downloads once. */
   readonly downloadMb: number;
-  /** Downloads (the first time) and loads the model. */
-  load(onProgress: (d: Download) => void): Promise<void>;
+  /** Downloads (the first time) and loads the model, then says a word in `warmUp`'s voice, unheard. */
+  load(onProgress: (d: Download) => void, warmUp?: string): Promise<void>;
   /** Speaks and resolves once playback has finished; false if no audio came out. */
   speak(o: NeuralSpeech): Promise<boolean>;
   /** Unloads the model (its worker and memory). */
@@ -35,7 +37,8 @@ export function createNeuralVoice(gpu: boolean): NeuralVoice {
 
   return {
     downloadMb: gpu ? 326 : 92,
-    load(onProgress) {
+    load(onProgress, warmUp) {
+      kokoro.warmUp = warmUp;
       loading ??= kokoro.prepare(onProgress).then(() => undefined);
       loading.catch(() => (loading = null));
       return loading;
@@ -51,7 +54,7 @@ export function createNeuralVoice(gpu: boolean): NeuralVoice {
       const onAbort = () => player.stop();
       o.signal.addEventListener("abort", onAbort);
       try {
-        const stats = await kokoro.speak(voice, { text: o.text, player, volume: o.volume, signal: o.signal });
+        const stats = await kokoro.speak(voice, { text: o.text, player, volume: o.volume, speed: o.speed, signal: o.signal });
         return stats.firstAudioMs !== null;
       } finally {
         o.signal.removeEventListener("abort", onAbort);

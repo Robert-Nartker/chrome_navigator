@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { splitSentences } from "../../src/tts-lab/audio";
+import { splitFirstClause, splitSentences } from "../../src/tts-lab/audio";
+import { kokoroSpeed } from "../../src/lib/voice-output";
 import { blindName, formatBytes, formatMs, realTimeFactor, shuffle, topRated } from "../../src/tts-lab/format";
 
 describe("splitSentences", () => {
@@ -50,5 +51,34 @@ describe("ratings", () => {
     const shuffled = shuffle(["a", "b", "c", "d", "e"], random);
     expect([...shuffled].sort()).toEqual(["a", "b", "c", "d", "e"]);
     expect(shuffled).not.toEqual(["a", "b", "c", "d", "e"]);
+  });
+});
+
+describe("splitFirstClause", () => {
+  it("starts a long first sentence with its opening clause, so the voice starts sooner", () => {
+    const reply =
+      "Your inbox has three new emails, one from Sarah about the study session, and one from Mike about Saturday. Want me to open them?";
+    expect(splitFirstClause(reply)).toEqual([
+      "Your inbox has three new emails,",
+      "one from Sarah about the study session, and one from Mike about Saturday. Want me to open them?",
+    ]);
+    // No punctuation: before a joining word.
+    expect(splitFirstClause("I opened the recipe in a new tab and scrolled down to the ingredients for you.")[0]).toBe(
+      "I opened the recipe in a new tab",
+    );
+  });
+  it("leaves short first sentences, and ones with no good place to split, whole", () => {
+    expect(splitFirstClause("Opened YouTube. It's playing.")).toEqual(["", "Opened YouTube. It's playing."]);
+    const noBreak = "Supercalifragilistic expialidocious words keep going on forever without any natural pause here at all.";
+    expect(splitFirstClause(noBreak)).toEqual(["", noBreak]);
+  });
+});
+
+describe("kokoroSpeed", () => {
+  it("is a little faster than Kokoro's own pace at Navi's normal speed, and follows the setting", () => {
+    expect(kokoroSpeed(1)).toBe(1.15);
+    expect(kokoroSpeed(1.3)).toBe(1.5);
+    expect(kokoroSpeed(3)).toBe(2);
+    expect(kokoroSpeed(0)).toBe(1.15);
   });
 });

@@ -68,12 +68,21 @@ interface NeuralEntry {
   state: "loading" | "ready" | "failed";
   /** When a failed download may be tried again. */
   retryAt: number;
+  /** Resolves once loading ends, either way. */
+  settled: Promise<void>;
 }
 
 /** A failed download of Navi's voice is tried again after this long (or when the setting changes). */
 const NEURAL_RETRY_MS = 10 * 60_000;
 /** How long a reply waits for Navi's voice to finish loading before the fallback voice speaks. */
 const NEURAL_WAIT_MS = 4000;
+/** Kokoro's own pace is unhurried for an assistant: Navi's normal speed (1) is this much faster. */
+const KOKORO_PACE = 1.15;
+
+/** Kokoro's speed for Navi's speech rate setting (1 = normal). */
+export function kokoroSpeed(rate: number): number {
+  return Math.round(Math.min(2, Math.max(0.5, (rate || 1) * KOKORO_PACE)) * 100) / 100;
+}
 
 export class Speaker implements Voice {
   private speakingUntil = 0;
@@ -148,24 +157,24 @@ export class Speaker implements Voice {
   private async sayNeural(text: string, voice: VoiceSettings, neural: NonNullable<VoiceSettings["neural"]>, id: number): Promise<boolean> {
     const entry = this.neuralVoice();
     // Loading from the browser's cache takes a few seconds: worth waiting for rather than switching voices.
-    for (let waited = 0; entry.state === "loading" && waited < NEURAL_WAIT_MS; waited += 100) {
-      await new Promise((r) => setTimeout(r, 100));
-    }
+    if (entry.state === "loading") await Promise.race([entry.settled, new Promise((r) => setTimeout(r, NEURAL_WAIT_MS))]);
     // Stopped (or replaced) while waiting: say nothing.
     if (id !== this.utterance) return true;
     if (entry.state !== "ready" || !entry.voice) return false;
     const abort = new AbortController();
     this.abort = abort;
-    return entry.voice.speak({ text, voice: neural.voice, volume: voice.volume, signal: abort.signal });
+    return entry.voice.speak({ text, voice: neural.voice, volume: voice.volume, speed: kokoroSpeed(voice.rate), signal: abort.signal });
   }
 
   /** Navi's on-device voice, starting its load (and first download) if needed. */
   private neuralVoice(): NeuralEntry {
     const current = this.neural;
     if (current && (current.state !== "failed" || Date.now() < current.retryAt)) return current;
-    const entry: NeuralEntry = { voice: null, state: "loading", retryAt: 0 };
+    let settle = () => {};
+    const settled = new Promise<void>((resolve) => (settle = resolve));
+    const entry: NeuralEntry = { voice: null, state: "loading", retryAt: 0, settled };
     this.neural = entry;
-    void this.loadNeural(entry);
+    void this.loadNeural(entry).finally(settle);
     return entry;
   }
 
@@ -194,7 +203,8 @@ export class Speaker implements Voice {
     try {
       const neural = (await import(chrome.runtime.getURL("voice/neural.js"))) as typeof NeuralModule;
       entry.voice = neural.createNeuralVoice(await neural.hasWebGpu());
-      await entry.voice.load(() => undefined);
+      // Warmed up in the chosen voice, so the first reply doesn't also wait for that.
+      await entry.voice.load(() => undefined, this.getVoice().neural?.voice);
       entry.state = "ready";
       if (noted) this.onNote?.("Navi's voice is ready.");
     } catch (err) {
