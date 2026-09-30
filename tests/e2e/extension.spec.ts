@@ -406,8 +406,18 @@ test.describe("Navi Free", () => {
     await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-test" } }));
     await expect(panel.locator("#plan")).toHaveText(/^Pro · \$0(\.0+)? today$/);
     await expect(panel.locator("#plan")).toHaveAttribute("title", /GPT-6.1 Sol for tasks and chat, GPT-6 Luna for quick checks/);
+    // Pro shows how much the AI thinks, starting at the provider's default ("low"), and changes it in one click.
+    const thinking = panel.locator("#thinking");
+    await expect(thinking).toBeVisible();
+    await expect(thinking.getByRole("radio", { name: "Fast" })).toBeChecked();
+    await thinking.getByRole("radio", { name: "Balanced" }).check();
+    await expect
+      .poll(() => panel.evaluate(async () => (await chrome.storage.local.get("settings")).settings as { effort: string; model: string }))
+      .toMatchObject({ effort: "medium", model: "gpt-6.1-sol" });
+    await expect(thinking.getByRole("radio", { name: "Balanced" })).toBeChecked();
     await panel.locator("#plan").click();
     await expect(panel.locator("#plan")).toHaveText("Free");
+    await expect(thinking).toBeHidden();
     expect(await panel.evaluate(async () => ((await chrome.storage.local.get("settings")).settings as { aiMode: string }).aiMode)).toBe("free");
     await panel.locator("#plan").click();
     await expect(panel.locator("#plan")).toHaveText(/^Pro/);

@@ -79,6 +79,24 @@
         <p id="hint-handsfree" class="mode-hint" data-mode="handsfree">Say “Hey <span class="wake-name">Navi</span>”, then talk.</p>
         <p id="hint-open" class="mode-hint" data-mode="open">Everything is a command until you turn the mic off.</p>
       </fieldset>
+      <!-- Pro only: how much the AI reasons before acting (Settings has every level). -->
+      <fieldset id="thinking" class="thinking" hidden>
+        <legend class="thinking-label">Thinking</legend>
+        <div class="segmented three">
+          <label title="Quickest replies. Plenty for most commands.">
+            <input type="radio" name="effort" value="low" />
+            <span>Fast</span>
+          </label>
+          <label title="A bit slower; better on multi-step tasks.">
+            <input type="radio" name="effort" value="medium" />
+            <span>Balanced</span>
+          </label>
+          <label title="Slowest; for long or tricky tasks.">
+            <input type="radio" name="effort" value="high" />
+            <span>Thorough</span>
+          </label>
+        </div>
+      </fieldset>
     </section>
 
     <ol id="log" class="feed" aria-label="Activity"></ol>

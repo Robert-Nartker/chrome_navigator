@@ -195,6 +195,14 @@ function renderPlan() {
   button.setAttribute("aria-label", `${mode === "free" ? "Navi Free, no cost" : `Navi Pro, ${formatCost(spentToday)} spent today`}. Switch to ${mode === "free" ? "Pro" : "Free"}.`);
 }
 
+document.querySelectorAll<HTMLInputElement>("input[name=effort]").forEach((r) =>
+  r.addEventListener("change", () => {
+    // Saves the model that's actually running too: with no key for the saved model, Navi would
+    // otherwise keep using its provider's default level.
+    if (r.checked) void saveSettings({ effort: r.value as Settings["effort"], model: activeSettings(settings).model });
+  }),
+);
+
 $("plan").addEventListener("click", () => {
   if (aiModeOf(settings) === "pro") void saveSettings({ aiMode: "free" });
   // Pro needs a key: without one, go and connect it.
@@ -224,6 +232,10 @@ function applySettings(next: Settings) {
   if (handsFree) handsFree.title = `Say “Hey ${next.wakeName}”, then talk.`;
   // Until the user picks Free or connects a key, say which one is running.
   ui.keyBanner.hidden = providersWithKeys(next).length > 0 || next.aiMode === "free";
+  // How much the AI thinks: Pro only. A level set in Settings that isn't here leaves none selected.
+  $("thinking").hidden = aiModeOf(next) !== "pro";
+  const effort = activeSettings(next).effort;
+  document.querySelectorAll<HTMLInputElement>("input[name=effort]").forEach((r) => (r.checked = r.value === effort));
   renderPlan();
   renderStatus();
 }

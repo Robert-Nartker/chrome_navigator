@@ -74,7 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   allowScreenshots: true,
   typedPageContext: false,
   blockedSites: [],
-  maxAgentSteps: 12,
+  maxAgentSteps: 20,
   speechOutput: "navi",
   naviVoice: "af_heart",
 };
@@ -125,6 +125,8 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
   const s = { ...DEFAULT_SETTINGS, ...raw };
   // "Click to talk" ("push") became "Open mic".
   if ((s.listenMode as string) === "push") s.listenMode = "open";
+  // The old default step limit (12) was too few for tasks that span several emails or pages.
+  if (s.maxAgentSteps === 12) s.maxAgentSteps = 20;
   // Older models are replaced by their current-generation successors.
   s.model = RETIRED_MODELS[s.model] ?? s.model;
   s.routerModel = RETIRED_MODELS[s.routerModel] ?? s.routerModel;

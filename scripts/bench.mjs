@@ -17,7 +17,7 @@
 //                            add gpt-6-astra@low explicitly, it costs ~5x more than the rest together)
 //   --tasks core|hard|all|id,…  agent tasks (default: core, 8 tasks; hard: the 6 multi-step ones)
 //   --repeat N               runs per task and router phrase (default 1)
-//   --max-steps N            the agent's step limit (default 12, Navi's default)
+//   --max-steps N            the agent's step limit (default 20, Navi's default)
 //   --budget USD             stop testing a model once it has spent this much (default 1.00)
 //   --mock                   fake API replies (no keys, no cost) to test the harness
 //   --relay                  send the extension's API calls from Node instead of the test browser, for
@@ -157,7 +157,7 @@ await panel.evaluate(() => (window.navi.speaker.muted = true));
 const catalog = await panel.evaluate(() => window.navi.models);
 const priceOf = (model) => catalog.find((m) => m.id === model)?.price;
 
-const baseSettings = { apiKey: keys.anthropic, openaiKey: keys.openai, listenMode: "open", feedback: "minimal", maxAgentSteps: Number(args["max-steps"] ?? 12) };
+const baseSettings = { apiKey: keys.anthropic, openaiKey: keys.openai, listenMode: "open", feedback: "minimal", maxAgentSteps: Number(args["max-steps"] ?? 20) };
 async function applySettings(extra) {
   await panel.evaluate((s) => chrome.storage.local.set({ settings: s }), { ...baseSettings, ...extra });
   await panel.waitForTimeout(150);

@@ -126,7 +126,7 @@ form.addEventListener("submit", async (e) => {
     model: modelSelect.value,
     effort: field<HTMLSelectElement>("effort").value as Settings["effort"],
     fastMode: field<HTMLInputElement>("fastMode").checked,
-    maxAgentSteps: clamp(field<HTMLInputElement>("maxAgentSteps").value, 1, 30, 12),
+    maxAgentSteps: clamp(field<HTMLInputElement>("maxAgentSteps").value, 1, 30, 20),
     wakeName: field<HTMLInputElement>("wakeName").value.trim() || "Navi",
     listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],
     sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, 120),
