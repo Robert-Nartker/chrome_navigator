@@ -12,12 +12,7 @@ Strict (all-checkpoints) scores exist only as system-card snippets: Opus 5.5 at 
 
 **The cost axis is dollars per OSWorld-2.x-class task at list prices.** A task of this class is a long-horizon workflow that takes a human about 1.6 hours and an agent hundreds of tool calls. This is the unit OpenAI charts. Using it keeps cost and score internally consistent and makes three OpenAI points fully published.
 
-Neither Anthropic model has a published computer-use cost, so **Opus 5.5 at max is estimated at $12 per task (80% range $7–$21)** from four cross-vendor anchors:
-
-- OpenAI's own per-solved-task comparison puts Opus 5.5 at $36.67, Astra at $34.95 and 6.1 Sol at $9.60 ([Vellum](https://www.vellum.ai/blog/gpt-6-1-sol-benchmarks-explained)).
-- On Terminal-Bench Science at max, Opus 5.5 costs $23.21 against Astra's $23.80 ([beri.net](https://www.beri.net/article/gpt-6-1-sol-devday-2026-astra-fifth-price-terminal-bench-score-gap-cost-per-task)).
-- Opus 5 cost roughly $25 per task on Anthropic's OSWorld 2.0 chart ([DataCamp](https://www.datacamp.com/blog/claude-opus-5-vs-claude-fable-5)). Scaled by Opus 5.5's 0.47–1.08× cost ratio to Opus 5 on WANDR and AutomationBench ([Anthropic](https://www.anthropic.com/claude-opus-5-5)), this gives a comparable figure.
-- Snorkel finds that GPT models reach their scores with fewer tokens ([Snorkel](https://snorkel.ai/blog/osworld-2-0-why-computer-use-agents-fail-most-tasks/)).
+Neither Anthropic model has a published computer-use cost, so **Opus 5.5 at max is estimated at $12 per task (80% range $7–$21)** by triangulating four cross-vendor anchors. OpenAI's own per-solved-task comparison puts Opus 5.5 at $36.67 against $34.95 for Astra and $9.60 for 6.1 Sol ([Vellum](https://www.vellum.ai/blog/gpt-6-1-sol-benchmarks-explained)), and on Terminal-Bench Science at max Opus 5.5 costs $23.21 against Astra's $23.80 ([beri.net](https://www.beri.net/article/gpt-6-1-sol-devday-2026-astra-fifth-price-terminal-bench-score-gap-cost-per-task)); both place Opus 5.5 at roughly Astra's $9.30 or a little above. A heavier chain starts from Opus 5 at roughly $25 per task on Anthropic's own OSWorld 2.0 chart ([DataCamp](https://www.datacamp.com/blog/claude-opus-5-vs-claude-fable-5)) and scales it by Opus 5.5's 0.47–1.08× cost ratio to Opus 5 on WANDR and AutomationBench ([Anthropic](https://www.anthropic.com/claude-opus-5-5)), landing at $12–$27. Snorkel's finding that GPT models reach their scores with fewer tokens ([Snorkel](https://snorkel.ai/blog/osworld-2-0-why-computer-use-agents-fail-most-tasks/)) argues against pricing Opus off token-for-token parity with Sol, which would give only $5–$6.
 
 Sonnet 5.5 at max is set at 0.94× the Opus max cost. This is the geometric mean of the screenshot-dominated cost model's ratio (0.70×) and Artificial Analysis's ratio (1.27×); the latter is high because Sonnet at max burns about 193k output tokens per task ([Artificial Analysis](https://artificialanalysis.ai/articles/claude-sonnet-5-5)).
 
@@ -31,26 +26,16 @@ OSWorld itself offers only a handful of effort pairs. From lower to higher effor
 |---|---|---|
 | GPT-6 Sol | low 43.9%, xhigh 60.5%, max 64.4% | [Emergent](https://emergent.sh/learn/gpt-6-sol-benchmarks); [AI Catchup](https://aicatchup.com/news/openai-gpt-6-sol-luna) |
 | Luna | low 8.3%, max 52.7% | [Emergent](https://emergent.sh/learn/gpt-6-luna-benchmarks) |
-| Opus 5 | medium 60.3% (at $12.67), max 70.2% | [AI Catchup](https://aicatchup.com/news/openai-gpt-6-sol-luna) |
+| Opus 5 | medium 60.3% (at $12.67), max 70.2% | [AI Catchup](https://aicatchup.com/news/openai-gpt-6-sol-luna); [Steel data](https://github.com/steel-dev/leaderboard/blob/main/src/data/osworld2.json) |
 | Sonnet 4.6 | medium 33.9%, max 41.5% | [Steel data](https://github.com/steel-dev/leaderboard) |
 
 In logit terms, the low setting sits about **0.84 below max**, medium sits 0.32–0.66 below, and xhigh 0.17 below.
 
 The 5.5 launch pages add exact effort-cost curves on other agentic benchmarks, extracted from the CSV embedded in each page. Opus 5.5 on WANDR, Perplexity's web data-collection benchmark, climbs 31.2%, 62.8%, 67.3%, 71.3% and 72.3% from low to max, at $1.20 to $37.92 per attempt ([Anthropic](https://www.anthropic.com/claude-opus-5-5)). Across four Opus 5.5 benchmarks, medium sits 0.21–0.51 logits below max. **Sonnet 5.5's curves are far steeper.** Terminal-Bench 4.0 climbs from 20.0% at low to 70.6% at max, and CursorBench from 35.8% to 55.5% ([Anthropic](https://www.anthropic.com/claude-sonnet-5-5)).
 
-Each model's effort template comes from the evidence available for it:
+Each Claude template averages the model's own vendor curves with the OSWorld pairs, which tempers Sonnet's steep coding curves with the gentler gaps OSWorld has actually shown. GPT-6.1 Sol inherits its predecessor's published OSWorld curve. Astra gets a flatter curve, because its 72.6% launch score sits only 0.9 points under its 73.5% max and Artificial Analysis finds that "jumping from xhigh to max adds nothing" to its index ([Artificial Analysis](https://artificialanalysis.ai/articles/benchmarking-gpt-6-astra)). Luna keeps its two published OSWorld points and borrows the medium-to-xhigh shape from Browser Use's Luna sweep.
 
-- **Claude models:** their own vendor curves, averaged with the OSWorld pairs.
-- **6.1 Sol:** GPT-6 Sol's published OSWorld curve.
-- **Astra:** a flatter curve. Its 72.6% launch score sits only 0.9 points under its 73.5% max, and Artificial Analysis finds that "jumping from xhigh to max adds nothing" to its index ([Artificial Analysis](https://artificialanalysis.ai/articles/benchmarking-gpt-6-astra)).
-- **Luna:** its two published OSWorld points, with the medium-to-xhigh shape taken from Browser Use's Luna sweep.
-
-**Cost multipliers get two bounds, and the central value is their geometric mean.**
-
-- **Output-dominated bound:** Artificial Analysis per-effort costs plus the vendor curves. For example, Opus 5.5 costs $0.55, $1.34, $1.82, $3.46 and $5.98 from low to max ([Artificial Analysis](https://artificialanalysis.ai/articles/claude-opus-5-5)), and GPT-6.1 Sol $0.13 to $0.72 ([Artificial Analysis](https://artificialanalysis.ai/models/releases/gpt-6-1-sol)).
-- **Screenshot-dominated bound:** a 30-step loop in which cached screenshot history, not thinking, drives the bill, so effort barely moves cost.
-
-The only OSWorld check is GPT-6 Sol's published xhigh/max cost ratio of 0.66 ($2.21/$3.37). It lands at the output-dominated end, so the true low-effort costs may sit near the lower edge of their ranges.
+**Cost multipliers get two bounds, and the central value is their geometric mean.** The output-dominated bound comes from Artificial Analysis per-effort costs and the vendor curves: Opus 5.5 costs $0.55, $1.34, $1.82, $3.46 and $5.98 per index task from low to max ([Artificial Analysis](https://artificialanalysis.ai/articles/claude-opus-5-5)), and GPT-6.1 Sol $0.13 to $0.72 ([Artificial Analysis](https://artificialanalysis.ai/models/releases/gpt-6-1-sol)). The screenshot-dominated bound is a 30-step loop in which cached screenshot history, not thinking, drives the bill, so effort barely moves cost. The only OSWorld check, GPT-6 Sol's published xhigh/max cost ratio of 0.66 ($2.21/$3.37), lands at the output-dominated end, so the true low-effort costs may sit near the lower edge of their ranges.
 
 Each cell in the table below shows the logit gap below max effort, then the cost as a share of the max-effort cost.
 
@@ -66,13 +51,7 @@ Several vendor curves plateau at max. Opus 5.5 scores lower on Terminal-Bench at
 
 ## The 27-point chart: Luna, Sol and Opus trace the frontier
 
-The table and CSV below are chart-ready.
-
-- **Performance:** "OSWorld 2.1 partial-credit equivalent" (%).
-- **Cost:** dollars per OSWorld-2.x-class long-horizon task at list prices.
-- **Ranges:** the 10th–90th percentiles of 20,000 Monte Carlo draws. The draws share an error term wherever the error is genuinely common: the OpenAI→2.1 bridge offset, each model's max-effort anchor, each model's effort-curve steepness, and each model's cost anchor.
-- **Frontier probability:** the share of draws in which the point is non-dominated.
-- **Type codes:** P = published, C = converted from published OSWorld 2.0 offline, E = estimated from effort curves, X = estimated from cross-vendor cost anchors.
+The table and CSV below are chart-ready. Performance is the "OSWorld 2.1 partial-credit equivalent" in percent, and cost is dollars per OSWorld-2.x-class long-horizon task at list prices. Ranges are the 10th–90th percentiles of 20,000 Monte Carlo draws that share an error term wherever the error is genuinely common: the OpenAI→2.1 bridge offset, each model's max-effort anchor, each model's effort-curve steepness and each model's cost anchor. The frontier probability is the share of draws in which the point is non-dominated. Type codes are P for published, C for converted from a published OSWorld 2.0 offline score, E for estimated from effort curves and X for estimated from cross-vendor cost anchors.
 
 | Model | Level | Score (80% range) | $ / OSWorld-class task (80% range) | $ / 8-step short task (modelled) | Type (score / cost) | Frontier (probability) | Sources |
 |---|---|---|---|---|---|---|---|
@@ -148,12 +127,7 @@ GPT-6 Luna,xhigh,49.9,44,63,15,0.20,0.16,0.25,0.0051,0.018,0.15,estimated-from-e
 GPT-6 Luna,max,57.4,52,69,20,0.27,0.21,0.33,0.0061,0.023,0.17,converted (pre-image-fix),published (pre-image-fix),yes,0.96,yes,"OAISL; BRIDGE"
 ```
 
-**The long-task frontier has three robust segments, plus a gap.**
-
-- **Luna, low through max:** on the frontier in at least 95% of draws. It takes the chart from about 10% to 57% for under $0.30.
-- **GPT-6.1 Sol, medium through max:** on the frontier in 72–90% of draws, covering 65% to 75% for $0.61 to $1.27. Sol at low drops off because Luna at max matches its score for 57% of the cost.
-- **The gap:** nothing between $1.27 and about $4.90 beats 6.1 Sol max. Opus 5.5 medium (74.6 at $4.1), Sonnet 5.5 high and xhigh, and Astra low and medium all fall inside it and are dominated.
-- **Opus 5.5, high through max:** a coin flip at 48–56%. It adds **+2.8, +4.8 and +6.7 points over 6.1 Sol max at 3.8×, 5.8× and 9.4× the cost**.
+**The long-task frontier has three segments separated by a gap.** Luna from low through max stays on the frontier in at least 95% of draws and carries the chart from about 10% to 57% for under $0.30. GPT-6.1 Sol from medium through max holds 72–90% of draws, covering 65% to 75% for $0.61 to $1.27; Sol at low drops off because Luna at max matches its score for 57% of the cost. Nothing between $1.27 and about $4.90 beats 6.1 Sol max, so Opus 5.5 medium (74.6 at $4.1), Sonnet 5.5 high and xhigh, and Astra low and medium all fall into that gap and are dominated. Opus 5.5 from high through max is a coin flip at 48–56% of draws, adding **+2.8, +4.8 and +6.7 points over 6.1 Sol max at 3.8×, 5.8× and 9.4× the cost**.
 
 Sonnet 5.5 max clears Opus 5.5 xhigh by only 0.2 points at 1.5× the cost, so it is a marginal frontier point. It drops off entirely on the strict-equivalent axis, because its published strict score (43.5%) sits below what the fit predicts. Astra is on the frontier in no more than 20% of draws: its published max point costs 1.9× Opus 5.5 high's estimate for about one point less. That verdict rests on the cross-vendor bridge, though, and an Astra score 5 points higher would put it back in contention.
 
@@ -203,12 +177,7 @@ GPT-5.6 Luna,xhigh,41.17,36.2,46.2,0.358,published,no (anchor),no,"median 135 st
 GPT-5.6 Sol,default,38.45,33.5,43.5,2.71,published,no (anchor),no,"median 70 steps"
 ```
 
-**The browser frontier runs Luna low → medium → high → xhigh → GPT-6 Sol medium → Astra medium.**
-
-- **Astra buys 13.8 extra points for 7.4× GPT-6 Sol's cost**, which makes it the clear quality leader for research-style browsing.
-- **Opus 5.5 scores 7.5 points below GPT-6 Sol medium at 3.5× the cost**, and [The Neuron](https://www.theneurondaily.com/p/gpt-6-sol-vs-claude-opus-5-5) reports the same comparison.
-- Luna's none setting costs 4.3× as much as low and scores 8.9 points less. This is the clearest published evidence that switching reasoning off can be a false economy in an agent loop.
-- The day after this chart, Browser Use made Luna at xhigh its default benchmark executor ([Browser Use commits](https://github.com/browser-use/benchmark/commits/main)), a practitioner's vote for Luna xhigh as the value point.
+**The browser frontier runs Luna low → medium → high → xhigh → GPT-6 Sol medium → Astra medium.** **Astra buys 13.8 extra points for 7.4× GPT-6 Sol's cost**, which makes it the clear quality leader for research-style browsing, while **Opus 5.5 scores 7.5 points below GPT-6 Sol medium at 3.5× the cost**, a comparison [The Neuron](https://www.theneurondaily.com/p/gpt-6-sol-vs-claude-opus-5-5) also reports. Luna's none setting costs 4.3× as much as low and scores 8.9 points less, the clearest published evidence that switching reasoning off can be a false economy inside an agent loop. The day after this chart, Browser Use made Luna at xhigh its default benchmark executor ([Browser Use commits](https://github.com/browser-use/benchmark/commits/main)), a practitioner's vote for Luna xhigh as the value point.
 
 Sonnet 5.5 and GPT-6.1 Sol are both missing from the chart. 6.1 Sol beats GPT-6 Sol on OSWorld at 62% lower cost at max, so it should land at or above the Sol medium point for no more money, but that is untested.
 
@@ -234,12 +203,7 @@ Sonnet 5.5 and GPT-6.1 Sol are both missing from the chart. 6.1 Sol beats GPT-6 
 
 **Per-effort data is missing for the newest models.** Anthropic has published no OSWorld per-effort points for Opus 5.5 or Sonnet 5.5, and the system cards that might contain them sit on a blocked CDN. OpenAI has published nothing below xhigh for Astra, nothing below max for 6.1 Sol, and nothing at none, medium, high or xhigh for Luna. Sonnet 5.5's 80.1% has no stated effort. If it was run at high, the API default, every estimated Sonnet point understates performance by about half a logit.
 
-**Harness differences add error the ranges only partly capture.**
-
-- **Anthropic:** its harness keeps every screenshot and compacts context server-side past 100k tokens.
-- **OpenAI:** it uses a modified Responses API with a latency simulation, and its step budgets are unconfirmed.
-- **Batched tool calls:** these alone move OSWorld 2.0 partial scores by up to 5.5 points ([Steel data](https://github.com/steel-dev/leaderboard)).
-- **The bridge:** the whole OpenAI side rests on one bridge model, and Opus 5's three OSWorld 2.0 runs span 68.3–70.6%. Any error in the bridge shifts all sixteen OpenAI points together. The Monte Carlo draws treat it as a shared term, which is why Astra versus Opus is uncertain while Sol versus Luna is not.
+**Harness differences add error the ranges only partly capture.** Anthropic's harness keeps every screenshot and compacts context server-side past 100k tokens, while OpenAI's is a modified Responses API with a latency simulation and unconfirmed step budgets, and batched tool calls alone move OSWorld 2.0 partial scores by up to 5.5 points ([Steel data](https://github.com/steel-dev/leaderboard)). The whole OpenAI side also rests on one bridge model whose three OSWorld 2.0 runs span 68.3–70.6%, so any bridge error shifts all sixteen OpenAI points together. The Monte Carlo draws treat that as a shared term, which is why Astra versus Opus stays uncertain while Sol versus Luna does not.
 
 On the cost side, the project's `src/lib/models.ts` still bills OpenAI cache writes at 1.0× the input price. Secondary sources say GPT-5.6 and later charge 1.25× ([CloudZero](https://www.cloudzero.com/blog/openai-pricing/)), which would add about 10% to modelled OpenAI costs.
 
@@ -247,22 +211,13 @@ On the cost side, the project's `src/lib/models.ts` still bills OpenAI cache wri
 
 Voice commands are short tasks of roughly 2–10 steps, not 1.6-hour OSWorld workflows. **On short tasks, cached screenshot input dominates the bill, which flattens the cost of effort.** Moving 6.1 Sol from low to max raises an 8-step task only from $0.063 to $0.091 (+45%), compared with 2.7× on long tasks. The effort choice for voice is therefore mostly about latency and accuracy, not price.
 
-Latency scales with thinking tokens per step:
-
-- **6.1 Sol:** about 4.5 seconds per step at medium and about 12 at max, at GPT-6 Sol's roughly 104 tokens/s.
-- **Luna and Astra:** Luna generates about 157 tokens/s and Astra 57–59 ([Artificial Analysis](https://artificialanalysis.ai/models/comparisons/gpt-6-astra-vs-gpt-5-6-sol)).
-- **Opus 5.5 and Sonnet 5.5:** the only reported side-by-side run of about 6 steps took 68 seconds on Opus 5.5 and 48 on Sonnet 5.5 ([beri.net](https://www.beri.net/article/claude-sonnet-5-5-vs-opus-5-5-cost-per-task-matched-score-effort-between-tools-migration)).
+Latency scales with thinking tokens per step. At GPT-6 Sol's roughly 104 tokens/s, 6.1 Sol needs about 4.5 seconds per step at medium and about 12 at max; Luna generates about 157 tokens/s and Astra only 57–59 ([Artificial Analysis](https://artificialanalysis.ai/models/comparisons/gpt-6-astra-vs-gpt-5-6-sol)). The only reported Claude side-by-side, a single run of about 6 steps, took 68 seconds on Opus 5.5 and 48 on Sonnet 5.5 ([beri.net](https://www.beri.net/article/claude-sonnet-5-5-vs-opus-5-5-cost-per-task-matched-score-effort-between-tools-migration)).
 
 **GPT-6.1 Sol at medium should be the default.** It sits on the long-task frontier in 72% of draws and on the short-task frontier, and costs about $0.065 per 8-step screenshot task. Early lean-agent measurements in the project's notes put a 4-step DOM-first task at about $0.003, roughly 20× less; full NaviBench results will be reported separately. Its predecessor at medium is also the value point on BU Bench. The project's current default, 6.1 Sol at low, saves only about 4% per short task and falls off the long-task frontier. Medium is the better default unless NaviBench shows a latency penalty that users would notice. High and xhigh are worth reserving for multi-step flows, where they add about 4–7 points for 25–60% more cost on long tasks.
 
 **Luna at medium to xhigh is the fast path.** It costs about a fifteenth as much per step as Sol, has the fastest output, and is the setting Browser Use chose for its own default executor. Luna's none setting belongs in routing and classification, not in acting, since it is dominated by low on BU Bench. Every Luna number predates the image fix, so Luna should be re-tested before it is ruled out for any class of task.
 
-**Other settings suit narrower roles.**
-
-- **Opus 5.5 at high:** the escalation tier for long, multi-app tasks where failure is costly. It is worth about 3–5 partial-credit points over 6.1 Sol max at 4–6× the cost, but the browser evidence does not support it, since it is dominated on BU Bench. Anthropic lets effort change mid-conversation without invalidating the prompt cache, through a per-message `output_config` behind a beta header ([effort docs](https://platform.claude.com/docs/en/build-with-claude/effort)), which suits an escalate-on-failure design.
-- **Sonnet 5.5 at xhigh:** the only Sonnet setting to reach a frontier, and only in the short-task view. Its thinking-off mode (`between_tools`, allowed only at low, medium and high) is probably dominated by low. Anthropic's earlier computer-use guidance says low "uses fewer output tokens than disabling thinking entirely" ([computer use docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool)), and Luna's BU Bench points show the same pattern.
-- **Astra:** a research-mode option, not a default. It gives the best browser quality at about 7× GPT-6 Sol's cost with the slowest output.
-- **Max effort:** skip it everywhere. Opus max costs 1.6× xhigh for +1.9 points, Astra's xhigh→max step adds 0.8 points for 22% more cost, and Sonnet max is dominated by Opus 5.5 on Artificial Analysis.
+**Opus 5.5 at high is the escalation tier for long, multi-app tasks where failure is costly.** It is worth about 3–5 partial-credit points over 6.1 Sol max at 4–6× the cost, but the browser evidence does not back it, since it is dominated on BU Bench. Anthropic lets effort change mid-conversation without invalidating the prompt cache, through a per-message `output_config` behind a beta header ([effort docs](https://platform.claude.com/docs/en/build-with-claude/effort)), which suits an escalate-on-failure design. Sonnet 5.5 earns a test only at xhigh, the one Sonnet setting that reaches a frontier, and only in the short-task view. Its thinking-off mode (`between_tools`, allowed only at low, medium and high) is probably dominated by low: Anthropic's earlier computer-use guidance says low "uses fewer output tokens than disabling thinking entirely" ([computer use docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool)), and Luna's BU Bench points show the same pattern. Astra is a research-mode option rather than a default, with the best browser quality at about 7× GPT-6 Sol's cost and the slowest output. Max effort is worth skipping everywhere: Opus max costs 1.6× xhigh for +1.9 points, Astra's xhigh→max step adds 0.8 points for 22% more cost, and Sonnet max is dominated by Opus 5.5 on Artificial Analysis.
 
 **Paid speed tiers are the other latency lever.** Opus fast mode costs 2× for up to 2.5× speed ([Anthropic](https://www.anthropic.com/claude-opus-5-5)). OpenAI's Ultrafast costs 6× for up to 300 tokens/s; it is available on Astra and pending for 6.1 Sol ([VentureBeat](https://venturebeat.com/technology/openais-gpt-6-1-sol-offers-astra-like-performance-at-1-5th-price-a-new-ultrafast-tier-clocks-at-300-tokens-per-second)). Ultrafast 6.1 Sol at medium would cost about $0.39 per 8-step screenshot task, the same as Astra medium but with roughly five times Astra's output speed. On a lean DOM-first agent that comes to pennies, which makes it the most interesting latency option for voice.
 
