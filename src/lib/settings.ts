@@ -4,6 +4,11 @@ import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, model
 
 /** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
 export type ListenMode = "handsfree" | "open";
+/**
+ * How freely Navi acts. "default": asks only before what can't be taken back (sending, buying, deleting,
+ * closing unsaved typing). "yolo": never asks except before payments and sensitive details, no step limit.
+ */
+export type Autonomy = "default" | "yolo";
 /** Who turns speech into text, both on this computer: Chrome's built-in recognizer, or NVIDIA's Parakeet. */
 export type Recognizer = "chrome" | "parakeet";
 export type Feedback = "minimal" | "spoken";
@@ -49,6 +54,7 @@ export interface Settings {
   /** Hostname fragments where Navi never sends anything to the AI. */
   blockedSites: string[];
   maxAgentSteps: number;
+  autonomy: Autonomy;
   /** Who speaks Navi's replies: Navi's on-device voice (Kokoro), or the computer's system voices. */
   speechOutput: VoiceOutput;
   /** Navi's on-device voice: a Kokoro voice, e.g. "af_heart". */
@@ -79,6 +85,7 @@ export const DEFAULT_SETTINGS: Settings = {
   typedPageContext: false,
   blockedSites: [],
   maxAgentSteps: 20,
+  autonomy: "default",
   speechOutput: "navi",
   naviVoice: "af_heart",
 };
@@ -130,6 +137,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
   // "Click to talk" ("push") became "Open mic".
   if ((s.listenMode as string) === "push") s.listenMode = "open";
   if (s.recognizer !== "parakeet") s.recognizer = "chrome";
+  if (s.autonomy !== "yolo") s.autonomy = "default";
   // The old default step limit (12) was too few for tasks that span several emails or pages.
   if (s.maxAgentSteps === 12) s.maxAgentSteps = 20;
   // Older models are replaced by their current-generation successors.

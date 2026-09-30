@@ -85,14 +85,19 @@ export async function snapshot(tab: chrome.tabs.Tab): Promise<PageSnapshot> {
 /** Waits until the tab finishes loading (or a timeout), then lets the page settle. */
 export async function waitForLoad(tabId: number, timeoutMs = 8000): Promise<chrome.tabs.Tab> {
   const started = Date.now();
+  const before = (await chrome.tabs.get(tabId).catch(() => undefined))?.url;
   // Give navigations triggered by a click a moment to start.
   await sleep(250);
+  let first = true;
   while (Date.now() - started < timeoutMs) {
     const tab = await chrome.tabs.get(tabId);
     if (tab.status === "complete") {
+      // Nothing started loading (a menu, a button on the page): no page to let settle.
+      if (first && tab.url === before) return tab;
       await sleep(300);
       return chrome.tabs.get(tabId);
     }
+    first = false;
     await sleep(150);
   }
   return chrome.tabs.get(tabId);
@@ -107,25 +112,14 @@ export function isBlankTab(url?: string): boolean {
   return !url || /^(?:about:blank|chrome:\/\/(?:newtab|new-tab-page)|chrome-search:\/\/local-ntp)/.test(url);
 }
 
-function sameSite(a: string | undefined, b: string): boolean {
-  try {
-    const host = (u: string) => new URL(u).hostname.replace(/^(?:www|m)\./, "");
-    return !!a && host(a) === host(b);
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Opens a URL. `newTab` true or false when the user said ("in a new tab", "here"); otherwise it opens in
- * a new tab, next to the current one, unless the current tab is blank or already on that site. So
- * "open youtube" never throws away the page you were on, and "go back" returns to it.
+ * Opens a URL in this tab, or with `newTab` in a new one next to it (a blank tab is simply reused).
+ * Spoken commands decide by their verb: "open" opens a new tab, "go to" stays in this one.
  */
-export async function navigate(url: string, newTab?: boolean): Promise<chrome.tabs.Tab> {
+export async function navigate(url: string, newTab: boolean): Promise<chrome.tabs.Tab> {
   const current = await targetTab().catch(() => undefined);
   const usable = !!current?.id && !isExtensionPage(current.url);
-  const here = usable && (newTab === false || (newTab === undefined && (isBlankTab(current.url) || sameSite(current.url, url))));
-  if (!here) {
+  if (!usable || (newTab && !isBlankTab(current.url))) {
     const tab = await chrome.tabs.create({
       url,
       active: true,
@@ -135,6 +129,21 @@ export async function navigate(url: string, newTab?: boolean): Promise<chrome.ta
   }
   await chrome.tabs.update(current.id!, { url, active: true });
   return waitForLoad(current.id!);
+}
+
+/**
+ * The tabs among these with typing that hasn't been sent or saved, which closing would lose. Tabs that
+ * don't answer quickly (Chrome pages, tabs asleep in the background) count as having none.
+ */
+export async function tabsWithUnsavedTyping(tabs: chrome.tabs.Tab[]): Promise<chrome.tabs.Tab[]> {
+  const ask = async (t: chrome.tabs.Tab) => {
+    if (t.id === undefined || !isWebUrl(t.url) || t.discarded) return false;
+    const reply = chrome.tabs.sendMessage(t.id, { kind: "unsaved" } satisfies ContentRequest) as Promise<ContentResponse | undefined>;
+    const res = await Promise.race([reply.catch(() => undefined), sleep(500).then(() => undefined)]);
+    return !!(res?.ok && res.unsaved);
+  };
+  const unsaved = await Promise.all(tabs.map(ask));
+  return tabs.filter((_, i) => unsaved[i]);
 }
 
 /**

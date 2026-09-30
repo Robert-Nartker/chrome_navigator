@@ -9,6 +9,7 @@ import {
   isWebUrl,
   listTabs,
   goBack,
+  tabsWithUnsavedTyping,
   navigate,
   pageRequest,
   snapshot,
@@ -19,13 +20,21 @@ import { KEYS, type Key, type PageSnapshot, type ScrollAmount, type ScrollDirect
 import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./custom-commands";
 import { NO_USAGE, type Usage, addUsage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
 import { type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
-import { isBlocked, keyFor, type Settings } from "./settings";
+import { type Autonomy, isBlocked, keyFor, type Settings } from "./settings";
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type ToolUse = Anthropic.Beta.BetaToolUseBlock;
 type ToolResult = Anthropic.Beta.BetaToolResultBlockParam;
 
-const SYSTEM_PROMPT = `You are Navi, an assistant that operates the user's Chrome browser for them and answers their questions about it.
+/** When to ask the user first, by how freely they want Navi to act. */
+const ASK_FIRST: Record<Autonomy, string> = {
+  default:
+    "- Ask first only before something the user can't take back: sending a message or email, posting or commenting, buying or paying, deleting their data, submitting personal details, or closing or leaving a page with typing that isn't sent or saved. Do the preparation first (open it, write the draft, fill in the form), so the question is about something ready, and ask one short yes/no question right before the final click (Send, Post, Buy, Delete). Only continue after the user says yes, and never say it's done unless you did it. Don't ask about anything else: easily undone actions the user asked for (subscribing, following, liking, adding to a cart or playlist, closing tabs) need no question.",
+  yolo:
+    "- YOLO mode is on: the user wants everything done without being asked, however many steps it takes. Send, post, comment, delete, submit forms and close tabs without asking, and keep going until the whole task is done. The one exception: stop and ask before paying or buying anything, entering or submitting card, bank or other financial details, or entering passwords, government ID numbers or similar sensitive personal information.",
+};
+
+const PROMPT = `You are Navi, an assistant that operates the user's Chrome browser for them and answers their questions about it.
 
 Messages come two ways:
 - Spoken commands ("Command: ...") come from speech recognition, with the current page's element list. Act, then reply with one short sentence that is read aloud.
@@ -35,7 +44,7 @@ How you see the page: an element list shows the page's interactive elements as [
 
 Rules:
 - Be fast: every second you spend is a second the user waits. For simple steps, act without deliberating. Take the most direct action; don't ask for confirmation for ordinary browsing (opening sites, clicking links, typing into search boxes, scrolling).
-- Before anything irreversible or that affects other people (sending a message or email, posting, commenting, buying, deleting, submitting payment or personal details), stop and ask one short yes/no question. Do the preparation first (open it, write the draft, fill in the form), so the question is about something ready, and ask right before the final click (Send, Post, Buy, Delete). Only continue after the user says yes, and never say it's done unless you did it. Easily undone actions the user asked for by name (subscribing, following, liking, adding to a cart or playlist) need no question.
+{ASK_FIRST}
 - Speech recognition mishears names. When the user names what to act on (a tab, email, file, contact) and you can't find a clear match, ask which one. Never act on a different target instead, especially when closing or deleting.
 - If the target isn't in the list, scroll or navigate to find it. If you still can't find it after a few tries, say so briefly.
 - For questions about the page's content (read, summarize, what does it say), call read_page, then answer in 1-3 spoken sentences.
@@ -54,6 +63,11 @@ Personal commands: the user can create their own voice shortcuts. When they ask 
 - Include natural variants of the phrase if the user didn't give exact wording (e.g. "open wordle" and "play wordle").
 - Saving is fine without confirmation; say what the command will do in one short sentence. Ask before deleting a command.
 - You cannot change Navi's settings, privacy options, blocked sites, API key, or built-in commands. If asked, say so briefly.`;
+
+/** Navi's instructions, with the asking rules for the user's autonomy setting. */
+export function systemPrompt(autonomy: Autonomy): string {
+  return PROMPT.replace("{ASK_FIRST}", ASK_FIRST[autonomy]);
+}
 
 const idProp = { type: "integer", description: "Element id from the most recent observation." } as const;
 
@@ -87,9 +101,12 @@ const TOOLS: ToolDef[] = [
     direction: { type: "string", enum: ["up", "down", "left", "right", "top", "bottom"] },
     amount: { type: "string", enum: ["small", "page", "large"] },
   }),
-  tool("navigate", "Open a URL in the current tab or a new tab.", {
+  tool("navigate", "Go to a URL in this tab, or open it in a new tab.", {
     url: { type: "string" },
-    new_tab: { type: "boolean" },
+    new_tab: {
+      type: "boolean",
+      description: 'True when the user said "open ..." or asked for a new tab; false for "go to ..." and for steps within a task.',
+    },
   }),
   tool("go_back", "Go back to the previous page in this tab.", {}),
   tool("switch_tab", "Switch to an open tab by its tab id from the tab list.", {
@@ -97,16 +114,20 @@ const TOOLS: ToolDef[] = [
   }),
   tool("close_tabs", "Close tabs by tab id from the tab list. Only tabs the user clearly asked to close; if unsure which, ask instead.", {
     tab_ids: { type: "array", items: { type: "integer" } },
+    discard_unsaved: {
+      type: "boolean",
+      description: "Close tabs with unsent or unsaved typing too. Only after the user said yes to losing it.",
+    },
   }),
   tool("press_key", "Press a key on the focused element.", {
     key: { type: "string", enum: [...KEYS] },
   }),
   tool(
     "type_keys",
-    "Type text as key presses on the page itself, for pages that react to the keyboard instead of a text field: games like Wordle, keyboard shortcuts. Much faster than clicking on-screen keys one at a time.",
+    "Type text as key presses on the page itself, when there's no text field to type into (pages that react to the keyboard). Into a focused text field it types normally.",
     {
       text: { type: "string" },
-      submit: { type: "boolean", description: "Press Enter afterwards (e.g. to enter a Wordle guess)." },
+      submit: { type: "boolean", description: "Press Enter afterwards." },
     },
   ),
   tool("look_at_screen", "Take a screenshot of the visible page with yellow number tags on clickable elements. Use only when the element list isn't enough.", {}),
@@ -356,7 +377,7 @@ class AnthropicBrain implements Brain {
     const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
       model: settings.model,
       max_tokens: 16000,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt(settings.autonomy),
       tools: ANTHROPIC_TOOLS,
       messages: this.history,
       cache_control: { type: "ephemeral" },
@@ -402,7 +423,7 @@ class OpenAIBrain implements Brain {
       settings.openaiKey,
       {
         model: settings.model,
-        instructions: SYSTEM_PROMPT,
+        instructions: systemPrompt(settings.autonomy),
         input: this.items,
         tools: OPENAI_TOOLS,
         parallel_tool_calls: true,
@@ -500,7 +521,9 @@ export class NaviAgent {
     });
 
     try {
-      for (let step = 1; step <= settings.maxAgentSteps; step++) {
+      // YOLO has no step limit ("stop" still ends it any time).
+      const limit = settings.autonomy === "yolo" ? Infinity : settings.maxAgentSteps;
+      for (let step = 1; step <= limit; step++) {
         hooks.onStep?.(step === 1 ? "Thinking…" : `Step ${step}…`);
         const t0 = performance.now();
         const turn = await brain.next(settings, hooks);
@@ -667,9 +690,17 @@ export class NaviAgent {
         const ids = (input.tab_ids as number[]).filter((n) => Number.isInteger(n));
         if (!ids.length) throw new Error("No tab ids given.");
         const tabs = await Promise.all(ids.map((n) => chrome.tabs.get(n)));
-        hooks.onStep?.(`Closing ${tabs.length === 1 ? (tabs[0].title ?? "a tab") : `${tabs.length} tabs`}`);
-        await chrome.tabs.remove(ids);
-        return `closed: ${tabs.map((t) => t.title).join("; ")}`;
+        // Unless the user said so (or YOLO is on), typing that isn't sent or saved isn't thrown away.
+        const keep = settings.autonomy === "yolo" || input.discard_unsaved ? [] : await tabsWithUnsavedTyping(tabs);
+        const closing = tabs.filter((t) => !keep.includes(t));
+        if (closing.length) {
+          hooks.onStep?.(`Closing ${closing.length === 1 ? (closing[0].title ?? "a tab") : `${closing.length} tabs`}`);
+          await chrome.tabs.remove(closing.map((t) => t.id!));
+        }
+        const closed = closing.length ? `closed: ${closing.map((t) => t.title).join("; ")}` : "closed nothing";
+        return keep.length
+          ? `${closed}. Not closed, because they have typing that isn't sent or saved: ${keep.map((t) => `"${t.title}"`).join("; ")}. Ask the user whether to close them anyway; if they say yes, call close_tabs again with discard_unsaved true.`
+          : closed;
       }
       case "press_key": {
         const res = await pageRequest(tab, { kind: "pressKey", key: input.key as Key });

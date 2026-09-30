@@ -205,6 +205,11 @@ document.querySelectorAll<HTMLInputElement>("input[name=effort]").forEach((r) =>
   }),
 );
 
+// YOLO: acts without asking (except payments and passwords), with no step limit.
+$("yolo").addEventListener("click", () => {
+  void saveSettings({ autonomy: settings.autonomy === "yolo" ? "default" : "yolo" });
+});
+
 $("plan").addEventListener("click", () => {
   if (aiModeOf(settings) === "pro") void saveSettings({ aiMode: "free" });
   // Pro needs a key: without one, go and connect it.
@@ -236,6 +241,13 @@ function applySettings(next: Settings) {
   ui.keyBanner.hidden = providersWithKeys(next).length > 0 || next.aiMode === "free";
   // How much the AI thinks: Pro only. A level set in Settings that isn't here leaves none selected.
   $("thinking").hidden = aiModeOf(next) !== "pro";
+  const yolo = $("yolo");
+  yolo.hidden = aiModeOf(next) !== "pro";
+  yolo.setAttribute("aria-pressed", String(next.autonomy === "yolo"));
+  yolo.title =
+    next.autonomy === "yolo"
+      ? "YOLO is on: Navi does everything without asking (except payments and passwords), with no step limit. Click to turn it off."
+      : "YOLO: do everything without asking (except payments and passwords), with no step limit.";
   const effort = activeSettings(next).effort;
   document.querySelectorAll<HTMLInputElement>("input[name=effort]").forEach((r) => (r.checked = r.value === effort));
   renderPlan();

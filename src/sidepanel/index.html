@@ -63,6 +63,7 @@
         <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
         <div id="session-bar" class="session-bar" hidden><div></div></div>
       </div>
+      <div class="mode-row">
       <fieldset class="mode">
         <legend class="sr-only">Listening mode</legend>
         <div class="segmented">
@@ -78,6 +79,10 @@
         <p id="hint-handsfree" class="mode-hint" data-mode="handsfree">Say “Hey <span class="wake-name">Navi</span>”, then talk.</p>
         <p id="hint-open" class="mode-hint" data-mode="open">Everything is a command until you turn the mic off.</p>
       </fieldset>
+      <!-- Pro only: act without asking (except payments and passwords), with no step limit. -->
+      <button id="yolo" class="yolo" type="button" aria-pressed="false" aria-describedby="yolo-hint" hidden>YOLO</button>
+      <p id="yolo-hint" class="sr-only">Does everything without asking, except before payments and passwords, with no step limit.</p>
+      </div>
       <!-- Pro only: how much the AI reasons before acting (Settings has every level). -->
       <fieldset id="thinking" class="thinking" hidden>
         <legend class="thinking-label">Thinking</legend>

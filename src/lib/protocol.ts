@@ -54,6 +54,7 @@ export type ContentRequest =
   | { kind: "scroll"; direction: ScrollDirection; amount: ScrollAmount }
   | { kind: "pressKey"; key: Key }
   | { kind: "typeKeys"; text: string; submit: boolean }
+  | { kind: "unsaved" }
   | { kind: "readPage"; maxChars: number }
   | { kind: "media"; action: MediaAction; seconds?: number; volume?: number }
   // Cells are keypad numbers 1-9, one per grid level: [5, 3] is block 3 inside block 5.
@@ -92,5 +93,5 @@ export interface PageSnapshot {
 }
 
 export type ContentResponse =
-  | { ok: true; snapshot?: PageSnapshot; text?: string; detail?: string; gridActive?: boolean; active?: boolean }
+  | { ok: true; snapshot?: PageSnapshot; text?: string; detail?: string; gridActive?: boolean; active?: boolean; unsaved?: boolean }
   | { ok: false; error: string };

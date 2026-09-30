@@ -310,6 +310,14 @@ test("router: one tab closes from loose speech (reopen brings it back), but othe
   await expect.poll(() => site.isClosed()).toBe(true);
   await run(panel, "reopen tab");
   await expect.poll(count).toBe(2);
+
+  // YOLO: no double-checking.
+  await panel.evaluate(async () => {
+    const { settings } = (await chrome.storage.local.get("settings")) as { settings: Record<string, unknown> };
+    await chrome.storage.local.set({ settings: { ...settings, autonomy: "yolo" } });
+  });
+  await run(panel, "clothes the other taps");
+  await expect.poll(count).toBe(1);
 });
 
 test("keyboard games: the agent types a whole guess in one step, and “type … and press enter” works with no text box", async ({
@@ -351,34 +359,134 @@ test("video volume: set to a level, and turned up or down however it's said", as
   const volume = () => site.locator("#player").evaluate((v: HTMLVideoElement) => Math.round(v.volume * 100));
   await run(panel, "Turn volume to 45.");
   await expect.poll(volume).toBe(45);
-  await run(panel, "turn it down more");
+  await run(panel, "turn the volume down");
   await expect.poll(volume).toBe(30);
   await run(panel, "set the volume to 80 percent");
   await expect.poll(volume).toBe(80);
 });
 
-test("opening another site keeps the page you were on: it opens in a new tab, and “go back” returns to it", async ({
+test("“open” opens a new tab and “go back” there returns to where you were; “go to” stays in this tab", async ({
   panel,
   site,
   baseUrl,
   context,
 }) => {
   const port = new URL(baseUrl).port;
-  const before = context.pages().length;
+  const webTabs = () => context.pages().filter((p) => p.url().startsWith("http"));
   await run(panel, `open 127.0.0.1:${port}/about.html`);
-  await expect.poll(() => context.pages().length).toBe(before + 1);
+  await expect.poll(() => webTabs().length).toBe(2);
   await expect(site).toHaveURL(/localhost.*index\.html/);
-  const opened = context.pages().find((p) => p.url().includes("127.0.0.1"))!;
+  const opened = webTabs().find((p) => p.url().includes("127.0.0.1"))!;
   // The new tab has nothing to go back to: it closes, back to the page it came from.
   await run(panel, "go back");
   await expect.poll(() => opened.isClosed()).toBe(true);
   await expect(panel.locator("#log li.navi").last()).toContainText("Back to");
-  // "here" replaces the page, and "go back" is ordinary history.
-  await run(panel, `open 127.0.0.1:${port}/about.html here`);
+  // "Go to" replaces the page, and "go back" is ordinary history.
+  await run(panel, `go to 127.0.0.1:${port}/about.html`);
   await expect(site).toHaveURL(/127\.0\.0\.1.*about\.html/);
   await run(panel, "go back");
   await expect(site).toHaveURL(/localhost.*index\.html/);
-  expect(context.pages().filter((p) => p.url().startsWith("http")).length).toBe(1);
+  expect(webTabs().length).toBe(1);
+});
+
+test("closing a tab with unsent typing asks first by default (“yes” closes it); searches don't count; YOLO just closes", async ({
+  panel,
+  baseUrl,
+  context,
+}) => {
+  const port = new URL(baseUrl).port;
+  const openNote = async () => {
+    const opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("note.html") });
+    await run(panel, `open localhost:${port}/note.html`);
+    const page = await opened;
+    await page.waitForLoadState();
+    return page;
+  };
+
+  // Typing in a search box isn't work to lose.
+  let note = await openNote();
+  await note.getByLabel("Search notes").fill("groceries");
+  await run(panel, "close tab");
+  await expect.poll(() => note.isClosed()).toBe(true);
+
+  note = await openNote();
+  await note.getByRole("textbox", { name: "Note", exact: true }).fill("Half-written reply to Sarah");
+  await run(panel, "close tab");
+  await expect(panel.locator("#log li.navi").last()).toContainText("“Navi Notes” has typing that isn't sent or saved. Close anyway?");
+  expect(note.isClosed()).toBe(false);
+  await run(panel, "yes");
+  await expect.poll(() => note.isClosed()).toBe(true);
+
+  // YOLO: no question.
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { autonomy: "yolo" } }));
+  note = await openNote();
+  await note.getByRole("textbox", { name: "Note", exact: true }).fill("Another draft");
+  await run(panel, "close tab");
+  await expect.poll(() => note.isClosed()).toBe(true);
+});
+
+test("the AI doesn't close a tab with unsent typing unless the user said yes to losing it", async ({ panel, baseUrl, context }) => {
+  const port = new URL(baseUrl).port;
+  const opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("note.html") });
+  await run(panel, `open localhost:${port}/note.html`);
+  const note = await opened;
+  await note.getByRole("textbox", { name: "Note", exact: true }).fill("Half-written reply to Sarah");
+  const results: string[] = [];
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      const messages = body.messages as { content: unknown }[];
+      if (messages.length === 1) {
+        const tabId = Number(String(messages[0].content).match(/\(tab (\d+)\) Navi Notes/)?.[1]);
+        return [{ type: "tool_use", id: "t1", name: "close_tabs", input: { tab_ids: [tabId], discard_unsaved: false } }];
+      }
+      results.push(JSON.stringify(messages.at(-1)?.content));
+      return [{ type: "text", text: "Navi Notes has an unsent draft. Close it anyway?" }];
+    }),
+  );
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "off" } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await type(panel, "tidy up my tabs by getting rid of the notes one");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Close it anyway?");
+  expect(note.isClosed()).toBe(false);
+  expect(results[0]).toContain("Not closed, because they have typing that isn't sent or saved");
+});
+
+test("YOLO: the panel's switch turns it on; the AI is then told to act without asking, with no step limit", async ({ panel, context }) => {
+  const systems: string[] = [];
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      systems.push(JSON.stringify(body.system));
+      // Scrolls for five steps, then answers.
+      return (body.messages as unknown[]).length < 1 + 2 * 5
+        ? [{ type: "tool_use", id: `t${systems.length}`, name: "scroll", input: { direction: "down", amount: "small" } }]
+        : [{ type: "text", text: "[done] Scrolled through it all." }];
+    }),
+  );
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "off", maxAgentSteps: 3 } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  const yolo = panel.getByRole("button", { name: "YOLO" });
+  await expect(yolo).toHaveAttribute("aria-pressed", "false");
+
+  await type(panel, "look over every section of this page for me");
+  await expect(panel.locator("#log li.navi").last()).toContainText("too many steps");
+  expect(systems).toHaveLength(3);
+  expect(systems[0]).toContain("Ask first only before");
+
+  await yolo.click();
+  await expect(yolo).toHaveAttribute("aria-pressed", "true");
+  expect(await panel.evaluate(async () => ((await chrome.storage.local.get("settings")) as { settings: { autonomy: string } }).settings.autonomy)).toBe(
+    "yolo",
+  );
+  await type(panel, "look over every section of this page for me");
+  await expect(panel.locator("#log li.navi").last()).toContainText("Scrolled through it all.");
+  expect(systems).toHaveLength(3 + 6);
+  expect(systems.at(-1)).toContain("YOLO mode is on");
 });
 
 test("setup: connecting a key checks it, then turns on that provider's recommended models", async ({ panel, context, extensionId }) => {

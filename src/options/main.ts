@@ -95,6 +95,7 @@ async function fill() {
   field<HTMLInputElement>("wakeName").value = s.wakeName;
   field<HTMLSelectElement>("listenMode").value = s.listenMode;
   field<HTMLSelectElement>("recognizer").value = s.recognizer;
+  field<HTMLSelectElement>("autonomy").value = s.autonomy;
   field<HTMLInputElement>("sessionTimeoutSec").value = String(s.sessionTimeoutSec);
   field<HTMLInputElement>("lang").value = s.lang;
   field<HTMLSelectElement>("feedback").value = s.feedback;
@@ -131,6 +132,7 @@ form.addEventListener("submit", async (e) => {
     wakeName: field<HTMLInputElement>("wakeName").value.trim() || "Navi",
     listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],
     recognizer: field<HTMLSelectElement>("recognizer").value as Settings["recognizer"],
+    autonomy: field<HTMLSelectElement>("autonomy").value as Settings["autonomy"],
     sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, 120),
     lang: field<HTMLInputElement>("lang").value.trim() || "en-US",
     feedback: field<HTMLSelectElement>("feedback").value as Settings["feedback"],

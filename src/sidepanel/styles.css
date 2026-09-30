@@ -324,16 +324,24 @@ body {
   transition: width 1s linear;
 }
 
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+
 .mode {
   display: grid;
+  flex: 1;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-width: 0;
   margin: 0;
-  padding: 8px 12px 10px;
+  padding: 0;
   border: 0;
-  border-top: 1px solid var(--border);
 }
 
 .segmented {
@@ -359,8 +367,39 @@ body {
   min-width: 0;
 }
 
-.thinking[hidden] {
+.thinking[hidden],
+.yolo[hidden] {
   display: none;
+}
+
+/* YOLO: acts without asking. Lit up while on, so it's never on by accident. */
+.yolo {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.yolo:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.yolo[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--text);
+}
+
+.yolo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .thinking-label {

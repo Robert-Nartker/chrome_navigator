@@ -29,7 +29,7 @@ go back; go back <n> pages; go forward; refresh; go home (site home page); next 
 new tab; new window; close tab (the current one); close <site or title> tab; close other tabs; duplicate tab; pin tab; next tab; previous tab; first tab; last tab; switch back; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
 find <text> (on this page); find next; select all; undo; clear it; new line; print
 what did you say; talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
-open <site or URL> (optionally "in a new tab" or "here"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
+open <site or URL> (opens it in a new tab); go to <site or URL> (in this tab); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
 flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
@@ -42,6 +42,8 @@ go to sleep; stop`;
 export interface RecentCommand {
   said: string;
   outcome: string;
+  /** What Navi said back, if anything. */
+  reply?: string;
 }
 
 export interface RouteContext {
@@ -58,7 +60,11 @@ export function routerMessage(utterance: string, context: RouteContext): string 
     `Current page: ${context.title ?? "unknown"}`,
   ];
   const recent = (context.recent ?? []).slice(-3);
-  if (recent.length) lines.push(`Before this: ${recent.map((r) => `"${r.said.slice(0, 60)}" (${r.outcome})`).join("; ")}`);
+  if (recent.length) {
+    const one = (r: RecentCommand) =>
+      `"${r.said.slice(0, 60)}" (${r.outcome}${r.reply ? `; Navi said "${r.reply.replace(/\s+/g, " ").slice(0, 100)}"` : ""})`;
+    lines.push(`Before this: ${recent.map(one).join("; ")}`);
+  }
   lines.push(`Heard: "${utterance}"`);
   return lines.join("\n");
 }
@@ -72,11 +78,11 @@ export const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free brows
 Built-in commands:
 ${BUILT_IN_COMMANDS}
 
-Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore", unless it sounds like one of the commands.
+Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab") and the user's verb: "open" opens a new tab, "go to" stays in this one. If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore", unless it sounds like one of the commands.
 
-Speech recognition swaps words that sound alike, so read the text by its sound, not its spelling, and when it sounds like a command, it's that command: "open new tube" is "open youtube", "open your tab" is "new tab", "close the tap" is "close tab", "on flag" or "unflag" is "hide flags", "flex" is "flags", "go bag" is "go back", "scroll dawn" is "scroll down", "turn volume to forty five" is "volume 45".
+Speech recognition swaps words that sound alike, so read the text by its sound, not its spelling, and when it sounds like a command, it's that command: "open new tube" is "open youtube", "open your tab" is "new tab", "close the tap" is "close tab", "flex" is "flags", "go bag" is "go back", "scroll dawn" is "scroll down".
 
-"Before this" lists the last few commands and what came of them. Use it for follow-ups ("again", "a bit more", "the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"; "turn to 45" or "turn out more" after "volume down" is "volume 45" or "volume down"), but judge the new text on its own: resembling an earlier command doesn't make it one.
+"Before this" lists the last few commands, what came of them, and what Navi said. Short phrases like "turn it up", "turn it to 30", "more" or "the next one" mean something only in that context: use it to decide ("the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"; "turn it to 30" or "turn out more" after a volume change is "volume 30" or "volume down"; "unflag" after "flags" is "hide flags"). When the context is something else ("turn it to 30" after asking about a game's difficulty setting), or there's no context, choose "agent": it sees the page and the conversation. Judge the new text on its own: resembling an earlier command doesn't make it one.
 
 A correction of the last command is a request, never noise, even when it's short or starts with "no": "on YouTube" or "no, on YouTube" after "search for lofi" is "search youtube for lofi"; "Mr Beast, not Mr Feast" after "search youtube for mr feast" is "search youtube for mr beast". When one command does the corrected request, return it; otherwise ("no, the other one", "that's the wrong video") choose "agent".`;
 

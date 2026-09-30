@@ -102,6 +102,12 @@ describe("which models run", () => {
     expect([g.model, g.routerModel]).toEqual(["gpt-6.1-sol", "gpt-6.1-sol"]);
   });
 
+  it("asks rarely by default; YOLO only has to be chosen", () => {
+    expect(normalizeSettings({}).autonomy).toBe("default");
+    expect(normalizeSettings({ autonomy: "yolo" }).autonomy).toBe("yolo");
+    expect(normalizeSettings({ autonomy: "reckless" as never }).autonomy).toBe("default");
+  });
+
   it("listens with Chrome's recognizer unless Parakeet was chosen", () => {
     expect(normalizeSettings({}).recognizer).toBe("chrome");
     expect(normalizeSettings({ recognizer: "parakeet" }).recognizer).toBe("parakeet");
@@ -158,15 +164,34 @@ describe("router context", () => {
       { said: "open youtube", outcome: "ran" },
       { said: "tiktok tiktok", outcome: "ignored" },
       { said: "scroll down", outcome: "ran" },
-      { said: "next tab", outcome: "ran" },
+      { said: "what's the difficulty", outcome: "AI task", reply: "It's on\nmedium, 20 out of 100." },
     ];
     const base = { title: "YouTube", personalPhrases: ["study time"] };
     const plain = routerMessage("again", base);
     const withRecent = routerMessage("again", { ...base, recent });
-    expect(withRecent).toContain('Before this: "tiktok tiktok" (ignored); "scroll down" (ran); "next tab" (ran)');
+    // What Navi said is there too, so "turn it to 30" can be read in context.
+    expect(withRecent).toContain(
+      'Before this: "tiktok tiktok" (ignored); "scroll down" (ran); "what\'s the difficulty" (AI task; Navi said "It\'s on medium, 20 out of 100.")',
+    );
     expect(withRecent.endsWith('Heard: "again"')).toBe(true);
     // Under 10% more to read than without it (instructions included).
     const added = withRecent.length - plain.length;
     expect(added / (SYSTEM_PROMPT.length + plain.length)).toBeLessThan(0.1);
+  });
+});
+
+describe("asking first", () => {
+  it("by default asks only before what can't be taken back; YOLO only before payments and sensitive details", async () => {
+    const { systemPrompt } = await import("../../src/lib/agent");
+    const normal = systemPrompt("default");
+    const yolo = systemPrompt("yolo");
+    expect(normal).toContain("Ask first only before something the user can't take back");
+    expect(normal).toContain("typing that isn't sent or saved");
+    expect(normal).not.toContain("YOLO");
+    expect(yolo).toContain("YOLO mode is on");
+    expect(yolo).toMatch(/stop and ask before paying or buying anything.*passwords/);
+    expect(yolo).not.toContain("Ask first only");
+    // Everything else is the same.
+    expect(normal.replace(/\n- Ask first only[^\n]*/, "")).toBe(yolo.replace(/\n- YOLO mode is on[^\n]*/, ""));
   });
 });

@@ -10,6 +10,7 @@ import {
   isWebUrl,
   listTabs,
   goBack,
+  tabsWithUnsavedTyping,
   navigate,
   pageRequest,
   snapshot,
@@ -88,6 +89,8 @@ export class Controller {
   private readonly agent: NaviAgent;
   private current: AbortController | null = null;
   private queue: { text: string; options: RunOptions }[] = [];
+  /** A close waiting for the user's yes, because it would lose typing that isn't sent or saved. */
+  private pendingClose: { intent: Intent; until: number } | null = null;
   private busy = false;
   private numbers = false;
   private commands: CustomCommand[] = [];
@@ -272,12 +275,27 @@ export class Controller {
             : this.turnMessage || "done";
     this.recent = [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6);
     const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled" }[metric.path] ?? metric.path;
-    this.recentForRouter = [...this.recentForRouter, { said: command, outcome }].slice(-3);
+    this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-3);
   }
 
   /** Personal commands first, then built-in commands, then the AI. */
   private async dispatch(command: string, signal: AbortSignal, depth: number, options: RunOptions): Promise<Outcome> {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+    // The answer to "… has typing that isn't sent or saved. Close anyway?"; anything else moves on.
+    const pending = this.pendingClose;
+    this.pendingClose = null;
+    if (pending && Date.now() < pending.until) {
+      const answer = command.toLowerCase().replace(/[^a-z' ]/g, "").trim();
+      if (/^(?:yes|yeah|yep|yup|sure|ok|okay|do it|go ahead|close (?:it|them))\b/.test(answer)) {
+        await this.execute(pending.intent, true);
+        return { intent: pending.intent.type };
+      }
+      if (/^(?:no|nope|don't|dont|cancel|never ?mind|leave it|keep it)\b/.test(answer)) {
+        await this.confirm("Left it open");
+        return { intent: "confirm" };
+      }
+    }
 
     if (this.gridOn) {
       const gridCommand = parseGridCommand(command);
@@ -315,7 +333,7 @@ export class Controller {
     // A command the router reconstructed from loose (possibly misheard) speech never closes other tabs or
     // clears a field on its own: the user confirms by saying it plainly. (One closed tab is one "reopen
     // tab" away, so that just happens.)
-    if (intent && options.fastOnly && isDestructive(intent)) {
+    if (intent && options.fastOnly && isDestructive(intent) && this.getSettings().autonomy !== "yolo") {
       const text = `I heard “${command}” but didn't do it, to be safe. Say “${command}” if that's right.`;
       this.navi(text);
       await this.say(text);
@@ -571,7 +589,24 @@ export class Controller {
     return this.numbers;
   }
 
-  private async execute(intent: Intent): Promise<void> {
+  /**
+   * Default mode, before closing tabs: if any has typing that isn't sent or saved, asks instead (the next
+   * "yes" closes them). True if it asked.
+   */
+  private async askBeforeLosingTyping(tabs: chrome.tabs.Tab[], intent: Intent, confirmed: boolean): Promise<boolean> {
+    if (confirmed || this.getSettings().autonomy === "yolo") return false;
+    const unsaved = await tabsWithUnsavedTyping(tabs);
+    if (!unsaved.length) return false;
+    const names = unsaved.map((t) => `“${t.title || hostOf(t.url)}”`).join(", ");
+    const text = `${names} ${unsaved.length === 1 ? "has" : "have"} typing that isn't sent or saved. Close anyway?`;
+    this.pendingClose = { intent, until: Date.now() + 60_000 };
+    this.navi(text);
+    await this.say(text);
+    return true;
+  }
+
+  /** `confirmed`: the user already said yes to closing tabs with unsaved typing. */
+  private async execute(intent: Intent, confirmed = false): Promise<void> {
     const tab = await targetTab();
     switch (intent.type) {
       case "sleep":
@@ -608,6 +643,7 @@ export class Controller {
         await this.confirm("New tab");
         return;
       case "closeTab":
+        if (await this.askBeforeLosingTyping([tab], intent, confirmed)) return;
         await chrome.tabs.remove(tab.id!);
         await this.confirm("Closed the tab");
         return;
@@ -615,6 +651,7 @@ export class Controller {
         // Close only a tab that clearly matches the name; never fall back to the current tab.
         const matches = await matchingTabs(intent.query);
         if (matches.length === 1 && matches[0].id !== undefined) {
+          if (await this.askBeforeLosingTyping(matches, intent, confirmed)) return;
           await chrome.tabs.remove(matches[0].id);
           await this.confirm(`Closed ${matches[0].title || intent.query}`);
           return;
@@ -738,7 +775,13 @@ export class Controller {
         return;
       }
       case "media": {
-        const res = await pageRequest(tab, { kind: "media", action: intent.action, seconds: intent.seconds, volume: intent.volume });
+        // No <video> (a game's own volume, Spotify's player): the AI finds the page's controls instead.
+        const res = await pageRequest(tab, { kind: "media", action: intent.action, seconds: intent.seconds, volume: intent.volume }).catch(
+          (err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            throw /no video/i.test(message) ? new Unhandled(message) : err;
+          },
+        );
         await this.confirm(res.detail ?? intent.action);
         return;
       }
@@ -832,7 +875,9 @@ export class Controller {
         await this.confirm("New window");
         return;
       case "closeOtherTabs": {
-        const others = (await listTabs()).filter((t) => t.id !== tab.id && !t.pinned).map((t) => t.id!);
+        const otherTabs = (await listTabs()).filter((t) => t.id !== tab.id && !t.pinned);
+        if (await this.askBeforeLosingTyping(otherTabs, intent, confirmed)) return;
+        const others = otherTabs.map((t) => t.id!);
         if (others.length) await chrome.tabs.remove(others);
         await this.confirm(`Closed ${others.length} other tab${others.length === 1 ? "" : "s"}`);
         return;

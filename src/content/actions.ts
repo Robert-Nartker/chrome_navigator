@@ -59,7 +59,7 @@ function findEditableWithin(el: Element): Element | null {
 }
 
 export function typeText(target: Element | null, text: string, submit: boolean, clear: boolean): string {
-  // No box named and none focused: type on the page itself (games like Wordle listen to the keyboard).
+  // No box named and none focused: type on the page itself (pages that listen to the keyboard).
   const focused = deepActiveElement();
   if (!target && !(focused && (isTextField(focused) || (focused as HTMLElement).isContentEditable))) return typeKeys(text, submit);
   let el = target ? findEditableWithin(target) : focused;
@@ -129,8 +129,8 @@ function charEventInit(ch: string) {
 }
 
 /**
- * Types on the page as key presses, for pages that react to the keyboard rather than a text field
- * (games like Wordle, keyboard shortcuts). Into a focused text field, it types normally.
+ * Types on the page as key presses, for pages that react to the keyboard rather than a text field.
+ * Into a focused text field, it types normally.
  */
 export function typeKeys(text: string, submit: boolean): string {
   const focused = deepActiveElement();
