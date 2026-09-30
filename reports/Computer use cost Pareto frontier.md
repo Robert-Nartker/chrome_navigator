@@ -226,3 +226,35 @@ Latency scales with thinking tokens per step. At GPT-6 Sol's roughly 104 tokens/
 The frontier is a relay between vendors, not one vendor's curve. OpenAI's cheap tiers own the bottom two-thirds of the cost range, Anthropic's Opus owns the top, and no single model spans it. The bottom (Luna, then Sol at medium) holds across both views, both benchmark families and 20,000 draws of uncertainty. The top is contested: Opus leads on long desktop workflows and Astra on rubric-scored browsing, and the gap between them is smaller than the uncertainty in the OSWorld version bridge. Within each model, effort moves cost more than it moves performance: low to max spans about 5× in cost on long tasks, and every model's max setting is dominated or marginal. For a latency-bound product, turn effort down first and change model tier second.
 
 Three pending data sources would redraw this chart more than any further modelling: OpenAI's post-fix reruns of Luna and Sol, Anthropic's per-effort OSWorld 2.1 sweeps if the system cards contain them, and the project's own NaviBench results on short voice-style tasks, where the long-horizon gaps shown here are likely to compress.
+
+## Addendum: Navi's own browser tests (measured)
+
+After this report was written, the project's own benchmark (NaviBench) finished a sweep of the three GPT models at every reasoning level they accept. It uses the six hardest tasks in `bench/tasks.json` (the `hard-*` tasks on `market.html` and `workspace.html`), run through the real extension on 2026-09-30, 2 runs per task (12 per row), with a 25-step limit. Navi sends element lists and page text, not screenshots, so these costs are far below the computer-use figures above. Claude models could not be run: no Anthropic key reached the test machine. The ranges are 80% Wilson intervals for a pass rate from 12 runs.
+
+| Model | Reasoning | Passed | 80% range | $ per task | Median time | Avg steps |
+|---|---|---|---|---|---|---|
+| GPT-6.1 Sol | low | 12/12 | 88–100% | $0.0085 | 11.9 s | 8.6 |
+| GPT-6.1 Sol | medium | 11/12 | 76–98% | $0.0076 | 10.9 s | 7.7 |
+| GPT-6.1 Sol | high | 12/12 | 88–100% | $0.0083 | 11.4 s | 8.5 |
+| GPT-6.1 Sol | xhigh | 12/12 | 88–100% | $0.0107 | 11.9 s | 10.6 |
+| GPT-6.1 Sol | max | 12/12 | 88–100% | $0.0130 | 16.4 s | 10.3 |
+| GPT-6 Astra | low | 12/12 | 88–100% | $0.0533 | 13.9 s | 8.3 |
+| GPT-6 Astra | medium | 12/12 | 88–100% | $0.0542 | 13.7 s | 8.6 |
+| GPT-6 Astra | high | 12/12 | 88–100% | $0.0558 | 12.2 s | 8.7 |
+| GPT-6 Astra | xhigh | 12/12 | 88–100% | $0.0600 | 13.8 s | 9.1 |
+| GPT-6 Astra | max | 12/12 | 88–100% | $0.0717 | 18.1 s | 9.1 |
+| GPT-6 Luna | none | 5/12 | 26–60% | $0.0005 | 7.0 s | 7.8 |
+| GPT-6 Luna | low | 6/12 | 33–67% | $0.0004 | 5.7 s | 5.9 |
+| GPT-6 Luna | medium | 5/12 | 26–60% | $0.0004 | 5.3 s | 5.5 |
+| GPT-6 Luna | high | 7/12 | 40–74% | $0.0006 | 8.9 s | 7 |
+| GPT-6 Luna | xhigh | 8/12 | 48–81% | $0.0006 | 8.2 s | 6.7 |
+| GPT-6 Luna | max | 9/12 | 57–87% | $0.0008 | 9.5 s | 7.2 |
+
+What it adds to the picture:
+
+- GPT-6.1 Sol passed 11–12 of 12 at every level; cost per task moved only from $0.008 to $0.013 between low and max, and median time from about 11 s to 16 s. For short, text-based browser tasks, reasoning level mostly buys latency, not success.
+- GPT-6 Astra also passed everything, at about 6x Sol's cost. It is dominated in Navi's setting, matching its position on the computer-use chart.
+- GPT-6 Luna was about 17x cheaper than Sol but passed 5–9 of 12, rising with reasoning; 'none' cost more than 'low' because it took extra steps, which matches Browser Use's Luna result.
+- At Navi's default limit of 12 steps, the multi-email reply task fails for every model (they run out of steps), so the default limit, not the model, is the binding constraint on longer tasks.
+
+The interactive chart with all three views (computer use, browser use, Navi's tests) is `reports/Computer use cost Pareto frontier.html`.

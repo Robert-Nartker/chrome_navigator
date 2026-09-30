@@ -1,0 +1,425 @@
+<title>Agent Cost Frontier</title>
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6d67;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --anthropic: #2a78d6; --openai: #eb6834; --anchor: #898781; --frontier: #0b0b0b;
+    --tip-bg: #ffffff; --wash: rgba(11,11,11,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #a09e97;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --anthropic: #3987e5; --openai: #d95926; --anchor: #898781; --frontier: #ffffff;
+      --tip-bg: #242423; --wash: rgba(255,255,255,0.05); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #a09e97;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --anthropic: #3987e5; --openai: #d95926; --anchor: #898781; --frontier: #ffffff;
+    --tip-bg: #242423; --wash: rgba(255,255,255,0.05); color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 56px; padding-inline: 16px; display: grid; gap: 20px; }
+  header h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--ink-2); max-width: 72ch; }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; min-width: 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--ink-2); padding: 7px 12px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--ring); }
+  .seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--wash); color: var(--ink); font-weight: 600; }
+  .seg button:focus-visible, .check input:focus-visible { outline: 2px solid var(--anthropic); outline-offset: 2px; }
+  .check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--ink-2); }
+  .view-note { margin: 10px 0 0; font-size: 13.5px; color: var(--ink-2); max-width: 90ch; }
+  .chart { position: relative; margin-top: 8px; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tick { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .axis-title { font-size: 12.5px; fill: var(--ink-2); }
+  .mlabel { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .flabel { font-size: 12px; fill: var(--ink-2); }
+  .hit { fill: transparent; cursor: pointer; outline: none; }
+  .tip { position: absolute; pointer-events: none; background: var(--tip-bg); color: var(--ink); border: 1px solid var(--ring); border-radius: 8px; padding: 9px 11px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); max-width: 280px; z-index: 2; }
+  .tip .v { font-size: 15px; font-weight: 650; }
+  .tip .k { display: flex; gap: 7px; align-items: center; color: var(--ink-2); margin-top: 2px; }
+  .tip .key { width: 14px; height: 0; border-top: 2px solid; flex: none; }
+  .tip .s { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 16px; height: 16px; display: inline; }
+  .takeaways { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .take { border-left: 3px solid var(--axis); padding: 2px 0 2px 12px; }
+  .take b { display: block; margin-bottom: 2px; }
+  .take p { margin: 0; color: var(--ink-2); font-size: 14px; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 12.5px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.num { text-align: right; }
+  tr.on-front td:first-child { font-weight: 650; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+  .caveats { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details p, details li { color: var(--ink-2); font-size: 14px; max-width: 90ch; }
+  .foot { font-size: 12.5px; color: var(--muted); }
+  @media (max-width: 560px) { header h1 { font-size: 22px; } .card { padding: 12px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Agent Cost Frontier</h1>
+    <p>How well each model and reasoning level handles computer and browser tasks, against what one task costs. Claude Opus 5.5, Claude Sonnet 5.5, GPT-6 Astra, GPT-6.1 Sol and GPT-6 Luna, as of September 30, 2026. Points up and to the left are better; the dark line joins the best value at each price.</p>
+  </header>
+
+  <section class="card" aria-label="Chart">
+    <div class="controls">
+      <div class="seg" role="tablist" aria-label="View">
+        <button role="tab" data-view="cu" aria-selected="true">Computer use</button>
+        <button role="tab" data-view="bu" aria-selected="false">Browser use</button>
+        <button role="tab" data-view="nb" aria-selected="false">Navi's own tests</button>
+      </div>
+      <div class="seg" id="basis" aria-label="Cost basis">
+        <button data-basis="long" aria-pressed="true">Long task cost</button>
+        <button data-basis="short" aria-pressed="false">15-step task cost</button>
+      </div>
+      <label class="check"><input type="checkbox" id="ranges" checked /> Show 80% ranges</label>
+    </div>
+    <p class="view-note" id="note"></p>
+    <div class="chart" id="chart"><svg id="svg" role="img" aria-labelledby="note"></svg><div class="tip" id="tip" hidden></div></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section aria-label="Takeaways">
+    <h2>What it means for Navi</h2>
+    <div class="takeaways" id="takeaways"></div>
+  </section>
+
+  <section class="card" aria-label="Data table">
+    <h2 id="table-title">All points</h2>
+    <div class="table-wrap"><table id="table"></table></div>
+  </section>
+
+  <section class="card" aria-label="Caveats and method">
+    <h2>Read with care</h2>
+    <ul class="caveats" id="caveats"></ul>
+    <details style="margin-top:12px">
+      <summary>How the computer-use view was put together</summary>
+      <div id="method"></div>
+    </details>
+  </section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script type="application/json" id="data">{"models": [{"id": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle"}, {"id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square"}, {"id": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond"}, {"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle"}, {"id": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down"}], "cu": [{"model": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle", "effort": "low", "order": 1, "perf": 63.62, "perf_lo": 46.85, "perf_hi": 72.16, "strict": 24.6, "cost": 2.3744, "cost_lo": 1.0542, "cost_hi": 5.5073, "c15": 0.42423, "pf1": 0.09915, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle", "effort": "medium", "order": 2, "perf": 74.65, "perf_lo": 68.01, "perf_hi": 80.11, "strict": 37.0, "cost": 4.0597, "cost_lo": 2.2513, "cost_hi": 7.6011, "c15": 0.49623, "pf1": 0.3653, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle", "effort": "high", "order": 3, "perf": 77.93, "perf_lo": 72.99, "perf_hi": 82.95, "strict": 42.0, "cost": 4.8663, "cost_lo": 2.7915, "cost_hi": 8.8444, "c15": 0.56643, "pf1": 0.5581, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle", "effort": "xhigh", "order": 4, "perf": 79.93, "perf_lo": 75.16, "perf_hi": 84.43, "strict": 45.3, "cost": 7.3374, "cost_lo": 4.3308, "cost_hi": 13.0497, "c15": 0.78963, "pf1": 0.56315, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle", "effort": "max", "order": 5, "perf": 81.8, "perf_lo": 77.54, "perf_hi": 85.39, "strict": 48.7, "cost": 12.0, "cost_lo": 7.0778, "cost_hi": 21.3467, "c15": 1.54743, "pf1": 0.4835, "measured": true, "perf_type": "published", "cost_type": "estimated from cross vendor anchors"}, {"model": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square", "effort": "none", "order": 10, "perf": 50.19, "perf_lo": 29.36, "perf_hi": 63.24, "strict": 13.8, "cost": 1.6953, "cost_lo": 0.6417, "cost_hi": 4.6172, "c15": 0.21528, "pf1": 0.02275, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square", "effort": "low", "order": 11, "perf": 55.17, "perf_lo": 33.68, "perf_hi": 64.87, "strict": 16.8, "cost": 1.5412, "cost_lo": 0.6055, "cost_hi": 4.0875, "c15": 0.23958, "pf1": 0.0595, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square", "effort": "medium", "order": 12, "perf": 63.24, "perf_lo": 44.07, "perf_hi": 73.91, "strict": 22.7, "cost": 1.8361, "cost_lo": 0.7681, "cost_hi": 4.539, "c15": 0.27198, "pf1": 0.1677, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square", "effort": "high", "order": 13, "perf": 70.47, "perf_lo": 57.32, "perf_hi": 76.57, "strict": 29.9, "cost": 2.8815, "cost_lo": 1.4391, "cost_hi": 5.9659, "c15": 0.32058, "pf1": 0.185, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square", "effort": "xhigh", "order": 14, "perf": 76.49, "perf_lo": 69.92, "perf_hi": 81.29, "strict": 37.7, "cost": 5.2393, "cost_lo": 2.9285, "cost_hi": 9.8389, "c15": 0.47448, "pf1": 0.3158, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "claude-sonnet-5-5", "label": "Sonnet 5.5", "vendor": "anthropic", "shape": "square", "effort": "max", "order": 15, "perf": 80.1, "perf_lo": 75.11, "perf_hi": 84.31, "strict": 43.5, "cost": 11.28, "cost_lo": 6.3638, "cost_hi": 21.0339, "c15": 1.08198, "pf1": 0.34735, "measured": true, "perf_type": "published (effort inferred)", "cost_type": "estimated from cross vendor anchors"}, {"model": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "effort": "low", "order": 21, "perf": 62.46, "perf_lo": 51.62, "perf_hi": 72.76, "strict": 24.6, "cost": 4.1991, "cost_lo": 2.6447, "cost_hi": 6.6323, "c15": 1.13616, "pf1": 0.01285, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "effort": "medium", "order": 22, "perf": 69.62, "perf_lo": 60.17, "perf_hi": 77.81, "strict": 31.9, "cost": 5.9424, "cost_lo": 4.6675, "cost_hi": 7.5285, "c15": 1.2969, "pf1": 0.0527, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "effort": "high", "order": 23, "perf": 73.29, "perf_lo": 64.82, "perf_hi": 80.35, "strict": 36.5, "cost": 6.6988, "cost_lo": 5.6357, "cost_hi": 7.9192, "c15": 1.37556, "pf1": 0.1177, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "effort": "xhigh", "order": 24, "perf": 76.19, "perf_lo": 68.57, "perf_hi": 82.6, "strict": 40.6, "cost": 7.5661, "cost_lo": 6.8004, "cost_hi": 8.38, "c15": 1.47132, "pf1": 0.2045, "measured": true, "perf_type": "converted (effort label ambiguous)", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "effort": "max", "order": 25, "perf": 77.01, "perf_lo": 69.72, "perf_hi": 83.1, "strict": 41.9, "cost": 9.3, "cost_lo": 9.1193, "cost_hi": 9.4116, "c15": 1.67994, "pf1": 0.16125, "measured": true, "perf_type": "converted", "cost_type": "published"}, {"model": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "effort": "low", "order": 31, "perf": 56.56, "perf_lo": 45.92, "perf_hi": 66.61, "strict": 19.8, "cost": 0.4726, "cost_lo": 0.2727, "cost_hi": 0.8231, "c15": 0.194844, "pf1": 0.28785, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "effort": "medium", "order": 32, "perf": 65.11, "perf_lo": 55.51, "perf_hi": 73.57, "strict": 27.1, "cost": 0.608, "cost_lo": 0.4176, "cost_hi": 0.8914, "c15": 0.205815, "pf1": 0.71565, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "effort": "high", "order": 33, "perf": 68.87, "perf_lo": 59.92, "perf_hi": 76.65, "strict": 31.0, "cost": 0.7616, "cost_lo": 0.6076, "cost_hi": 0.963, "c15": 0.219648, "pf1": 0.87915, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "effort": "xhigh", "order": 34, "perf": 71.79, "perf_lo": 63.28, "perf_hi": 79.02, "strict": 34.5, "cost": 0.9741, "cost_lo": 0.8792, "cost_hi": 1.0904, "c15": 0.258762, "pf1": 0.9035, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "effort": "max", "order": 35, "perf": 75.1, "perf_lo": 67.44, "perf_hi": 81.51, "strict": 39.0, "cost": 1.27, "cost_lo": 1.27, "cost_hi": 1.293, "c15": 0.32268, "pf1": 0.8931, "measured": true, "perf_type": "converted", "cost_type": "published"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "none", "order": 50, "perf": 6.9, "perf_lo": 4.5, "perf_hi": 12.23, "strict": 1.0, "cost": 0.0815, "cost_lo": 0.0292, "cost_hi": 0.2808, "c15": 0.0096615, "pf1": 0.1942, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "low", "order": 51, "perf": 9.86, "perf_lo": 7.2, "perf_hi": 17.3, "strict": 1.5, "cost": 0.0543, "cost_lo": 0.0216, "cost_hi": 0.134, "c15": 0.0104265, "pf1": 0.9509, "measured": true, "perf_type": "converted (pre image fix)", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "medium", "order": 52, "perf": 27.83, "perf_lo": 21.18, "perf_hi": 42.89, "strict": 5.9, "cost": 0.0902, "cost_lo": 0.0495, "cost_hi": 0.1604, "c15": 0.011799, "pf1": 0.98405, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "high", "order": 53, "perf": 38.63, "perf_lo": 31.6, "perf_hi": 53.37, "strict": 9.8, "cost": 0.1558, "cost_lo": 0.1115, "cost_hi": 0.2105, "c15": 0.0153765, "pf1": 0.98395, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "xhigh", "order": 54, "perf": 49.93, "perf_lo": 43.61, "perf_hi": 63.36, "strict": 15.5, "cost": 0.2029, "cost_lo": 0.1566, "cost_hi": 0.2547, "c15": 0.0184365, "pf1": 0.97435, "measured": false, "perf_type": "estimated from effort curve", "cost_type": "estimated from effort curve"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "max", "order": 55, "perf": 57.37, "perf_lo": 51.82, "perf_hi": 69.44, "strict": 20.4, "cost": 0.27, "cost_lo": 0.2139, "cost_hi": 0.3301, "c15": 0.0231165, "pf1": 0.9564, "measured": true, "perf_type": "converted (pre image fix)", "cost_type": "published (pre image fix)"}], "bu": [{"model": "gpt-6-astra", "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "effort": "medium", "anchor": false, "order": 0, "score": 80.63, "lo": 75.6, "hi": 85.6, "cost": 8.87, "measured": true, "notes": "Sep-9 chart version showed 77.3"}, {"model": "gpt-6-sol", "label": "GPT-6 Sol", "vendor": "openai", "shape": "triangle", "effort": "medium", "anchor": false, "order": 1, "score": 66.85, "lo": 61.9, "hi": 71.9, "cost": 1.2, "measured": true, "notes": "pre-image-fix; no GPT-6.1 Sol run yet"}, {"model": "claude-opus-5-5", "label": "Opus 5.5", "vendor": "anthropic", "shape": "circle", "effort": "unlabelled", "anchor": false, "order": 2, "score": 59.4, "lo": 54.4, "hi": 64.4, "cost": 4.21, "measured": true, "notes": "effort unstated; dominated by GPT-6 Sol medium"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "xhigh", "anchor": false, "order": 3, "score": 57.55, "lo": 52.6, "hi": 62.6, "cost": 0.19, "measured": true, "notes": "pre-image-fix; Browser Use default executor from 2026-09-24"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "high", "anchor": false, "order": 4, "score": 53.95, "lo": 49.0, "hi": 59.0, "cost": 0.155, "measured": true, "notes": "pre-image-fix"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "medium", "anchor": false, "order": 5, "score": 50.3, "lo": 45.3, "hi": 55.3, "cost": 0.126, "measured": true, "notes": "pre-image-fix"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "low", "anchor": false, "order": 6, "score": 40.68, "lo": 35.7, "hi": 45.7, "cost": 0.018, "measured": true, "notes": "pre-image-fix; cheapest point"}, {"model": "gpt-6-luna", "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "effort": "none", "anchor": false, "order": 7, "score": 31.75, "lo": 26.8, "hi": 36.8, "cost": 0.077, "measured": true, "notes": "costs 4.3x low and scores 8.9 lower"}, {"model": "Claude Fable 5.1", "label": "Fable 5.1", "vendor": "anchor", "shape": "circle", "effort": "high", "anchor": true, "order": 8, "score": 56.23, "lo": 51.2, "hi": 61.2, "cost": 8.11, "measured": true, "notes": ""}, {"model": "Claude Opus 5", "label": "Opus 5", "vendor": "anchor", "shape": "circle", "effort": "unlabelled", "anchor": true, "order": 9, "score": 50.53, "lo": 45.5, "hi": 55.5, "cost": 7.37, "measured": true, "notes": "median 86 steps, 36 min"}, {"model": "GPT-5.6 Sol", "label": "GPT-5.6 Sol", "vendor": "anchor", "shape": "circle", "effort": "xhigh", "anchor": true, "order": 10, "score": 49.07, "lo": 44.1, "hi": 54.1, "cost": 7.8, "measured": true, "notes": "median 119 steps"}, {"model": "DeepSeek V4.1 Flash", "label": "DeepSeek V4.1 Flash", "vendor": "anchor", "shape": "circle", "effort": "max", "anchor": true, "order": 11, "score": 47.88, "lo": 42.9, "hi": 52.9, "cost": 0.263, "measured": true, "notes": ""}, {"model": "GPT-5.6 Luna", "label": "GPT-5.6 Luna", "vendor": "anchor", "shape": "circle", "effort": "xhigh", "anchor": true, "order": 12, "score": 41.17, "lo": 36.2, "hi": 46.2, "cost": 0.358, "measured": true, "notes": "median 135 steps"}, {"model": "GPT-5.6 Sol", "label": "GPT-5.6 Sol", "vendor": "anchor", "shape": "circle", "effort": "medium", "anchor": true, "order": 13, "score": 38.45, "lo": 33.5, "hi": 43.5, "cost": 2.71, "measured": true, "notes": "median 70 steps"}], "nb": [{"model": "gpt-6-astra", "effort": "high", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.05583, "secs": 12.2, "steps": 8.7, "complete": true, "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "order": 23, "measured": true}, {"model": "gpt-6-astra", "effort": "low", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.05333, "secs": 13.9, "steps": 8.3, "complete": true, "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "order": 21, "measured": true}, {"model": "gpt-6-astra", "effort": "max", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.07167, "secs": 18.1, "steps": 9.1, "complete": true, "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "order": 25, "measured": true}, {"model": "gpt-6-astra", "effort": "medium", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.05417, "secs": 13.7, "steps": 8.6, "complete": true, "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "order": 22, "measured": true}, {"model": "gpt-6-astra", "effort": "xhigh", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.06, "secs": 13.8, "steps": 9.1, "complete": true, "label": "GPT-6 Astra", "vendor": "openai", "shape": "diamond", "order": 24, "measured": true}, {"model": "gpt-6-luna", "effort": "high", "n": 12, "passed": 7, "rate": 58.3, "lo": 40.2, "hi": 74.5, "cost": 0.00059, "secs": 8.9, "steps": 7, "complete": true, "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "order": 53, "measured": true}, {"model": "gpt-6-luna", "effort": "low", "n": 12, "passed": 6, "rate": 50.0, "lo": 32.7, "hi": 67.3, "cost": 0.00045, "secs": 5.7, "steps": 5.9, "complete": true, "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "order": 51, "measured": true}, {"model": "gpt-6-luna", "effort": "max", "n": 12, "passed": 9, "rate": 75.0, "lo": 56.7, "hi": 87.3, "cost": 0.00078, "secs": 9.5, "steps": 7.2, "complete": true, "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "order": 55, "measured": true}, {"model": "gpt-6-luna", "effort": "medium", "n": 12, "passed": 5, "rate": 41.7, "lo": 25.5, "hi": 59.8, "cost": 0.00045, "secs": 5.3, "steps": 5.5, "complete": true, "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "order": 52, "measured": true}, {"model": "gpt-6-luna", "effort": "none", "n": 12, "passed": 5, "rate": 41.7, "lo": 25.5, "hi": 59.8, "cost": 0.00052, "secs": 7.0, "steps": 7.8, "complete": true, "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "order": 50, "measured": true}, {"model": "gpt-6-luna", "effort": "xhigh", "n": 12, "passed": 8, "rate": 66.7, "lo": 48.2, "hi": 81.1, "cost": 0.00059, "secs": 8.2, "steps": 6.7, "complete": true, "label": "GPT-6 Luna", "vendor": "openai", "shape": "tri-down", "order": 54, "measured": true}, {"model": "gpt-6.1-sol", "effort": "high", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.00835, "secs": 11.4, "steps": 8.5, "complete": true, "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "order": 33, "measured": true}, {"model": "gpt-6.1-sol", "effort": "low", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.0085, "secs": 11.9, "steps": 8.6, "complete": true, "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "order": 31, "measured": true}, {"model": "gpt-6.1-sol", "effort": "max", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.013, "secs": 16.4, "steps": 10.3, "complete": true, "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "order": 35, "measured": true}, {"model": "gpt-6.1-sol", "effort": "medium", "n": 12, "passed": 11, "rate": 91.7, "lo": 75.8, "hi": 97.5, "cost": 0.00759, "secs": 10.9, "steps": 7.7, "complete": true, "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "order": 32, "measured": true}, {"model": "gpt-6.1-sol", "effort": "xhigh", "n": 12, "passed": 12, "rate": 100.0, "lo": 88.0, "hi": 100, "cost": 0.01066, "secs": 11.9, "steps": 10.6, "complete": true, "label": "GPT-6.1 Sol", "vendor": "openai", "shape": "triangle", "order": 34, "measured": true}], "views": {"cu": {"ymin": 0, "ymax": 90, "ystep": 10, "yunit": "%", "tableTitle": "Computer use: every model and reasoning level", "xtitle": "Dollars per long computer-use task (OSWorld class, log scale)", "xtitleShort": "Dollars per 15-step screenshot task (modelled, log scale)", "xtitleNarrow": "$ per long task (log scale)", "xtitleShortNarrow": "$ per 15-step task (log scale)", "columns": [["Model", 0], ["Reasoning", 0], ["Score", 1], ["80% range", 1], ["$ long task", 1], ["$ 15-step task", 1], ["Score is", 0], ["Chance on best value line", 1]], "note": "Score on one common scale: OSWorld 2.1 with partial credit. Anthropic's scores are as published; OpenAI's were converted from OSWorld 2.0 (offline set) through Claude Opus 5, which was scored on both. Filled marks are measured scores (max effort); hollow ones are estimated from each model's effort-vs-cost curves on other agent benchmarks."}, "bu": {"ymin": 25, "ymax": 90, "ystep": 10, "yunit": "", "tableTitle": "Browser use: Browser Use's BU Bench V2", "xtitle": "Dollars per browser task (API cost only, log scale)", "xtitleNarrow": "$ per browser task (log scale)", "columns": [["Model", 0], ["Reasoning", 0], ["Score", 1], ["$ per task", 1], ["Best value", 0], ["Notes", 0]], "note": "Browser Use's independent BU Bench V2 (legacy 60-task set, weighted score out of 100), published September 23, 2026. Every point is measured. Sonnet 5.5 and GPT-6.1 Sol haven't been run yet; GPT-6 Sol is 6.1's predecessor, run before OpenAI's image fix. Gray points are older models, for reference."}, "nb": {"ymin": 0, "ymax": 100, "ystep": 20, "yunit": "%", "tableTitle": "Navi's own tests: six hard browser tasks", "xtitle": "Dollars per task in Navi (measured, log scale)", "xtitleNarrow": "$ per task in Navi (log scale)", "columns": [["Model", 0], ["Reasoning", 0], ["Passed", 1], ["80% range", 1], ["$ per task", 1], ["Median time", 1], ["Avg steps", 1], ["Best value", 0]], "note": "Navi's six hardest benchmark tasks (best-rated item in stock, a product variant, the cheapest item behind Load more, an email's plan into the calendar, replying only to people who asked a question, a nested setting), run through the real extension: 2 runs each, 12 per point, 25-step limit, September 30, 2026. Claude couldn't be tested because no Anthropic key reached the test machine."}}, "takeaways": [["GPT-6.1 Sol is the one to beat", "In Navi's tests it passed 11\u201312 of 12 hard-task runs at every reasoning level for about a cent per task. On long computer-use tasks it's on the best value line from medium to max."], ["Reasoning level barely moves Navi's bill", "Sol costs $0.008\u2013$0.013 per task in Navi from low to max: pages and history, not thinking, are most of the tokens. Medium or high costs little more than low; the price of more reasoning is mostly waiting (median 11\u201316 s per hard task)."], ["Luna is for quick, cheap steps", "About 17x cheaper than Sol in Navi, but it passed only 5\u20139 of 12 hard tasks. Good for routing and simple commands, not multi-step work. Its cheapest useful level is low; 'none' costs more because it takes extra steps."], ["Astra doesn't earn its price", "It passed everything in Navi, like Sol, at about 6x the cost, and on long computer-use tasks it's never on the best value line. Opus 5.5 at high is the top-end pick for long, high-stakes tasks, but its per-level numbers are estimates."]], "caveats": ["Only 3 of the 27 computer-use points are measured on both axes (Astra, GPT-6.1 Sol and Luna at max effort). The rest are converted or estimated, so treat their exact positions loosely.", "OpenAI and Anthropic publish different OSWorld versions. One model scored on both, Claude Opus 5, links them, which adds about \u00b14\u20135 points of uncertainty to OpenAI's converted scores.", "OpenAI's GPT-6 Sol and Luna numbers were published before its September 25 fix to image encoding in computer use, so they may understate those models.", "The OpenAI figures come from search-result snippets of OpenAI's pages, which couldn't be opened from the research machine; Anthropic's pages and the GitHub-hosted leaderboards were read directly.", "Navi's tests have 12 runs per point, so a difference of one or two tasks is noise. Navi sends element lists rather than screenshots and its tasks are short, so its costs are about 100x lower than computer-use benchmarks.", "Browser Use's chart doesn't say which reasoning level Opus 5.5 used."], "method": ["Score scale: OSWorld 2.1 partial credit, the version Anthropic reports (Opus 5.5 81.8%, Sonnet 5.5 80.1%, both at max effort). OpenAI reports the 82-task offline set of OSWorld 2.0; Claude Opus 5 scored 70.2 there and 74.0 on 2.1, so OpenAI's scores were shifted up by 0.19 on the log-odds scale (about +3.8 points).", "Cost scale: OpenAI's published dollars per task at max effort (Astra $9.30, GPT-6.1 Sol $1.27, Luna $0.27). Opus 5.5 at max was estimated at $12 (range $7\u2013$21) from cross-vendor comparisons, and Sonnet 5.5 at 0.94x that.", "Other reasoning levels: scaled from each model's published effort-vs-cost curves on other agent benchmarks (Anthropic's launch charts, Artificial Analysis' effort data, Browser Use's Luna sweep) and the few OSWorld effort pairs that exist (e.g. GPT-6 Sol at extra high vs max). Ranges and the chance of being on the best value line come from 20,000 simulated draws.", "15-step task cost: a model of a short screenshot-driven task (1280\u00d7800 screenshots, prompt caching), closer to what a voice command costs than a long benchmark task.", "The full write-up with every source is in the Navi repository: reports/Computer use cost Pareto frontier.md."], "foot": "Sources: Anthropic and OpenAI launch posts and system cards (September 2026), Browser Use's BU Bench V2, the OSWorld repositories, Artificial Analysis and Vals, and Navi's own benchmark. Built September 30, 2026."}</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const svg = $("svg"), tip = $("tip"), chart = $("chart");
+  const NS = "http://www.w3.org/2000/svg";
+  const EFFORTS = ["none", "low", "medium", "high", "xhigh", "max"];
+  const EFFORT_LABEL = { none: "none", low: "low", medium: "medium", high: "high", xhigh: "extra high", max: "max", unlabelled: "not stated" };
+  const state = { view: "cu", basis: "long", ranges: true };
+
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const el = (tag, attrs = {}, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const money = (v) => v >= 10 ? `$${v.toFixed(0)}` : v >= 1 ? `$${v.toFixed(2)}` : v >= 0.1 ? `$${v.toFixed(2)}` : v >= 0.01 ? `$${v.toFixed(3)}` : `$${v.toFixed(4)}`;
+  const tickMoney = (v) => v >= 1 ? `$${+v.toPrecision(3)}` : `$${+v.toPrecision(2)}`;
+
+  function shapePath(shape, r) {
+    switch (shape) {
+      case "square": { const s = r * 0.9; return `M${-s},${-s}H${s}V${s}H${-s}Z`; }
+      case "diamond": { const s = r * 1.25; return `M0,${-s}L${s},0L0,${s}L${-s},0Z`; }
+      case "triangle": { const s = r * 1.2; return `M0,${-s}L${s * 0.95},${s * 0.7}L${-s * 0.95},${s * 0.7}Z`; }
+      case "tri-down": { const s = r * 1.2; return `M0,${s}L${s * 0.95},${-s * 0.7}L${-s * 0.95},${-s * 0.7}Z`; }
+      default: return `M${r},0A${r},${r} 0 1,1 ${-r},0A${r},${r} 0 1,1 ${r},0Z`;
+    }
+  }
+
+  // ---- Points for the current view ----
+  function points() {
+    if (state.view === "cu") {
+      return D.cu.map((p) => ({ ...p, x: state.basis === "long" ? p.cost : p.c15, xlo: state.basis === "long" ? p.cost_lo : null, xhi: state.basis === "long" ? p.cost_hi : null, y: p.perf, ylo: p.perf_lo, yhi: p.perf_hi }));
+    }
+    if (state.view === "bu") return D.bu.map((p) => ({ ...p, x: p.cost, y: p.score, ylo: p.lo, yhi: p.hi }));
+    return D.nb.map((p) => ({ ...p, x: p.cost, y: p.rate, ylo: p.lo, yhi: p.hi }));
+  }
+
+  /** Non-dominated points (cheaper or equal cost AND higher score), ignoring reference models. */
+  function frontier(pts) {
+    const cand = pts.filter((p) => !p.anchor).sort((a, b) => a.x - b.x || b.y - a.y);
+    const out = [];
+    let best = -Infinity;
+    for (const p of cand) if (p.y > best + 1e-9) { out.push(p); best = p.y; }
+    return out;
+  }
+
+  function scales(pts, W, H, m) {
+    const xs = pts.flatMap((p) => [p.x, state.ranges && p.xlo ? p.xlo : p.x, state.ranges && p.xhi ? p.xhi : p.x]);
+    let x0 = Math.min(...xs) / 1.6, x1 = Math.max(...xs) * 1.6;
+    const V = D.views[state.view];
+    const y0 = V.ymin, y1 = V.ymax;
+    const lx = (v) => Math.log10(v);
+    const X = (v) => m.l + ((lx(v) - lx(x0)) / (lx(x1) - lx(x0))) * (W - m.l - m.r);
+    const Y = (v) => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+    const ticks = [];
+    for (let k = -5; k <= 3; k++) for (const f of [1, 2.5, 5]) { const v = f * 10 ** k; if (v >= x0 && v <= x1) ticks.push(v); }
+    const yt = [];
+    for (let v = Math.ceil(y0 / V.ystep) * V.ystep; v <= y1 + 1e-9; v += V.ystep) yt.push(v);
+    return { X, Y, ticks: ticks.length > 9 ? ticks.filter((_, i) => i % 2 === 0) : ticks, yt, y0, y1 };
+  }
+
+  function render() {
+    const W = Math.max(320, chart.clientWidth);
+    const narrow = W < 600;
+    const H = Math.round(narrow ? Math.max(380, W * 1.05) : Math.min(560, Math.max(340, W * 0.56)));
+    const m = { l: 44, r: narrow ? 64 : 96, t: 14, b: 46 };
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.replaceChildren();
+    const pts = points();
+    const S = scales(pts, W, H, m);
+    const V = D.views[state.view];
+    const surface = cssVar("--surface");
+
+    // Grid and axes.
+    const g = el("g", {}, svg);
+    for (const v of S.yt) {
+      el("line", { x1: m.l, x2: W - m.r, y1: S.Y(v), y2: S.Y(v), stroke: "var(--grid)", "stroke-width": 1 }, g);
+      const t = el("text", { x: m.l - 8, y: S.Y(v) + 4, "text-anchor": "end", class: "tick" }, g);
+      t.textContent = `${v}${V.yunit}`;
+    }
+    for (const v of S.ticks) {
+      el("line", { x1: S.X(v), x2: S.X(v), y1: m.t, y2: H - m.b, stroke: "var(--grid)", "stroke-width": 1 }, g);
+      const t = el("text", { x: S.X(v), y: H - m.b + 18, "text-anchor": "middle", class: "tick" }, g);
+      t.textContent = tickMoney(v);
+    }
+    el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--axis)", "stroke-width": 1 }, g);
+    const xt = el("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", class: "axis-title" }, g);
+    xt.textContent = narrow ? (state.view === "cu" && state.basis === "short" ? V.xtitleShortNarrow : V.xtitleNarrow)
+      : state.view === "cu" ? (state.basis === "long" ? V.xtitle : V.xtitleShort) : V.xtitle;
+    const ytl = el("text", { x: 12, y: m.t - 2, class: "axis-title" }, g);
+    ytl.textContent = "";
+
+    const color = (p) => (p.anchor ? "var(--anchor)" : p.vendor === "anthropic" ? "var(--anthropic)" : "var(--openai)");
+
+    // Uncertainty ranges.
+    if (state.ranges) {
+      const r = el("g", { opacity: 0.4 }, svg);
+      for (const p of pts) {
+        if (p.ylo != null) el("line", { x1: S.X(p.x), x2: S.X(p.x), y1: S.Y(p.ylo), y2: S.Y(p.yhi), stroke: color(p), "stroke-width": 1.5 }, r);
+        if (p.xlo) el("line", { x1: S.X(p.xlo), x2: S.X(p.xhi), y1: S.Y(p.y), y2: S.Y(p.y), stroke: color(p), "stroke-width": 1.5 }, r);
+      }
+    }
+
+    // Each model's reasoning levels, joined in order.
+    const byModel = new Map();
+    for (const p of pts) if (!p.anchor) byModel.set(p.model, [...(byModel.get(p.model) ?? []), p]);
+    for (const list of byModel.values()) {
+      const sorted = [...list].sort((a, b) => EFFORTS.indexOf(a.effort) - EFFORTS.indexOf(b.effort));
+      if (sorted.length < 2) continue;
+      el("polyline", { points: sorted.map((p) => `${S.X(p.x)},${S.Y(p.y)}`).join(" "), fill: "none", stroke: color(sorted[0]), "stroke-width": 1.5, opacity: 0.45, "stroke-linejoin": "round" }, svg);
+    }
+
+    // Best-value line.
+    const front = frontier(pts);
+    if (front.length > 1) {
+      el("polyline", { points: front.map((p) => `${S.X(p.x)},${S.Y(p.y)}`).join(" "), fill: "none", stroke: "var(--frontier)", "stroke-width": 2, "stroke-linejoin": "round", opacity: 0.85 }, svg);
+    }
+    const onFront = new Set(front);
+
+    // Marks.
+    const marks = el("g", {}, svg);
+    for (const p of pts) {
+      const idx = Math.max(0, EFFORTS.indexOf(p.effort));
+      const r = p.anchor ? 4 : 4 + idx * 0.8;
+      const filled = p.measured;
+      el("path", {
+        d: shapePath(p.shape, r), transform: `translate(${S.X(p.x)},${S.Y(p.y)})`,
+        fill: filled ? color(p) : surface, stroke: filled ? surface : color(p), "stroke-width": 2,
+        "paint-order": "stroke",
+      }, marks);
+    }
+
+    // Model names at each model's highest level, right of that model's nearby marks so they don't cover them.
+    const labels = [];
+    for (const list of byModel.values()) {
+      const top = [...list].sort((a, b) => EFFORTS.indexOf(b.effort) - EFFORTS.indexOf(a.effort))[0];
+      const ty = S.Y(top.y);
+      const right = Math.max(...list.filter((p) => Math.abs(S.Y(p.y) - ty) < 12).map((p) => S.X(p.x)));
+      labels.push({ p: top, x: right + 12, y: ty + 4, text: top.label, w: top.label.length * 7.2 });
+    }
+    labels.sort((a, b) => a.y - b.y);
+    const placed = [];
+    for (const L of labels) {
+      const clash = (y) => placed.some((q) => Math.abs(q.y - y) < 14 && L.x < q.x + q.w && q.x < L.x + L.w);
+      if (clash(L.y)) {
+        const down = [L.y + 14, L.y - 14, L.y + 28].find((y) => !clash(y));
+        if (down === undefined || narrow && Math.abs(down - L.y) > 14) continue;
+        L.y = down;
+      }
+      placed.push(L);
+    }
+    for (const L of placed) {
+      const ay = S.Y(L.p.y);
+      if (Math.abs(L.y - 4 - ay) > 6) el("line", { x1: L.x - 10, y1: ay, x2: L.x - 3, y2: L.y - 4, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+      const end = L.x + L.w > W - 2;
+      const t = el("text", { x: end ? W - 2 : L.x, y: L.y, class: "mlabel", "text-anchor": end ? "end" : "start" }, svg);
+      t.textContent = L.text;
+    }
+    // Name the best value line along its longest stretch, just above it.
+    if (front.length > 1) {
+      let best = null;
+      for (let i = 1; i < front.length; i++) {
+        const a = front[i - 1], b = front[i];
+        const len = Math.hypot(S.X(b.x) - S.X(a.x), S.Y(b.y) - S.Y(a.y));
+        if (!best || len > best.len) best = { a, b, len };
+      }
+      const mx = (S.X(best.a.x) + S.X(best.b.x)) / 2, my = (S.Y(best.a.y) + S.Y(best.b.y)) / 2;
+      const steep = Math.abs(S.Y(best.b.y) - S.Y(best.a.y)) > Math.abs(S.X(best.b.x) - S.X(best.a.x));
+      const t = el("text", { x: steep ? mx + 10 : mx, y: steep ? my + 4 : my - 10, class: "flabel", "text-anchor": steep ? "start" : "middle" }, svg);
+      t.textContent = "best value line";
+    }
+
+    // Hover and focus targets (bigger than the marks).
+    const hits = el("g", {}, svg);
+    for (const p of pts) {
+      const h = el("circle", { cx: S.X(p.x), cy: S.Y(p.y), r: 13, class: "hit", tabindex: 0, role: "img", "aria-label": `${p.label}, ${EFFORT_LABEL[p.effort] ?? p.effort}: ${V.fmtY(p)} at ${money(p.x)} per task` }, hits);
+      const show = () => showTip(p, S.X(p.x), S.Y(p.y), W, onFront.has(p));
+      h.addEventListener("pointerenter", show);
+      h.addEventListener("focus", show);
+      h.addEventListener("pointerleave", hideTip);
+      h.addEventListener("blur", hideTip);
+    }
+    renderTable(pts, onFront);
+  }
+
+  function showTip(p, x, y, W, front) {
+    const V = D.views[state.view];
+    tip.replaceChildren();
+    const add = (cls, text, tag = "div") => { const d = document.createElement(tag); d.className = cls; d.textContent = text; tip.appendChild(d); return d; };
+    add("v", `${V.fmtY(p)} · ${money(p.x)} per task`);
+    const k = add("k", "");
+    const key = document.createElement("span"); key.className = "key";
+    key.style.borderColor = p.anchor ? cssVar("--anchor") : p.vendor === "anthropic" ? cssVar("--anthropic") : cssVar("--openai");
+    k.appendChild(key); k.appendChild(document.createTextNode(`${p.label}, ${EFFORT_LABEL[p.effort] ?? p.effort} reasoning`));
+    for (const line of V.details(p, front, state)) add("s", line);
+    tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const scale = chart.clientWidth / W;
+    let left = x * scale + 14, top = y * scale - th - 10;
+    if (left + tw > chart.clientWidth) left = x * scale - tw - 14;
+    if (top < 0) top = y * scale + 14;
+    tip.style.left = `${Math.max(0, left)}px`;
+    tip.style.top = `${top}px`;
+  }
+  function hideTip() { tip.hidden = true; }
+
+  function renderTable(pts, onFront) {
+    const V = D.views[state.view];
+    $("table-title").textContent = V.tableTitle;
+    const t = $("table");
+    t.replaceChildren();
+    const head = t.createTHead().insertRow();
+    for (const [name, num] of V.columns) { const th = document.createElement("th"); th.textContent = name; if (num) th.className = "num"; head.appendChild(th); }
+    const body = t.createTBody();
+    const sorted = [...pts].sort((a, b) => (a.anchor - b.anchor) || a.order - b.order);
+    for (const p of sorted) {
+      const tr = body.insertRow();
+      if (onFront.has(p)) tr.className = "on-front";
+      V.row(p, onFront.has(p), state).forEach(([text, num], i) => {
+        const td = tr.insertCell();
+        if (i === 0) {
+          const dot = document.createElement("span"); dot.className = "dot";
+          dot.style.background = p.anchor ? cssVar("--anchor") : p.vendor === "anthropic" ? cssVar("--anthropic") : cssVar("--openai");
+          td.appendChild(dot);
+        }
+        td.appendChild(document.createTextNode(text));
+        if (num) td.className = "num";
+      });
+    }
+  }
+
+  function renderLegend() {
+    const L = $("legend");
+    L.replaceChildren();
+    const item = (draw, text) => {
+      const s = document.createElement("span");
+      const g = document.createElementNS(NS, "svg"); g.setAttribute("viewBox", "-8 -8 16 16");
+      draw(g);
+      s.appendChild(g); s.appendChild(document.createTextNode(text)); L.appendChild(s);
+    };
+    const surface = cssVar("--surface");
+    item((g) => el("path", { d: shapePath("circle", 5), fill: "var(--anthropic)" }, g), "Anthropic");
+    item((g) => el("path", { d: shapePath("circle", 5), fill: "var(--openai)" }, g), "OpenAI");
+    const models = D.models.filter((mm) => (state.view === "cu" ? true : state.view === "bu" ? D.bu.some((p) => p.model === mm.id) : D.nb.some((p) => p.model === mm.id)));
+    for (const mm of models) item((g) => el("path", { d: shapePath(mm.shape, 5), fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.6 }, g), mm.label);
+    if (state.view === "cu") item((g) => el("path", { d: shapePath("circle", 5), fill: surface, stroke: "var(--ink-2)", "stroke-width": 2 }, g), "hollow = estimated from effort curves");
+    if (state.view === "bu") item((g) => el("path", { d: shapePath("circle", 4), fill: "var(--anchor)" }, g), "older models, for reference");
+    item((g) => el("line", { x1: -7, x2: 7, y1: 0, y2: 0, stroke: "var(--frontier)", "stroke-width": 2 }, g), "best value line");
+    const s = document.createElement("span"); s.textContent = "Bigger mark = more reasoning"; L.appendChild(s);
+  }
+
+  // View-specific formatting (kept here so the data stays plain).
+  Object.assign(D.views.cu, {
+    fmtY: (p) => `${p.y.toFixed(1)}%`,
+    details: (p, front, st) => [
+      `Score range ${p.perf_lo.toFixed(0)}–${p.perf_hi.toFixed(0)}%${st.basis === "long" ? `, cost range ${money(p.cost_lo)}–${money(p.cost_hi)}` : ""}`,
+      `Score: ${p.perf_type}. Cost: ${p.cost_type}.`,
+      `Chance it's on the best value line: ${Math.round(p.pf1 * 100)}%`,
+      `Strict (all-or-nothing) score ≈ ${p.strict.toFixed(0)}%. 15-step task ≈ ${money(p.c15)}.`,
+    ],
+    row: (p, f, st) => [[p.label], [EFFORT_LABEL[p.effort]], [`${p.perf.toFixed(1)}%`, 1], [`${p.perf_lo.toFixed(0)}–${p.perf_hi.toFixed(0)}`, 1], [money(p.cost), 1], [money(p.c15), 1], [p.perf_type], [`${Math.round(p.pf1 * 100)}%`, 1]],
+  });
+  Object.assign(D.views.bu, {
+    fmtY: (p) => `${p.y.toFixed(1)}`,
+    details: (p) => [p.anchor ? "Older model, shown for reference." : "Published by Browser Use.", ...(p.notes ? [p.notes] : [])],
+    row: (p, f) => [[p.label], [EFFORT_LABEL[p.effort] ?? p.effort], [p.y.toFixed(1), 1], [money(p.x), 1], [p.anchor ? "reference" : f ? "yes" : "no"], [p.notes || ""]],
+  });
+  Object.assign(D.views.nb, {
+    fmtY: (p) => `${p.passed}/${p.n} passed`,
+    details: (p) => [`Pass rate ${p.rate}% (80% range ${p.lo}–${p.hi}%)`, `Median ${p.secs} s per task, ${p.steps} steps on average`, ...(p.complete ? [] : ["Still running when this page was built."])],
+    row: (p, f) => [[p.label], [EFFORT_LABEL[p.effort]], [`${p.passed}/${p.n}`, 1], [`${p.lo}–${p.hi}%`, 1], [money(p.cost), 1], [`${p.secs} s`, 1], [`${p.steps}`, 1], [f ? "yes" : "no"]],
+  });
+
+  function setView(v) {
+    state.view = v;
+    document.querySelectorAll("[role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === v)));
+    $("basis").hidden = v !== "cu";
+    $("note").textContent = D.views[v].note;
+    renderLegend();
+    render();
+  }
+  document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+  document.querySelectorAll("[data-basis]").forEach((b) => b.addEventListener("click", () => {
+    state.basis = b.dataset.basis;
+    document.querySelectorAll("[data-basis]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  }));
+  $("ranges").addEventListener("change", (e) => { state.ranges = e.target.checked; render(); });
+
+  for (const t of D.takeaways) {
+    const d = document.createElement("div"); d.className = "take";
+    const b = document.createElement("b"); b.textContent = t[0];
+    const p = document.createElement("p"); p.textContent = t[1];
+    d.append(b, p); $("takeaways").appendChild(d);
+  }
+  for (const c of D.caveats) { const li = document.createElement("li"); li.textContent = c; $("caveats").appendChild(li); }
+  for (const para of D.method) { const p = document.createElement("p"); p.textContent = para; $("method").appendChild(p); }
+  $("foot").textContent = D.foot;
+
+  new ResizeObserver(() => render()).observe(chart);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { renderLegend(); render(); });
+  new MutationObserver(() => { renderLegend(); render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  setView("cu");
+})();
+</script>
