@@ -75,7 +75,6 @@
             <span>Open mic</span>
           </label>
         </div>
-        <p id="engine" class="engine" hidden><span id="engine-label"></span></p>
         <p id="hint-handsfree" class="mode-hint" data-mode="handsfree">Say “Hey <span class="wake-name">Navi</span>”, then talk.</p>
         <p id="hint-open" class="mode-hint" data-mode="open">Everything is a command until you turn the mic off.</p>
       </fieldset>
@@ -83,20 +82,22 @@
       <fieldset id="thinking" class="thinking" hidden>
         <legend class="thinking-label">Thinking</legend>
         <div class="segmented three">
-          <label title="Quickest replies. Plenty for most commands.">
+          <label title="Low reasoning: quickest replies, plenty for most commands.">
             <input type="radio" name="effort" value="low" />
-            <span>Fast</span>
+            <span>Low</span>
           </label>
-          <label title="A bit slower; better on multi-step tasks.">
+          <label title="Medium reasoning: a bit slower, better on multi-step tasks.">
             <input type="radio" name="effort" value="medium" />
-            <span>Balanced</span>
+            <span>Medium</span>
           </label>
-          <label title="Slowest; for long or tricky tasks.">
-            <input type="radio" name="effort" value="high" />
-            <span>Thorough</span>
+          <label title="Extra high reasoning: slowest, for long or tricky tasks.">
+            <input type="radio" name="effort" value="xhigh" />
+            <span>Extra high</span>
           </label>
         </div>
       </fieldset>
+      <!-- What's hearing and speaking right now, so it's always clear what runs on this computer. -->
+      <p id="engine" class="engine" hidden><span id="engine-label"></span></p>
     </section>
 
     <ol id="log" class="feed" aria-label="Activity"></ol>

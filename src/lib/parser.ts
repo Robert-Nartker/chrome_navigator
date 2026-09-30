@@ -22,7 +22,7 @@ export type Intent =
   | { type: "switchTab"; index?: number; query?: string }
   | { type: "listTabs" }
   | { type: "open"; url: string; newTab: boolean; label: string }
-  | { type: "search"; url: string; query: string; engine: string; newTab: boolean }
+  | { type: "search"; url: string; query: string; engine: string; newTab: boolean; onSite?: boolean }
   | { type: "siteSearch"; query: string }
   | { type: "clickNumber"; n: number }
   | { type: "clickText"; text: string }
@@ -302,7 +302,9 @@ const RULES: Rule[] = [
   })],
   [new RegExp(`^search (${ENGINE_NAMES}) for (.+)$`), (m) => search(m[2], m[1])],
   [new RegExp(`^(?:search|look up|google)(?: for)? (.+?) on (${ENGINE_NAMES})$`), (m) => search(m[1], m[2])],
-  [/^(?:search|google|look up)(?: for| up)? (.+)$/, (m) => search(m[1], "google")],
+  [/^google(?: for)? (.+)$/, (m) => search(m[1], "google")],
+  // No site named: on a site Navi can search (YouTube, Amazon...), that site; otherwise Google.
+  [/^(?:search|look up)(?: for| up)? (.+)$/, (m) => ({ ...search(m[1], "google"), onSite: true })],
 
   // Typing into the focused field or a numbered one
   [new RegExp(`^type (.+?) (?:in|into|on) (?:number |box |field )?${N}(?: and (?:press enter|submit|search|send))?$`), (m) => {

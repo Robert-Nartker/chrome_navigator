@@ -74,7 +74,9 @@ ${BUILT_IN_COMMANDS}
 
 Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore".
 
-"Before this" lists the last few commands and what came of them. Use it for follow-ups ("again", "a bit more", "the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"), but judge the new text on its own: resembling an earlier command doesn't make it one.`;
+"Before this" lists the last few commands and what came of them. Use it for follow-ups ("again", "a bit more", "the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"), but judge the new text on its own: resembling an earlier command doesn't make it one.
+
+A correction of the last command is a request, never noise, even when it's short or starts with "no": "on YouTube" or "no, on YouTube" after "search for lofi" is "search youtube for lofi"; "Mr Beast, not Mr Feast" after "search youtube for mr feast" is "search youtube for mr beast". When one command does the corrected request, return it; otherwise ("no, the other one", "that's the wrong video") choose "agent".`;
 
 const SCHEMA = {
   type: "object",

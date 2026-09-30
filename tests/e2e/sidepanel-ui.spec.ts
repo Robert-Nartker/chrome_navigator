@@ -100,9 +100,12 @@ type Hooks = {
     lastReply(): string;
     startListening(): Promise<void>;
     stopListening(): void;
+    lastSaid: Promise<string>;
     speaker: { busy: boolean };
   };
 };
+
+const lastSaid = (panel: Page) => panel.evaluate(() => (window as unknown as Hooks).navi.lastSaid);
 
 /** A command as if spoken (these cards come from the voice pipeline: router, then the AI). */
 async function run(panel: Page, command: string) {
@@ -207,6 +210,23 @@ test("an AI command is one card: what you said, its steps in one collapsed row, 
   expect(spoken).toContain("Subscribed.");
   expect(spoken).not.toContain("Thinking");
   await expect(panel.locator("#log")).not.toHaveAttribute("aria-live", /.+/);
+});
+
+test("a reply that only confirms is shown with a chime, not read aloud; an answer is read aloud", async ({ panel, site, context }) => {
+  await mockClaude(context, { reply: "[done] Subscribed to the channel." });
+  await useClaude(panel);
+  await run(panel, "hit the subscribe thing for me");
+  await expect(site.locator("#subs")).toHaveText("1");
+  const reply = panel.locator("#log > li.turn").last().locator("li.navi");
+  await expect(reply).toContainText("Subscribed to the channel.");
+  await expect(reply).not.toContainText("[done]");
+  await panel.waitForTimeout(300);
+  expect(await lastSaid(panel)).not.toContain("Subscribed");
+
+  await context.unroute("https://api.anthropic.com/**");
+  await mockClaude(context, { reply: "Done, and you now follow 2 channels." });
+  await run(panel, "hit the subscribe thing again");
+  await expect.poll(() => lastSaid(panel)).toContain("you now follow 2 channels");
 });
 
 test("while Navi works, the card shows a spinner with the latest step and the caption follows it", async ({ panel, context }) => {
@@ -383,6 +403,10 @@ test.describe("live caption", () => {
     await hear(panel, "so I told my friend");
     await expect(panel.locator("#interim")).toHaveText("");
     await expect(panel.locator("#caption-hint")).toBeVisible();
+    // A finished phrase without the name shows briefly, so a missed "Hey Navi" is easy to spot.
+    await hear(panel, "so I told my friend", true);
+    await expect(panel.locator("#caption-hint")).toHaveText("Heard “so I told my friend”. Start with “Hey Navi”.");
+    await expect(panel.locator("#log li.user").filter({ hasText: "so I told my friend" })).toHaveCount(0);
 
     await hear(panel, "hey navi", true);
     await expect(voice).toHaveAttribute("data-state", "awake");
@@ -405,6 +429,43 @@ test.describe("live caption", () => {
     await expect(voice).toHaveAttribute("data-state", "off");
     await expect(panel.locator("#status-text")).toHaveText("Mic off");
     await expect(panel.locator("#mic")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("“stop” on its own ends a task any time, even asleep and without the name", async ({ panel, context }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    await mockClaude(context, { hold });
+    await useClaude(panel);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    const working = run(panel, "hit the subscribe thing for me");
+    const card = panel.locator("#log > li.turn").last();
+    await expect(card.locator(".trace-label")).toHaveText("Step 2…");
+    await hear(panel, "Stop.", true);
+    await working;
+    await expect(card.locator("li.info").last()).toContainText("Cancelled.");
+    await expect(card).toHaveAttribute("data-state", "done");
+    release();
+  });
+
+  test("talking over Navi cuts its reply short, but its own voice coming back through the mic doesn't", async ({ panel, context }) => {
+    const answer =
+      "Your inbox has three new emails: one from Sarah about the study session on Thursday, one from Professor Pritchard about the case analysis, and one from Mike about rides to the game on Saturday.";
+    await mockClaude(context, { reply: answer });
+    await useClaude(panel);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await hear(panel, "hey navi", true);
+    const busy = () => panel.evaluate(() => (window as unknown as Hooks).navi.speaker.busy);
+    await run(panel, "hit the subscribe thing for me");
+    await expect.poll(busy).toBe(true);
+    // Its own words: ignored.
+    await hear(panel, "one from Sarah about the study session");
+    expect(await busy()).toBe(true);
+    // The user: Navi stops talking right away (the reply alone lasts several seconds) and runs the new command.
+    await hear(panel, "scroll down a");
+    await expect.poll(busy, { timeout: 500 }).toBe(false);
+    await hear(panel, "scroll down a little", true);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("scroll down a little");
   });
 
   test("respects reduced motion", async ({ panel }) => {
@@ -539,7 +600,7 @@ test.describe("screenshots", () => {
 
       release();
       await working;
-      // (Speech heard while Navi talks is ignored, so wait for the reply to finish.)
+      // Wait for the reply to finish, so the picture shows Navi idle.
       await expect.poll(() => panel.evaluate(() => (window as unknown as Hooks).navi.speaker.busy)).toBe(false);
       await hear(panel, "");
       await panel.locator("#log > li.turn").last().locator(".trace summary").click();

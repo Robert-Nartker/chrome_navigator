@@ -37,6 +37,8 @@ export interface EarsState {
   remainingMs: number;
   /** Navi is talking. */
   speaking: boolean;
+  /** Hands-free and asleep: the last thing heard that didn't start with the wake name (cleared after a few seconds). */
+  heardAsleep?: string;
   /** Speech goes into the chat box instead of running as commands. */
   dictating: boolean;
 }

@@ -409,9 +409,9 @@ body {
 
 /* Which speech recognizer is listening. */
 .engine {
-  justify-self: end;
   max-width: 100%;
-  margin: 0;
+  margin: -4px 0 0;
+  padding: 0 12px 9px;
   overflow: hidden;
   color: var(--faint);
   font: 11px/1.4 var(--mono);

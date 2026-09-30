@@ -95,6 +95,14 @@ describe("parseCommand fast path", () => {
     expect(parseCommand("look up airpods on amazon")).toMatchObject({ type: "search", engine: "amazon", query: "airpods" });
   });
 
+  it("marks a plain search so it can stay on the current site, but not an explicit Google search", () => {
+    expect(parseCommand("search for mrwhosetheboss")).toMatchObject({ type: "search", engine: "google", onSite: true });
+    expect(parseCommand("look up lofi beats")).toMatchObject({ type: "search", onSite: true });
+    expect(parseCommand("google mrwhosetheboss")).toMatchObject({ type: "search", engine: "google", query: "mrwhosetheboss" });
+    expect(parseCommand("google mrwhosetheboss")).not.toHaveProperty("onSite");
+    expect(parseCommand("search youtube for lofi beats")).not.toHaveProperty("onSite");
+  });
+
   it("searches the current site's own search box", () => {
     expect(parseCommand("search this site for airpods")).toEqual({ type: "siteSearch", query: "airpods" });
     expect(parseCommand("search for backpacks on this store")).toEqual({ type: "siteSearch", query: "backpacks" });

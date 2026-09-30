@@ -409,12 +409,12 @@ test.describe("Navi Free", () => {
     // Pro shows how much the AI thinks, starting at the provider's default ("low"), and changes it in one click.
     const thinking = panel.locator("#thinking");
     await expect(thinking).toBeVisible();
-    await expect(thinking.getByRole("radio", { name: "Fast" })).toBeChecked();
-    await thinking.getByRole("radio", { name: "Balanced" }).check();
+    await expect(thinking.getByRole("radio", { name: "Low" })).toBeChecked();
+    await thinking.getByRole("radio", { name: "Extra high" }).check();
     await expect
       .poll(() => panel.evaluate(async () => (await chrome.storage.local.get("settings")).settings as { effort: string; model: string }))
-      .toMatchObject({ effort: "medium", model: "gpt-6.1-sol" });
-    await expect(thinking.getByRole("radio", { name: "Balanced" })).toBeChecked();
+      .toMatchObject({ effort: "xhigh", model: "gpt-6.1-sol" });
+    await expect(thinking.getByRole("radio", { name: "Extra high" })).toBeChecked();
     await panel.locator("#plan").click();
     await expect(panel.locator("#plan")).toHaveText("Free");
     await expect(thinking).toBeHidden();

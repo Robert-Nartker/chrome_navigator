@@ -68,6 +68,30 @@ export const SEARCH_ENGINES: Record<string, string> = {
   "google images": "https://www.google.com/search?tbm=isch&q={q}",
 };
 
+/** Sites whose own search "search for …" uses while you're on them. */
+const SITE_ENGINES: [RegExp, string][] = [
+  [/(^|\.)youtube\.com$/, "youtube"],
+  [/(^|\.)amazon\.com$/, "amazon"],
+  [/(^|\.)wikipedia\.org$/, "wikipedia"],
+  [/(^|\.)reddit\.com$/, "reddit"],
+  [/(^|\.)github\.com$/, "github"],
+  [/(^|\.)(x|twitter)\.com$/, "x"],
+  [/(^|\.)ebay\.com$/, "ebay"],
+  [/^open\.spotify\.com$/, "spotify"],
+  [/(^|\.)stackoverflow\.com$/, "stack overflow"],
+];
+
+/** The search engine for the site at `url`, if it's one Navi can search directly. */
+export function siteEngine(url: string | undefined): string | undefined {
+  let host = "";
+  try {
+    host = new URL(url ?? "").hostname;
+  } catch {
+    return undefined;
+  }
+  return SITE_ENGINES.find(([re]) => re.test(host))?.[1];
+}
+
 export function searchUrl(query: string, engine = "google"): string {
   const template = SEARCH_ENGINES[engine] ?? SEARCH_ENGINES.google;
   return template.replace("{q}", encodeURIComponent(query));

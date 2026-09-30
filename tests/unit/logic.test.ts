@@ -3,7 +3,7 @@ import { bestMatch, scoreLabel } from "../../src/lib/match";
 import { parseNumber } from "../../src/lib/numbers";
 import type { ElementInfo } from "../../src/lib/protocol";
 import { WakeSession } from "../../src/lib/session";
-import { resolveSite, searchUrl } from "../../src/lib/sites";
+import { resolveSite, searchUrl, siteEngine } from "../../src/lib/sites";
 
 const el = (id: number, name: string, inViewport = true): ElementInfo => ({
   id,
@@ -54,6 +54,15 @@ describe("sites", () => {
   });
   it("builds search URLs", () => {
     expect(searchUrl("a&b", "youtube")).toBe("https://www.youtube.com/results?search_query=a%26b");
+  });
+  it("knows which sites have their own search", () => {
+    expect(siteEngine("https://www.youtube.com/watch?v=abc")).toBe("youtube");
+    expect(siteEngine("https://m.youtube.com/")).toBe("youtube");
+    expect(siteEngine("https://en.wikipedia.org/wiki/Navi")).toBe("wikipedia");
+    expect(siteEngine("https://www.google.com/search?q=x")).toBeUndefined();
+    expect(siteEngine("https://notyoutube.com/")).toBeUndefined();
+    expect(siteEngine("chrome://newtab/")).toBeUndefined();
+    expect(siteEngine(undefined)).toBeUndefined();
   });
 });
 

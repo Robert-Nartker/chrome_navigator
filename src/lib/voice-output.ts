@@ -72,6 +72,8 @@ interface NeuralEntry {
 
 /** A failed download of Navi's voice is tried again after this long (or when the setting changes). */
 const NEURAL_RETRY_MS = 10 * 60_000;
+/** How long a reply waits for Navi's voice to finish loading before the fallback voice speaks. */
+const NEURAL_WAIT_MS = 4000;
 
 export class Speaker implements Voice {
   private speakingUntil = 0;
@@ -121,7 +123,7 @@ export class Speaker implements Voice {
     }
     try {
       if (voice.neural) {
-        const played = await this.sayNeural(clean, voice, voice.neural).catch((err: unknown) => {
+        const played = await this.sayNeural(clean, voice, voice.neural, id).catch((err: unknown) => {
           if (id === this.utterance) this.onFallback?.(`Navi's voice: ${err instanceof Error ? err.message : String(err)}`);
           return false;
         });
@@ -143,8 +145,14 @@ export class Speaker implements Voice {
    * Speaks with Navi's on-device voice once it's loaded. The first time, this starts the download and
    * returns false, so Chrome's voice answers meanwhile.
    */
-  private async sayNeural(text: string, voice: VoiceSettings, neural: NonNullable<VoiceSettings["neural"]>): Promise<boolean> {
+  private async sayNeural(text: string, voice: VoiceSettings, neural: NonNullable<VoiceSettings["neural"]>, id: number): Promise<boolean> {
     const entry = this.neuralVoice();
+    // Loading from the browser's cache takes a few seconds: worth waiting for rather than switching voices.
+    for (let waited = 0; entry.state === "loading" && waited < NEURAL_WAIT_MS; waited += 100) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    // Stopped (or replaced) while waiting: say nothing.
+    if (id !== this.utterance) return true;
     if (entry.state !== "ready" || !entry.voice) return false;
     const abort = new AbortController();
     this.abort = abort;

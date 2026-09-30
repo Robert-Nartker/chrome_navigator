@@ -133,7 +133,9 @@ function showStatus(state: string, text: string, detail?: string) {
         ? ears.micError || worker.problem || text
         : state === "working"
           ? feed.activity || text
-          : text;
+          : state === "sleeping" && ears.heardAsleep
+            ? `Heard “${ears.heardAsleep}”. Start with “Hey ${settings.wakeName}”.`
+            : text;
   setText(captionHint, hint);
 }
 

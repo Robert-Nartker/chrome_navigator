@@ -23,6 +23,20 @@ export interface EarsOutput {
 }
 
 const STOP_WORDS = /\b(stop|cancel|quiet)\b/i;
+/** A short "stop" on its own: stops whatever Navi is doing, even asleep and without the name. */
+const JUST_STOP = /^(?:(?:hey |ok(?:ay)? )?(?:navi|navy)[,.]? )?(?:stop|stop it|stop that|cancel|never ?mind|quiet|be quiet|shut up)[.!]*$/i;
+/** How long what Navi heard while asleep stays on screen. */
+const HEARD_MS = 6000;
+
+const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
+
+/** Navi hearing its own voice: most of the words are in what it's saying. */
+export function isEcho(heard: string, saying: string): boolean {
+  const said = new Set(words(saying));
+  const h = words(heard);
+  if (!h.length) return true;
+  return h.filter((w) => said.has(w)).length / h.length >= 0.6;
+}
 /** Dictation ends by itself after this long without hearing anything. */
 const DICTATION_IDLE_MS = 8000;
 
@@ -44,6 +58,8 @@ export class Ears {
   /** The mic was off, so it was turned on just to dictate. */
   private dictationOnly = false;
   private dictationTimer: ReturnType<typeof setTimeout> | undefined;
+  private heardAsleep = "";
+  private heardAt = 0;
 
   constructor(private readonly out: EarsOutput) {
     this.speaker = new Speaker(
@@ -146,8 +162,15 @@ export class Ears {
       return;
     }
     if (this.speaker.busy) {
-      // Let "stop" interrupt a long reply; ignore anything else (likely Navi's own voice).
-      if (STOP_WORDS.test(transcript)) this.out.cancel();
+      // Navi's own voice coming back through the mic: not a command.
+      if (isEcho(transcript, this.speaker.lastSaid)) return;
+      if (STOP_WORDS.test(transcript)) return this.out.cancel();
+      // Talking over Navi: it stops and listens.
+      this.speaker.stop();
+    }
+    if (JUST_STOP.test(transcript.trim())) {
+      // "Stop" works any time, with or without the name: it halts speech and any running task.
+      this.out.cancel();
       return;
     }
     const decision = this.session.handle(transcript);
@@ -156,6 +179,10 @@ export class Ears {
       this.wasAwake = true;
     }
     if (decision.command) this.out.command(decision.command, confidence);
+    // Asleep and not for Navi: show what was heard for a moment, so a missed "Hey Navi" is visible.
+    const asleep = this.settings.listenMode === "handsfree" && this.session.current === "sleeping";
+    this.heardAsleep = asleep && !decision.woke ? transcript : "";
+    this.heardAt = Date.now();
     this.emit();
   }
 
@@ -169,6 +196,7 @@ export class Ears {
       remainingMs: this.listening && this.settings.listenMode === "handsfree" ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
       dictating: this.dictating,
+      heardAsleep: this.heardAsleep || undefined,
     };
   }
 
@@ -183,6 +211,7 @@ export class Ears {
   }
 
   private tick() {
+    if (this.heardAsleep && Date.now() - this.heardAt > HEARD_MS) this.heardAsleep = "";
     // Detect the session timing out on its own.
     const awake = this.session.current === "awake";
     if (this.wasAwake && !awake && this.settings.listenMode === "handsfree" && this.listening) {
@@ -201,7 +230,11 @@ export class Ears {
       this.dictationTimer = setTimeout(() => void this.dictate(false), DICTATION_IDLE_MS);
       return;
     }
-    if (this.speaker.busy) return;
+    if (this.speaker.busy) {
+      // Someone talking over Navi (not its own voice): stop speaking right away and show what's heard.
+      if (words(text).length < 2 || isEcho(text, this.speaker.lastSaid)) return;
+      this.speaker.stop();
+    }
     const asleep = this.settings.listenMode === "handsfree" && this.session.current === "sleeping";
     // While asleep, only show speech once the wake word is heard (nothing else is acted on).
     this.out.interim(asleep && !this.session.hearsWakePhrase(text) ? "" : text);
@@ -266,6 +299,8 @@ export class Ears {
       return;
     }
     if (this.settings.listenMode === "open") this.session.wake();
+    // Load Navi's voice now, so the first reply isn't in the fallback voice while it loads.
+    if (naviVoiceOf(this.settings)) void this.speaker.prepareVoice().catch(() => undefined);
     this.emit();
   }
 

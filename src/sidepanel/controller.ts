@@ -37,6 +37,7 @@ import { NO_USAGE, formatCost } from "../lib/models";
 import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
 import { type RecentCommand, routeUtterance } from "../lib/router";
 import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
+import { searchUrl, siteEngine } from "../lib/sites";
 import type { Voice } from "../lib/voice-output";
 
 export type { LogKind } from "../lib/messages";
@@ -202,6 +203,7 @@ export class Controller {
     const elapsed = () => Math.round(performance.now() - started);
     let metric: Omit<CommandMetric, "t" | "command"> | null = null;
     let reply: string | null = null;
+    let confirmation = false;
     try {
       const outcome = await this.dispatch(command, controller.signal, 0, options);
       const routerCost = outcome.routerCostUsd ?? 0;
@@ -213,6 +215,7 @@ export class Controller {
           tokensIn: agent.usage.input + agent.usage.cachedInput + agent.usage.cacheWrite, tokensOut: agent.usage.output,
         };
         reply = agent.reply;
+        confirmation = !!agent.confirmation;
       } else if (outcome.intent === "ignored" || outcome.intent === "unknown") {
         metric = { path: "ignored", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs, costUsd: routerCost };
       } else {
@@ -239,15 +242,25 @@ export class Controller {
         this.remember(command, options, metric);
       }
       // Speak after timing, so latency numbers measure the action, not the voice. A typed chat reply
-      // is read on screen, so it's only spoken in spoken-feedback mode.
-      const spoken = options.source !== "typed" || this.getSettings().feedback === "spoken";
-      if (reply && spoken) await this.say(reply).catch(() => undefined);
+      // is read on screen, so it's only spoken in spoken-feedback mode; so is a spoken command's reply
+      // that only confirms what worked (a chime says it's done). Answers, questions and problems are read.
+      const spokenMode = this.getSettings().feedback === "spoken";
+      if (reply && (options.source !== "typed" || spokenMode)) {
+        // Not awaited: the next command doesn't wait for Navi to finish talking.
+        if (confirmation && !spokenMode) this.speaker.sound("done");
+        else void this.say(reply).catch(() => undefined);
+      }
       this.busy = false;
       this.current = null;
       this.ui.setWorking(false);
       this.hooks.onActivity();
       const next = this.queue.shift();
-      if (next) void this.run(next.text, next.options);
+      if (next) {
+        // Said while Navi was working: the user has moved on, so the last reply is cut short.
+        this.speechGen++;
+        this.speaker.stop();
+        void this.run(next.text, next.options);
+      }
     }
   }
 
@@ -666,10 +679,13 @@ export class Controller {
         await this.announcePage(opened, "Opened");
         return;
       }
-      case "search":
-        await navigate(intent.url, intent.newTab);
-        await this.confirm(`Searching ${intent.engine === "google" ? "" : `${intent.engine} `}for ${intent.query}`);
+      case "search": {
+        // "Search for …" on YouTube (or another site Navi can search) searches that site.
+        const engine = (intent.onSite && siteEngine(tab.url)) || intent.engine;
+        await navigate(engine === intent.engine ? intent.url : searchUrl(intent.query, engine), intent.newTab);
+        await this.confirm(`Searching ${engine === "google" ? "" : `${engine} `}for ${intent.query}`);
         return;
+      }
       case "siteSearch": {
         const snap = await snapshot(tab);
         const box =

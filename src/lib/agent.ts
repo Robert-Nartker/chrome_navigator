@@ -45,6 +45,7 @@ Rules:
 - To open a website, call navigate with its URL. To search the web, navigate to a search URL.
 - A request can have several parts, e.g. "tell me what's on this page, then open the first article, and save that as a command called news". Do all of it in this turn. When part of it is an answer the user is waiting for, call say with it first (in the same response as your next action), then carry on; the final reply only covers what's left.
 - When the task is done, stop calling tools and reply: plain text, no markdown, no element ids. For spoken commands, one sentence under 25 words unless you are reading content the user asked for.
+- If your reply only confirms something that worked (e.g. "[done] Opened YouTube and searched for lofi beats."), start it with [done]: Navi shows it and plays a chime instead of reading it aloud. Never use [done] for an answer, a question, or a problem the user needs to hear.
 
 Personal commands: the user can create their own voice shortcuts. When they ask to add, change, or remove one, use save_command, delete_command, or list_commands.
 - A command is one or more phrases plus steps. Use an "open" step with the exact URL for websites (use your knowledge of the right URL, e.g. Wordle is https://www.nytimes.com/games/wordle/index.html). Use a "run" step with a plain spoken command for anything else, exactly as the user would say it (e.g. "search youtube for lofi beats", "click sign in", or a natural request like "open my latest unread email").
@@ -214,6 +215,8 @@ export interface AgentContext {
 
 export interface AgentResult {
   reply: string;
+  /** The reply only confirms an action that worked (the model marked it), so it needn't be read aloud. */
+  confirmation?: boolean;
   steps: number;
   modelMs: number;
   totalMs: number;
@@ -473,7 +476,11 @@ export class NaviAgent {
     }
     brain.begin(await this.firstMessage(command, context));
 
-    const result = (reply: string, steps: number): AgentResult => ({
+    const result = (text: string, steps: number): AgentResult => {
+      const done = /^\s*\[done\]\s*/i.exec(text);
+      return { ...base(done ? text.slice(done[0].length) : text, steps), confirmation: !!done };
+    };
+    const base = (reply: string, steps: number): AgentResult => ({
       reply,
       steps,
       modelMs: Math.round(modelMs),
@@ -495,7 +502,7 @@ export class NaviAgent {
           brain.reset();
           return result("Sorry, I can't help with that one.", step);
         }
-        if (turn.calls.length === 0) return result(turn.text || "Done.", step);
+        if (turn.calls.length === 0) return result(turn.text || "[done] Done.", step);
         brain.toolResults(await this.executeAll(turn.calls, hooks));
       }
       brain.reset();

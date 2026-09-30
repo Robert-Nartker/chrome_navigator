@@ -19,13 +19,15 @@ const STYLE = `
     max-width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
     padding: 8px 16px 8px 12px; border-radius: 20px;
     font: 500 14px/1.4 "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    letter-spacing: -.005em; color: #f4f4f5; background: rgba(24, 24, 27, .9);
+    letter-spacing: -.005em; color: #f4f4f5; background: rgba(24, 24, 27, .62);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
     -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
     box-shadow: 0 8px 28px rgba(0, 0, 0, .28), 0 0 0 1px rgba(255, 255, 255, .08) inset;
     opacity: 0; transition: opacity .18s ease, transform .18s ease;
   }
   .pill[data-shown="true"] { opacity: 1; transform: translate(-50%, 0); }
-  .pill[data-compact="true"] { padding: 9px 12px; }
+  /* Just the listening bars: see-through, so it never hides what's under it. */
+  .pill[data-compact="true"] { padding: 9px 12px; background: rgba(24, 24, 27, .45); }
   .text {
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow-wrap: anywhere;

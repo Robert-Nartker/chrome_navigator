@@ -67,5 +67,8 @@
   {"heard": "now search for lofi beats", "before": [["open youtube", "ran"]], "expect": "command", "command": "search youtube for lofi beats"},
   {"heard": "open the second one", "before": [["search for pasta recipes", "ran"]], "expect": "agent"},
   {"heard": "tiktok tiktok", "before": [["tiktok tiktok tiktok", "ignored"]], "expect": "ignore"},
-  {"heard": "and then she said she'd call me back", "before": [["scroll down", "ran"]], "expect": "ignore"}
+  {"heard": "and then she said she'd call me back", "before": [["scroll down", "ran"]], "expect": "ignore"},
+  {"heard": "Mr who's the boss not Mr just awesome", "before": [["search youtube for Mr just awesome", "ran"]], "expect": "command", "command": "search youtube for mr who's the boss"},
+  {"heard": "On YouTube", "before": [["Search for Mr who's the boss", "ran"]], "expect": "command", "command": "search youtube for mr who's the boss"},
+  {"heard": "no the other one", "before": [["play the sourdough video", "ran"]], "expect": "agent"}
 ]
