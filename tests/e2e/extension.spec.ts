@@ -278,18 +278,73 @@ test("closing a tab by name closes only that tab, and asks when unsure", async (
   expect(site.isClosed()).toBe(false);
 });
 
-test("router: a close command rebuilt from loose speech is not run without confirmation", async ({ panel, site, context }) => {
+test("router: one tab closes from loose speech (reopen brings it back), but other tabs never close without a plain request", async ({
+  panel,
+  site,
+  baseUrl,
+  context,
+}) => {
   await context.route(
     "https://api.anthropic.com/**",
-    routerOrAgent(() => [{ type: "text", text: JSON.stringify({ route: "command", command: "close tab" }) }]),
+    routerOrAgent((body) => {
+      const heard = String((body.messages as { content: unknown }[]).at(-1)?.content);
+      const other = heard.includes('Heard: "clothes the other taps"');
+      return [{ type: "text", text: JSON.stringify({ route: "command", command: other ? "close other tabs" : "close tab" }) }];
+    }),
   );
   await panel.evaluate(() =>
     chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }),
   );
   await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
-  await run(panel, "clothes the red it tap");
+  const port = new URL(baseUrl).port;
+  await run(panel, `open localhost:${port}/about.html in a new tab`);
+  await site.bringToFront();
+  const count = () => context.pages().filter((p) => p.url().startsWith(baseUrl)).length;
+  await expect.poll(count).toBe(2);
+
+  await run(panel, "clothes the other taps");
   await expect(panel.locator("#log li.navi").last()).toContainText("didn't do it, to be safe");
-  expect(site.isClosed()).toBe(false);
+  expect(count()).toBe(2);
+
+  await run(panel, "clothes the red it tap");
+  await expect.poll(() => site.isClosed()).toBe(true);
+  await run(panel, "reopen tab");
+  await expect.poll(count).toBe(2);
+});
+
+test("video volume: set to a level, and turned up or down however it's said", async ({ panel, site, baseUrl }) => {
+  await site.goto(`${baseUrl}/video.html`);
+  const volume = () => site.locator("#player").evaluate((v: HTMLVideoElement) => Math.round(v.volume * 100));
+  await run(panel, "Turn volume to 45.");
+  await expect.poll(volume).toBe(45);
+  await run(panel, "turn it down more");
+  await expect.poll(volume).toBe(30);
+  await run(panel, "set the volume to 80 percent");
+  await expect.poll(volume).toBe(80);
+});
+
+test("opening another site keeps the page you were on: it opens in a new tab, and “go back” returns to it", async ({
+  panel,
+  site,
+  baseUrl,
+  context,
+}) => {
+  const port = new URL(baseUrl).port;
+  const before = context.pages().length;
+  await run(panel, `open 127.0.0.1:${port}/about.html`);
+  await expect.poll(() => context.pages().length).toBe(before + 1);
+  await expect(site).toHaveURL(/localhost.*index\.html/);
+  const opened = context.pages().find((p) => p.url().includes("127.0.0.1"))!;
+  // The new tab has nothing to go back to: it closes, back to the page it came from.
+  await run(panel, "go back");
+  await expect.poll(() => opened.isClosed()).toBe(true);
+  await expect(panel.locator("#log li.navi").last()).toContainText("Back to");
+  // "here" replaces the page, and "go back" is ordinary history.
+  await run(panel, `open 127.0.0.1:${port}/about.html here`);
+  await expect(site).toHaveURL(/127\.0\.0\.1.*about\.html/);
+  await run(panel, "go back");
+  await expect(site).toHaveURL(/localhost.*index\.html/);
+  expect(context.pages().filter((p) => p.url().startsWith("http")).length).toBe(1);
 });
 
 test("setup: connecting a key checks it, then turns on that provider's recommended models", async ({ panel, context, extensionId }) => {

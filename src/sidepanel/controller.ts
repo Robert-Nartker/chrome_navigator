@@ -9,6 +9,7 @@ import {
   hostOf,
   isWebUrl,
   listTabs,
+  goBack,
   navigate,
   pageRequest,
   snapshot,
@@ -56,14 +57,9 @@ export const HELP_TEXT =
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
 
-/** Commands that close or clear something. */
+/** Commands that close or clear something "reopen tab" or "undo" can't fully bring back. */
 function isDestructive(intent: Intent): boolean {
-  return (
-    intent.type === "closeTab" ||
-    intent.type === "closeOtherTabs" ||
-    intent.type === "closeNamedTab" ||
-    (intent.type === "edit" && intent.action === "clear")
-  );
+  return intent.type === "closeOtherTabs" || (intent.type === "edit" && intent.action === "clear");
 }
 
 /** Words that mean the user is asking about what's visible, so Navi Free looks at a screenshot. */
@@ -316,8 +312,9 @@ export class Controller {
     }
 
     const intent = parseCommand(command);
-    // A command the router reconstructed from loose (possibly misheard) speech never closes or
-    // clears anything on its own: the user confirms by saying it plainly.
+    // A command the router reconstructed from loose (possibly misheard) speech never closes other tabs or
+    // clears a field on its own: the user confirms by saying it plainly. (One closed tab is one "reopen
+    // tab" away, so that just happens.)
     if (intent && options.fastOnly && isDestructive(intent)) {
       const text = `I heard “${command}” but didn't do it, to be safe. Say “${command}” if that's right.`;
       this.navi(text);
@@ -594,10 +591,7 @@ export class Controller {
         );
         return;
       case "back":
-        await chrome.tabs.goBack(tab.id!).catch(() => {
-          throw new Error("There's no previous page.");
-        });
-        await this.announcePage(await waitForLoad(tab.id!), "Back to");
+        await this.announcePage(await goBack(tab), "Back to");
         return;
       case "forward":
         await chrome.tabs.goForward(tab.id!).catch(() => {
@@ -744,7 +738,7 @@ export class Controller {
         return;
       }
       case "media": {
-        const res = await pageRequest(tab, { kind: "media", action: intent.action, seconds: intent.seconds });
+        const res = await pageRequest(tab, { kind: "media", action: intent.action, seconds: intent.seconds, volume: intent.volume });
         await this.confirm(res.detail ?? intent.action);
         return;
       }

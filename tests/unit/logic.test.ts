@@ -49,6 +49,7 @@ describe("sites", () => {
     expect(resolveSite("youtube dot com")).toBe("https://www.youtube.com");
     expect(resolveSite("news dot ycombinator dot com")).toBe("https://news.ycombinator.com");
     expect(resolveSite("localhost:3000")).toBe("http://localhost:3000");
+    expect(resolveSite("192.168.1.1")).toBe("http://192.168.1.1");
     expect(resolveSite("the first video")).toBeNull();
     expect(resolveSite("my latest email from sarah")).toBeNull();
   });

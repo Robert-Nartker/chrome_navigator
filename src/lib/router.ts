@@ -29,11 +29,11 @@ go back; go back <n> pages; go forward; refresh; go home (site home page); next 
 new tab; new window; close tab (the current one); close <site or title> tab; close other tabs; duplicate tab; pin tab; next tab; previous tab; first tab; last tab; switch back; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
 find <text> (on this page); find next; select all; undo; clear it; new line; print
 what did you say; talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
-open <site or URL> (optionally "in a new tab"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
+open <site or URL> (optionally "in a new tab" or "here"); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
 flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
-pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; restart the video
+pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; volume <0-100>; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
 go to sleep; stop`;
@@ -72,9 +72,11 @@ export const SYSTEM_PROMPT = `You route voice input for Navi, a hands-free brows
 Built-in commands:
 ${BUILT_IN_COMMANDS}
 
-Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore".
+Choose "command" only when that one command does the whole request, keeping its details (e.g. "in a new tab"). If the request needs more than one step, such as searching and then opening, playing, or picking a result ("play a funny video", "open the first result", "find a recipe and save it"), choose "agent". Never drop words that say which thing to act on ("close the recipe tab" is "close recipe tab", not "close tab"). A short request that refers to something on the page ("click the blue one", "open the second article") is "agent": the main AI sees the page. Text that doesn't read as a request to Navi (noise, fragments, someone else talking) is "ignore", unless it sounds like one of the commands.
 
-"Before this" lists the last few commands and what came of them. Use it for follow-ups ("again", "a bit more", "the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"), but judge the new text on its own: resembling an earlier command doesn't make it one.
+Speech recognition swaps words that sound alike, so read the text by its sound, not its spelling, and when it sounds like a command, it's that command: "open new tube" is "open youtube", "open your tab" is "new tab", "close the tap" is "close tab", "on flag" or "unflag" is "hide flags", "flex" is "flags", "go bag" is "go back", "scroll dawn" is "scroll down", "turn volume to forty five" is "volume 45".
+
+"Before this" lists the last few commands and what came of them. Use it for follow-ups ("again", "a bit more", "the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"; "turn to 45" or "turn out more" after "volume down" is "volume 45" or "volume down"), but judge the new text on its own: resembling an earlier command doesn't make it one.
 
 A correction of the last command is a request, never noise, even when it's short or starts with "no": "on YouTube" or "no, on YouTube" after "search for lofi" is "search youtube for lofi"; "Mr Beast, not Mr Feast" after "search youtube for mr feast" is "search youtube for mr beast". When one command does the corrected request, return it; otherwise ("no, the other one", "that's the wrong video") choose "agent".`;
 

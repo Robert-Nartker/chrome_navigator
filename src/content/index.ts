@@ -50,7 +50,7 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
     case "readPage":
       return { ok: true, text: readPage(req.maxChars) };
     case "media":
-      return { ok: true, detail: await media(req.action, req.seconds) };
+      return { ok: true, detail: await media(req.action, req.seconds, req.volume) };
     case "grid": {
       const detail = await runGrid(req.action, req.cells, req.image);
       return { ok: true, detail, gridActive: gridActive() };

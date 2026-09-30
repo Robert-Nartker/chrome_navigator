@@ -102,18 +102,56 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function navigate(url: string, newTab: boolean): Promise<chrome.tabs.Tab> {
-  if (newTab) {
-    const tab = await chrome.tabs.create({ url, active: true });
-    return waitForLoad(tab.id!);
+/** A tab with nothing in it yet: a new tab page or a blank one. */
+export function isBlankTab(url?: string): boolean {
+  return !url || /^(?:about:blank|chrome:\/\/(?:newtab|new-tab-page)|chrome-search:\/\/local-ntp)/.test(url);
+}
+
+function sameSite(a: string | undefined, b: string): boolean {
+  try {
+    const host = (u: string) => new URL(u).hostname.replace(/^(?:www|m)\./, "");
+    return !!a && host(a) === host(b);
+  } catch {
+    return false;
   }
+}
+
+/**
+ * Opens a URL. `newTab` true or false when the user said ("in a new tab", "here"); otherwise it opens in
+ * a new tab, next to the current one, unless the current tab is blank or already on that site. So
+ * "open youtube" never throws away the page you were on, and "go back" returns to it.
+ */
+export async function navigate(url: string, newTab?: boolean): Promise<chrome.tabs.Tab> {
   const current = await targetTab().catch(() => undefined);
-  if (!current?.id || isExtensionPage(current.url)) {
-    const tab = await chrome.tabs.create({ url, active: true });
+  const usable = !!current?.id && !isExtensionPage(current.url);
+  const here = usable && (newTab === false || (newTab === undefined && (isBlankTab(current.url) || sameSite(current.url, url))));
+  if (!here) {
+    const tab = await chrome.tabs.create({
+      url,
+      active: true,
+      ...(usable ? { index: current.index + 1, openerTabId: current.id, windowId: current.windowId } : {}),
+    });
     return waitForLoad(tab.id!);
   }
-  await chrome.tabs.update(current.id, { url, active: true });
-  return waitForLoad(current.id);
+  await chrome.tabs.update(current.id!, { url, active: true });
+  return waitForLoad(current.id!);
+}
+
+/**
+ * Goes back a page. A tab with nothing to go back to that was opened from another tab (by Navi, or a
+ * link that opened a new tab) is closed instead, back to the tab it came from, as on a phone.
+ */
+export async function goBack(tab: chrome.tabs.Tab): Promise<chrome.tabs.Tab> {
+  try {
+    await chrome.tabs.goBack(tab.id!);
+    return await waitForLoad(tab.id!);
+  } catch {
+    const opener = tab.openerTabId !== undefined ? await chrome.tabs.get(tab.openerTabId).catch(() => undefined) : undefined;
+    if (!opener?.id) throw new Error(`There's no previous page in “${tab.title || tab.url || "this tab"}”.`);
+    await chrome.tabs.update(opener.id, { active: true });
+    await chrome.tabs.remove(tab.id!);
+    return opener;
+  }
 }
 
 export async function listTabs(): Promise<chrome.tabs.Tab[]> {

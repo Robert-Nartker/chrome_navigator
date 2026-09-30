@@ -280,7 +280,7 @@ function mainVideo(): HTMLVideoElement | null {
   return best;
 }
 
-export async function media(action: MediaAction, seconds = 10): Promise<string> {
+export async function media(action: MediaAction, seconds = 10, volume = 50): Promise<string> {
   const video = mainVideo();
   if (!video) throw new Error("There's no video on this page.");
   switch (action) {
@@ -327,6 +327,10 @@ export async function media(action: MediaAction, seconds = 10): Promise<string> 
       return `volume ${Math.round(video.volume * 100)}%`;
     case "volumeDown":
       video.volume = Math.max(0, video.volume - 0.15);
+      return `volume ${Math.round(video.volume * 100)}%`;
+    case "volume":
+      video.muted = volume === 0;
+      video.volume = Math.min(1, Math.max(0, volume / 100));
       return `volume ${Math.round(video.volume * 100)}%`;
     case "restart":
       video.currentTime = 0;

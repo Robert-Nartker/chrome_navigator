@@ -67,7 +67,7 @@ describe("parseCommand fast path", () => {
   });
 
   it("opens known sites and spoken domains", () => {
-    expect(parseCommand("open YouTube")).toMatchObject({ type: "open", url: "https://www.youtube.com", newTab: false });
+    expect(parseCommand("open YouTube")).toMatchObject({ type: "open", url: "https://www.youtube.com" });
     expect(parseCommand("go to github dot com")).toMatchObject({ type: "open", url: "https://github.com" });
     expect(parseCommand("take me to docs.python.org")).toMatchObject({ type: "open", url: "https://docs.python.org" });
     expect(parseCommand("open gmail in a new tab")).toMatchObject({ type: "open", url: "https://mail.google.com", newTab: true });
@@ -77,7 +77,7 @@ describe("parseCommand fast path", () => {
       query: "lofi beats",
       newTab: true,
     });
-    expect(parseCommand("search for cats")).toMatchObject({ type: "search", query: "cats", newTab: false });
+    expect(parseCommand("search for cats")).toMatchObject({ type: "search", query: "cats" });
     expect(parseCommand("pull up my email")).toMatchObject({ type: "open", url: "https://mail.google.com" });
   });
 
@@ -93,6 +93,41 @@ describe("parseCommand fast path", () => {
       query: "lofi beats",
     });
     expect(parseCommand("look up airpods on amazon")).toMatchObject({ type: "search", engine: "amazon", query: "airpods" });
+  });
+
+  it("sets the video's volume to a level, and understands more ways to turn it up or down", () => {
+    for (const said of ["volume 45", "set the volume to 45", "Turn volume to 45.", "set volume to 45 percent", "turn it to forty five"]) {
+      expect(parseCommand(said), said).toEqual({ type: "media", action: "volume", volume: 45 });
+    }
+    expect(parseCommand("volume 0")).toEqual({ type: "media", action: "volume", volume: 0 });
+    // "to" sounds like "two", but a cut-off phrase isn't a volume of 2%.
+    expect(parseCommand("turn the volume to")).toBeNull();
+    expect(parseCommand("volume 450")).toBeNull();
+    for (const said of ["turn down", "turn it down more", "turn down the sound", "lower the volume", "turn the volume down a bit"]) {
+      expect(parseCommand(said), said).toEqual({ type: "media", action: "volumeDown" });
+    }
+    for (const said of ["turn up", "turn it up some more", "raise the volume"]) {
+      expect(parseCommand(said), said).toEqual({ type: "media", action: "volumeUp" });
+    }
+  });
+
+  it("shows and hides flags however it's said, including common mishearings", () => {
+    for (const said of ["flags", "flag", "show me the flags", "turn the flags on", "flags please"]) {
+      expect(parseCommand(said), said).toEqual({ type: "showNumbers" });
+    }
+    for (const said of ["unflag", "un flag", "on flag", "Unflag everything.", "turn off the flags", "turn the flags off", "no more flags", "flags away"]) {
+      expect(parseCommand(said), said).toEqual({ type: "hideNumbers" });
+    }
+  });
+
+  it("opens a site in a new tab only when asked, or here when asked; otherwise Navi decides", () => {
+    expect(parseCommand("open youtube")).toEqual({ type: "open", url: "https://www.youtube.com", label: "youtube" });
+    expect(parseCommand("open youtube in a new tab")).toMatchObject({ newTab: true });
+    expect(parseCommand("open youtube here")).toMatchObject({ newTab: false });
+    expect(parseCommand("go to reddit in this tab")).toMatchObject({ url: "https://www.reddit.com", newTab: false });
+    expect(parseCommand("search for lofi")).not.toHaveProperty("newTab");
+    expect(parseCommand("search youtube for lofi here")).toMatchObject({ engine: "youtube", query: "lofi", newTab: false });
+    expect(parseCommand("open your tab")).toEqual({ type: "newTab" });
   });
 
   it("marks a plain search so it can stay on the current site, but not an explicit Google search", () => {
@@ -141,6 +176,9 @@ describe("wake phrase", () => {
     expect(stripWakePhrase("Hey Navi, scroll down", aliases)).toEqual({ woke: true, rest: "scroll down" });
     expect(stripWakePhrase("hey navy open youtube", aliases)).toEqual({ woke: true, rest: "open youtube" });
     expect(stripWakePhrase("Navi", aliases)).toEqual({ woke: true, rest: "" });
+    // Parakeet punctuates.
+    expect(stripWakePhrase("Hey, Navi. Open YouTube.", aliases)).toEqual({ woke: true, rest: "Open YouTube." });
+    expect(stripWakePhrase("So, hey, Navi, scroll down.", aliases, true)).toEqual({ woke: true, rest: "scroll down." });
     expect(stripWakePhrase("okay navi go back", aliases)).toEqual({ woke: true, rest: "go back" });
   });
   it("ignores speech without the wake phrase", () => {

@@ -70,5 +70,10 @@
   {"heard": "and then she said she'd call me back", "before": [["scroll down", "ran"]], "expect": "ignore"},
   {"heard": "Mr who's the boss not Mr just awesome", "before": [["search youtube for Mr just awesome", "ran"]], "expect": "command", "command": "search youtube for mr who's the boss"},
   {"heard": "On YouTube", "before": [["Search for Mr who's the boss", "ran"]], "expect": "command", "command": "search youtube for mr who's the boss"},
-  {"heard": "no the other one", "before": [["play the sourdough video", "ran"]], "expect": "agent"}
+  {"heard": "no the other one", "before": [["play the sourdough video", "ran"]], "expect": "agent"},
+  {"heard": "open new tube", "expect": "command", "command": "open youtube"},
+  {"heard": "flex", "expect": "command", "command": "show flags"},
+  {"heard": "Turn volume to 45", "before": [["Turn down more", "ran"]], "expect": "command", "command": "volume 45"},
+  {"heard": "Turn to 45", "before": [["Turn down more", "ran"]], "expect": "command", "command": "volume 45"},
+  {"heard": "Turned out more", "before": [["Turn down", "ran"]], "expect": "command", "command": "volume down"}
 ]

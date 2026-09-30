@@ -21,8 +21,9 @@ export type Intent =
   | { type: "reopenTab" }
   | { type: "switchTab"; index?: number; query?: string }
   | { type: "listTabs" }
-  | { type: "open"; url: string; newTab: boolean; label: string }
-  | { type: "search"; url: string; query: string; engine: string; newTab: boolean; onSite?: boolean }
+  // newTab: said "in a new tab" (true) or "here" / "in this tab" (false); otherwise Navi decides.
+  | { type: "open"; url: string; newTab?: boolean; label: string }
+  | { type: "search"; url: string; query: string; engine: string; newTab?: boolean; onSite?: boolean }
   | { type: "siteSearch"; query: string }
   | { type: "clickNumber"; n: number }
   | { type: "clickText"; text: string }
@@ -30,7 +31,7 @@ export type Intent =
   | { type: "hideNumbers" }
   | { type: "type"; text: string; target?: number; submit: boolean }
   | { type: "pressKey"; key: Key }
-  | { type: "media"; action: MediaAction; seconds?: number }
+  | { type: "media"; action: MediaAction; seconds?: number; volume?: number }
   | { type: "zoom"; direction: "in" | "out" | "reset" }
   | { type: "muteTab"; muted: boolean }
   | { type: "readPage" }
@@ -102,10 +103,11 @@ export interface WakeWords {
  */
 export function stripWakePhrase(text: string, words: WakeWords, lenient = false): { woke: boolean; rest: string } {
   const lower = text.toLowerCase().trim();
-  const lead = lenient ? "^(?:[\\w']+\\s+){0,3}?" : "^";
+  // Recognizers that punctuate write "Hey, Navi. Open YouTube."
+  const lead = lenient ? "^(?:[\\w']+[\\s,.!?]+){0,3}?" : "^";
   const patterns = [
-    ...words.exact.map((w) => `${lead}(?:(?:hey|hi|ok(?:ay)?|yo)\\s+)?${escapeRegExp(w)}\\b`),
-    ...words.misheard.map((w) => `${lead}(?:hey|hi|ok(?:ay)?|yo)\\s+${escapeRegExp(w)}\\b`),
+    ...words.exact.map((w) => `${lead}(?:(?:hey|hi|ok(?:ay)?|yo)[\\s,.!]+)?${escapeRegExp(w)}\\b`),
+    ...words.misheard.map((w) => `${lead}(?:hey|hi|ok(?:ay)?|yo)[\\s,.!]+${escapeRegExp(w)}\\b`),
   ];
   for (const pattern of patterns) {
     const m = lower.match(new RegExp(`${pattern}[\\s,.!?]*`, "i"));
@@ -209,8 +211,15 @@ const RULES: Rule[] = [
   [/^(?:speed (?:it |the video )?up|play (?:it )?faster|faster video)$/, () => ({ type: "media", action: "faster" })],
   [/^(?:slow (?:it |the video )?down|play (?:it )?slower|slower video)$/, () => ({ type: "media", action: "slower" })],
   [/^(?:normal|regular) speed$/, () => ({ type: "media", action: "normalSpeed" })],
-  [/^(?:turn (?:it|the volume|the video) up|volume up|turn up the volume|louder video)$/, () => ({ type: "media", action: "volumeUp" })],
-  [/^(?:turn (?:it|the volume|the video) down|volume down|turn down the volume|quieter video)$/, () => ({ type: "media", action: "volumeDown" })],
+  [/^(?:turn (?:it |the volume |the video |the sound )?up|volume up|turn up the (?:volume|sound|video)|(?:raise|increase) the volume|louder video)(?: (?:some )?more| a (?:bit|little)(?: more)?)?$/, () => ({ type: "media", action: "volumeUp" })],
+  [/^(?:turn (?:it |the volume |the video |the sound )?down|volume down|turn down the (?:volume|sound|video)|(?:lower|decrease|reduce) the volume|quieter video)(?: (?:some )?more| a (?:bit|little)(?: more)?)?$/, () => ({ type: "media", action: "volumeDown" })],
+  // "volume 45", "set the volume to 45 percent", "turn it to 30"
+  [new RegExp(`^(?:(?:set|turn|put|change|bring)(?: the)?(?: video)? volume (?:to |at )?|(?:the )?volume (?:to |at )?|(?:set|turn|put) (?:it|the video|the sound) (?:to|at) )${N}(?: ?%| percent)?$`), (m) => {
+    // "to"/"for" sound like numbers, but "volume to" alone isn't "volume 2".
+    if (/^(?:to|too|for|fore|won|ate)$/.test(m[1])) return null;
+    const level = parseNumber(m[1]);
+    return level === null || level > 100 ? null : { type: "media", action: "volume", volume: level };
+  }],
   [/^(?:restart|replay)(?: (?:the |this )?video)?$|^(?:start (?:it )?over|play (?:it )?from the (?:beginning|start))$/, () => ({ type: "media", action: "restart" })],
   [/^(mute|unmute)(?: (?:the |this )?(?:tab|sound|audio|page))?$/, (m) => ({ type: "muteTab", muted: m[1] === "mute" })],
   [/^(mute|unmute) (?:the )?video$/, (m) => ({ type: "media", action: m[1] as MediaAction })],
@@ -227,7 +236,8 @@ const RULES: Rule[] = [
   [/^(?:reload|refresh)(?: (?:the |this )?page)?$/, () => ({ type: "reload" })],
 
   // Tabs
-  [/^(?:open )?(?:a )?new tab$/, () => ({ type: "newTab" })],
+  // "Open your tab" is a common mishearing of "open new tab".
+  [/^(?:open )?(?:a )?new tab$|^open (?:a )?(?:your|near|knew) tab$/, () => ({ type: "newTab" })],
   [/^(?:open )?(?:a )?new window$/, () => ({ type: "newWindow" })],
   [/^close (?:all )?(?:the |of the )?other tabs$|^close everything else$/, () => ({ type: "closeOtherTabs" })],
   [/^duplicate (?:this |the )?tab$/, () => ({ type: "duplicateTab" })],
@@ -252,8 +262,9 @@ const RULES: Rule[] = [
   [/^(?:hide|close|remove|clear|turn off) (?:the )?(?:mouse )?grid$|^(?:the )?(?:mouse )?grid off$/, () => ({ type: "hideGrid" })],
 
   // Flags: numbered tags on everything clickable ("flags", then "click 12" or just "12")
-  [/^(?:(?:show|display|turn on|put up|pop up|bring up) (?:the )?)?(?:flags|numbers|labels|badges)(?: on| please)?$|^(?:show|display) (?:the )?(?:links|hints|buttons)$/, () => ({ type: "showNumbers" })],
-  [/^(?:hide|remove|clear|turn off|close|no|get rid of) (?:the )?(?:flags|numbers|labels|links|hints|badges)$|^(?:flags|numbers) off$/, () => ({ type: "hideNumbers" })],
+  [/^(?:(?:show|display|turn on|put up|put on|pop up|bring up|show me) (?:the )?)?(?:flags?|numbers|labels|badges)(?: on| please)?$|^(?:show|display) (?:the )?(?:links|hints|buttons)$|^turn (?:the )?flags on$/, () => ({ type: "showNumbers" })],
+  // "Unflag" is often heard as "on flag".
+  [/^(?:hide|remove|clear|turn off|close|no|no more|get rid of|take off|take away) (?:the )?(?:flags?|numbers|labels|links|hints|badges)$|^(?:flags|numbers) (?:off|away)$|^turn (?:the )?flags off$|^(?:un ?flag|on flag|unflagged)(?: (?:it|them|everything|all|the page))?$/, () => ({ type: "hideNumbers" })],
 
   // Clicking by number: "click 12", "number 12", "flag 12", "press twelve"
   [new RegExp(`^(?:click|press|tap|select|choose|hit|open)(?: on)?(?: number| flag)? ${N}$|^flag ${N}$`), (m) => {
@@ -318,9 +329,10 @@ const RULES: Rule[] = [
   }],
 
   // Opening sites: only when we can resolve the destination, otherwise the AI decides
-  [/^(?:open|go to|navigate to|take me to|launch|pull up|visit|bring up|load)(?: up)? (.+?)( in (?:a )?new tab)?$/, (m) => {
+  [/^(?:open|go to|navigate to|take me to|launch|pull up|visit|bring up|load)(?: up)? (.+?)( in (?:a )?new tab| (?:in )?(?:this|the same) tab| here)?$/, (m) => {
     const url = resolveSite(m[1]);
-    return url ? { type: "open", url, newTab: !!m[2], label: m[1] } : null;
+    if (!url) return null;
+    return { type: "open", url, label: m[1], ...(m[2] ? { newTab: /new tab/.test(m[2]) } : {}) };
   }],
   [/^new tab (?:with |for |to )?(.+)$/, (m) => {
     const url = resolveSite(m[1]);
@@ -342,7 +354,7 @@ const RULES: Rule[] = [
 
 function search(query: string, engine: string): Intent {
   const q = query.trim();
-  return { type: "search", query: q, engine, url: searchUrl(q, engine), newTab: false };
+  return { type: "search", query: q, engine, url: searchUrl(q, engine) };
 }
 
 // Mouse grid: one keypad number (1-9) per level. Said on their own, the numbers
@@ -489,15 +501,17 @@ export function closestPhrase(t: string, phrases: string[], threshold = 0.8): st
 }
 
 const IN_NEW_TAB = / (?:in|on) (?:a )?new tab$/;
+const IN_THIS_TAB = / (?:(?:in|on) )?(?:this|the same) tab$| here$/;
 
 export function parseCommand(text: string): Intent | null {
   const t = normalize(text);
   if (!t) return null;
   // "search youtube for lofi in a new tab" (opening sites handles this in its own rule).
-  const newTab = IN_NEW_TAB.exec(t);
-  if (newTab) {
-    const base = matchRules(t.slice(0, newTab.index));
-    if (base?.type === "search") return { ...base, newTab: true };
+  for (const [suffix, newTab] of [[IN_NEW_TAB, true], [IN_THIS_TAB, false]] as const) {
+    const m = suffix.exec(t);
+    if (!m) continue;
+    const base = matchRules(t.slice(0, m.index));
+    if (base?.type === "search") return { ...base, newTab };
   }
   const exact = matchRules(t);
   if (exact) return exact;

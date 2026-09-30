@@ -8,6 +8,7 @@ import {
   hostOf,
   isWebUrl,
   listTabs,
+  goBack,
   navigate,
   pageRequest,
   snapshot,
@@ -645,9 +646,8 @@ export class NaviAgent {
       }
       case "go_back": {
         hooks.onStep?.("Going back");
-        await chrome.tabs.goBack(tab.id!);
-        await waitForLoad(tab.id!);
-        return "went back";
+        const back = await goBack(tab);
+        return back.id === tab.id ? "went back" : `closed this tab (nothing to go back to) and returned to "${back.title}"`;
       }
       case "switch_tab": {
         const target = await chrome.tabs.get(Number(input.tab_id));

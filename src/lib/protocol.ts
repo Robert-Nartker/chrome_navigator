@@ -34,6 +34,7 @@ export type MediaAction =
   | "normalSpeed"
   | "volumeUp"
   | "volumeDown"
+  | "volume"
   | "restart";
 
 export type EditAction = "selectAll" | "undo" | "clear" | "newline";
@@ -53,7 +54,7 @@ export type ContentRequest =
   | { kind: "scroll"; direction: ScrollDirection; amount: ScrollAmount }
   | { kind: "pressKey"; key: Key }
   | { kind: "readPage"; maxChars: number }
-  | { kind: "media"; action: MediaAction; seconds?: number }
+  | { kind: "media"; action: MediaAction; seconds?: number; volume?: number }
   // Cells are keypad numbers 1-9, one per grid level: [5, 3] is block 3 inside block 5.
   // `image` (on show) is a picture of the tab taken before the grid covers it, to magnify small blocks.
   | { kind: "grid"; action: GridAction; cells?: number[]; image?: string }

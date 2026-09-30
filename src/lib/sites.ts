@@ -115,6 +115,6 @@ export function resolveSite(spoken: string): string | null {
   }
   if (/^https?:\/\//.test(compact)) return compact;
   if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/.test(compact)) return `https://${compact}`;
-  if (/^localhost(:\d+)?(\/\S*)?$/.test(compact)) return `http://${compact}`;
+  if (/^(?:localhost|\d{1,3}(?:\.\d{1,3}){3})(:\d+)?(\/\S*)?$/.test(compact)) return `http://${compact}`;
   return null;
 }
