@@ -226,9 +226,7 @@ npm run bench:mock        # checks the harness with fake API replies (free)
 
 Real usage is logged too: **Settings → Usage log** shows the running AI cost. **Export CSV** gives every command's path (fast path or AI), latency, steps, tokens and cost.
 
-## Roadmap
+## Changelog and roadmap
 
-- **Older Chrome versions:** some Chrome versions block speech recognition in background pages; Navi asks you to update Chrome. A panel-hosted fallback would cover this.
-- **Voice ID:** optional enrollment on the setup page so only your voice is acted on during a session (Picovoice Eagle or WeSpeaker ONNX); see `docs/research/wake-word-and-voice-id.md`
-- **Dedicated wake-word engine** (Porcupine / openWakeWord) for lower CPU than running recognition continuously
-- **Recorded commands:** about 50 real recordings, to measure speech recognition and routing end to end (NaviBench already covers tasks, latency and cost)
+- [CHANGELOG.md](CHANGELOG.md): what's changed, newest first.
+- [ROADMAP.md](ROADMAP.md): what's planned next (threads, memory, Free/Pro presets, subagents and background windows, a first-run tutorial) with requirements and open questions.
