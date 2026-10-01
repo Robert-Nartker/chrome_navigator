@@ -143,12 +143,12 @@ export function wakeAliases(name: string): WakeWords {
   return { exact: [n], misheard: misheard.sort((a, b) => b.length - a.length) };
 }
 
-function escapeRegExp(s: string) {
+export function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Verbs that open a site in a new tab (the others, like "go to", navigate the current one). */
-export const OPENS_NEW_TAB = /^(?:open|launch|pull up|bring up)$/;
+const OPENS_NEW_TAB = /^(?:open|launch|pull up|bring up)$/;
 const N = NUMBER_PATTERN;
 const ENGINE_NAMES = Object.keys(SEARCH_ENGINES)
   .sort((a, b) => b.length - a.length)
@@ -206,7 +206,7 @@ const RULES: Rule[] = [
   [/^(?:skip ahead|fast forward)$/, () => ({ type: "media", action: "forward", seconds: 10 })],
   [/^rewind$/, () => ({ type: "media", action: "rewind", seconds: 10 })],
   [/^(?:play|resume|unpause|keep playing)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "play" })],
-  [/^(?:pause|stop)(?: (?:the )?(?:video|it|this|music))?$|^pause$/, () => ({ type: "media", action: "pause" })],
+  [/^(?:pause|stop)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "pause" })],
   [/^(?:make it |go )?full ?screen$/, () => ({ type: "media", action: "fullscreen" })],
   [/^(?:exit|leave|close|get out of) (?:the )?full ?screen$/, () => ({ type: "media", action: "exitFullscreen" })],
   [/^(?:speed (?:it |the video )?up|play (?:it )?faster|faster video)$/, () => ({ type: "media", action: "faster" })],
@@ -490,7 +490,7 @@ export function similarity(a: string, b: string): number {
 }
 
 /** The closest phrase from a list, if it's a near-certain match. */
-export function closestPhrase(t: string, phrases: string[], threshold = 0.8): string | null {
+function closestPhrase(t: string, phrases: string[], threshold = 0.8): string | null {
   let best: string | null = null;
   let bestScore = threshold;
   for (const phrase of phrases) {

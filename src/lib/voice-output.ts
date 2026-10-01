@@ -109,9 +109,6 @@ export class Speaker implements Voice {
   /** Skips speech entirely (used by the benchmark runner). */
   muted = false;
 
-  /** Called when audio actually starts playing (used by the voice lab to time voices). */
-  onAudioStart?: () => void;
-
   /** The voice of the last reply, e.g. "Kokoro (on-device)", so people can see what's in use. */
   lastVoice = "";
 
@@ -239,7 +236,6 @@ export class Speaker implements Voice {
         voiceName: voiceName || undefined,
         enqueue: false,
         onEvent: (event) => {
-          if (event.type === "start") this.onAudioStart?.();
           if (["end", "interrupted", "cancelled", "error"].includes(event.type)) done();
         },
       });
@@ -261,7 +257,6 @@ export class Speaker implements Voice {
         if (!finished) resolve();
         finished = true;
       };
-      utterance.onstart = () => this.onAudioStart?.();
       utterance.onend = done;
       utterance.onerror = done;
       speechSynthesis.cancel();

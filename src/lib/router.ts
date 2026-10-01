@@ -4,7 +4,7 @@
 // (b) a real task for the main AI, or (c) noise to ignore silently.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { NO_USAGE, type Usage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
+import { NO_USAGE, type Usage, claudeReasoning, claudeUsage, costOf, effortFor, modelInfo } from "./models";
 import { askNano } from "./nano";
 import { createResponse, outputText, usageOf } from "./openai";
 import { keyFor, type Settings } from "./settings";
@@ -134,12 +134,7 @@ async function askClaude(model: string, message: string, settings: Settings, sig
   );
   return {
     text: response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "",
-    usage: {
-      input: response.usage.input_tokens,
-      cachedInput: response.usage.cache_read_input_tokens ?? 0,
-      cacheWrite: response.usage.cache_creation_input_tokens ?? 0,
-      output: response.usage.output_tokens,
-    },
+    usage: claudeUsage(response.usage),
   };
 }
 

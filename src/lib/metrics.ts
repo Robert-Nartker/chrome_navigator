@@ -4,7 +4,7 @@
 export interface CommandMetric {
   t: string;
   command: string;
-  /** "fast" = handled without AI, "ai" = Claude agent. */
+  /** "fast" = handled without AI, "ai" = the AI (GPT, Claude, or Navi Free's Gemini Nano). */
   path: "fast" | "ai" | "error" | "cancelled" | "ignored";
   intent?: string;
   ms: number;

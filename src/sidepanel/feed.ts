@@ -7,8 +7,6 @@
 
 import type { LogEntry, LogKind } from "../lib/messages";
 
-export type { LogEntry };
-
 type TurnState = "idle" | "working" | "done";
 
 interface Turn {
@@ -17,7 +15,6 @@ interface Turn {
   items: HTMLUListElement;
   trace: {
     li: HTMLLIElement;
-    details: HTMLDetailsElement;
     label: HTMLElement;
     time: HTMLElement;
     list: HTMLOListElement;
@@ -78,17 +75,6 @@ export class Feed {
     private readonly list: HTMLOListElement,
     private readonly announcer: HTMLElement,
   ) {}
-
-  /** Adds a live entry; returns it with the fields needed to rebuild the same view later. */
-  add(kind: LogKind, text: string, meta?: string): LogEntry {
-    const entry: LogEntry = { kind, text, t: Date.now() };
-    if (meta) entry.meta = meta;
-    if (kind === "user") entry.turn = this.newId();
-    else if (this.active) entry.turn = this.active.id;
-    else if (kind === "step") entry.turn = this.latest?.id ?? this.newId();
-    this.push(entry);
-    return entry;
-  }
 
   /** Shows an entry that already knows its command (logged by the background worker). */
   push(entry: LogEntry) {
@@ -265,7 +251,7 @@ export class Feed {
       id,
       el: li,
       items,
-      trace: { li: traceLi, details, label, time, list },
+      trace: { li: traceLi, label, time, list },
       state: "idle",
       ai: false,
       heard: "",

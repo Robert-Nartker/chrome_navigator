@@ -128,17 +128,17 @@ form.addEventListener("submit", async (e) => {
     model: modelSelect.value,
     effort: field<HTMLSelectElement>("effort").value as Settings["effort"],
     fastMode: field<HTMLInputElement>("fastMode").checked,
-    maxAgentSteps: clamp(field<HTMLInputElement>("maxAgentSteps").value, 1, 30, 20),
-    wakeName: field<HTMLInputElement>("wakeName").value.trim() || "Navi",
+    maxAgentSteps: clamp(field<HTMLInputElement>("maxAgentSteps").value, 1, 30, DEFAULT_SETTINGS.maxAgentSteps),
+    wakeName: field<HTMLInputElement>("wakeName").value.trim() || DEFAULT_SETTINGS.wakeName,
     listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],
     recognizer: field<HTMLSelectElement>("recognizer").value as Settings["recognizer"],
     autonomy: field<HTMLSelectElement>("autonomy").value as Settings["autonomy"],
-    sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, 120),
-    lang: field<HTMLInputElement>("lang").value.trim() || "en-US",
+    sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, DEFAULT_SETTINGS.sessionTimeoutSec),
+    lang: field<HTMLInputElement>("lang").value.trim() || DEFAULT_SETTINGS.lang,
     feedback: field<HTMLSelectElement>("feedback").value as Settings["feedback"],
     voiceName: field<HTMLSelectElement>("voiceName").value,
-    speechRate: clamp(field<HTMLInputElement>("speechRate").value, 0.5, 3, 1),
-    volume: clamp(field<HTMLInputElement>("volume").value, 0, 1, 0.6),
+    speechRate: clamp(field<HTMLInputElement>("speechRate").value, 0.5, 3, DEFAULT_SETTINGS.speechRate),
+    volume: clamp(field<HTMLInputElement>("volume").value, 0, 1, DEFAULT_SETTINGS.volume),
     routerModel: routerSelect.value,
     allowPageText: field<HTMLInputElement>("allowPageText").checked,
     allowScreenshots: field<HTMLInputElement>("allowScreenshots").checked,
@@ -243,7 +243,7 @@ void showCommands();
 
 /** What "Test voice" plays: the form's current choices (kept, so Navi's voice loads only once here). */
 function testVoice() {
-  const lang = field<HTMLInputElement>("lang").value || "en-US";
+  const lang = field<HTMLInputElement>("lang").value || DEFAULT_SETTINGS.lang;
   const navi = field<HTMLSelectElement>("speechOutput").value !== "chrome";
   return {
     lang,

@@ -22,7 +22,6 @@
       .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
       .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
       .badge.free { color: var(--good); }
-      .badge.paid { color: var(--warn); }
       .voices { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
       .voices li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 10px; background: var(--surface); border-radius: 8px; }
       .voices .pick { display: flex; gap: 8px; align-items: center; font-weight: 600; min-width: 150px; }
@@ -48,8 +47,8 @@
     <main>
       <h1>Voice lab</h1>
       <p class="lead">
-        Listen to voices side by side, rate them, and pick the one Navi should use. The free neural engines run on
-        this computer: each downloads its voice model once, then works offline.
+        Listen to voices side by side, rate them, and pick the one Navi should use. The free neural engine runs on
+        this computer: it downloads its voice model once, then works offline.
       </p>
 
       <section aria-labelledby="say-heading">

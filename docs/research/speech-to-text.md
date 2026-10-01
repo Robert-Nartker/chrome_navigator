@@ -27,7 +27,7 @@ AA publishes a **streaming** benchmark ("AA-WER Streaming") that is separate fro
 
 ## Recommendation
 
-1. **Now (in the MVP):** Chrome's Web Speech API with on-device processing (`processLocally`, Chrome 139+). It's free, needs no key, and keeps audio local where supported. Navi already asks for on-device mode and falls back to cloud.
+1. **Now (in the MVP):** Chrome's Web Speech API with on-device processing (`processLocally`, Chrome 139+). It's free, needs no key, and keeps audio local where supported. Navi uses on-device mode only, never the cloud.
 2. **Next, for accuracy and latency:** ElevenLabs Scribe v2 Realtime. It's on the Pareto front, has keyterms, voice-activity auto-commit, and an official single-use-token flow for browsers. Alternatives:
    - Soniox: cheapest, and marks end of speech with an `<end>` token.
    - Grok 2.0: best WER.

@@ -44,10 +44,6 @@ const KEEP_GENERATIONS = 6;
 let generation = 0;
 const generations = new Map<number, Element[]>();
 
-export function latestGeneration(): number {
-  return generation;
-}
-
 /** Resolves a badge number to its element, using the given (or latest) snapshot. */
 export function resolveElement(id: number, gen?: number): Element | null {
   const list = generations.get(gen ?? generation) ?? generations.get(generation);
@@ -55,7 +51,7 @@ export function resolveElement(id: number, gen?: number): Element | null {
   return el && el.isConnected ? el : null;
 }
 
-export function idOf(el: Element | null, gen = generation): number | undefined {
+function idOf(el: Element | null, gen = generation): number | undefined {
   if (!el) return undefined;
   const idx = generations.get(gen)?.indexOf(el) ?? -1;
   return idx >= 0 ? idx + 1 : undefined;
@@ -151,7 +147,7 @@ export function accessibleName(el: Element): string {
   return name;
 }
 
-export function roleOf(el: Element): string {
+function roleOf(el: Element): string {
   const explicit = el.getAttribute("role");
   if (explicit) return explicit.split(/\s+/)[0];
   const tag = el.tagName.toLowerCase();

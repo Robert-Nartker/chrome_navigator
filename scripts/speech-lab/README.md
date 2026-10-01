@@ -22,7 +22,7 @@ typing, air conditioner, a neighbor) 5 dB below, from Microsoft's MS-SNSD record
   word error rates as what you'd get in use.
 - Speeds are on one CPU thread, which is what a browser tab gets without cross-origin isolation. Browser
   WebAssembly is roughly 1.5 to 3 times slower than this; WebGPU is much faster where there's a graphics chip.
-- Chrome's own on-device recognizer (what Navi uses) isn't in open-source Chromium, so it can't be tested here.
+- Chrome's own on-device recognizer (Navi's default) isn't in open-source Chromium, so it can't be tested here.
 
 ## Results (2026-09-29, 4 vCPU cloud VM, no GPU)
 

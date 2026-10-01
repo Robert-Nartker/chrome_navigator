@@ -1,4 +1,5 @@
-// Runs a command: fast path first (instant, no AI), then the Claude agent.
+// Runs a command in Navi's background worker: personal and built-in commands first (instant, no AI), then
+// the router, then the AI (GPT or Claude with a key; Gemini Nano on Navi Free).
 
 import { type AgentResult, NaviAgent } from "../lib/agent";
 import {
@@ -13,6 +14,7 @@ import {
   tabsWithUnsavedTyping,
   navigate,
   pageRequest,
+  sleep,
   snapshot,
   targetTab,
   waitForLoad,
@@ -42,7 +44,6 @@ import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../l
 import { searchUrl, siteEngine } from "../lib/sites";
 import type { Voice } from "../lib/voice-output";
 
-export type { LogKind } from "../lib/messages";
 import type { LogKind } from "../lib/messages";
 
 export interface ControllerUi {
@@ -69,8 +70,6 @@ const SCREEN_WORDS = /\b(screen|see|look|looks|picture|image|photo|describe|show
 export interface RunOptions {
   /** Spoken, typed in the chat box, or a step of a personal command. */
   source: "voice" | "typed" | "step";
-  /** Speech engine confidence (0-1), when it reports one. */
-  confidence?: number;
   /** Skip the router (already interpreted, or a step of a personal command). */
   routed?: boolean;
   /** Only run built-in or personal commands; never fall through to the AI. */
@@ -155,7 +154,7 @@ export class Controller {
       // Number tags and the grid both answer to numbers, so only one shows at a time.
       if (this.numbers) {
         await this.setNumbers(false);
-        await new Promise((r) => setTimeout(r, 60)); // let the page repaint before the picture
+        await sleep(60); // let the page repaint before the picture
       }
       if (!this.gridOn) image = await this.gridPicture(tab);
     }
@@ -538,7 +537,7 @@ export class Controller {
     return this.speech;
   }
 
-  /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
+  /** Shows Navi's reply in the log and keeps it for "what did you say". */
   private navi(text: string, meta?: string) {
     this.lastMessage = text;
     this.turnMessage = text;
@@ -566,6 +565,7 @@ export class Controller {
     return change;
   }
 
+  /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
   private async confirm(text: string) {
     this.navi(text);
     if (this.getSettings().feedback === "spoken") void this.speaker.say(text);
@@ -829,7 +829,7 @@ export class Controller {
       case "voice": {
         const change = await this.adjustVoice(intent.change);
         // Let the next reply use the new settings, then demonstrate them.
-        await new Promise((r) => setTimeout(r, 50));
+        await sleep(50);
         const text = { louder: "Is this better?", quieter: "Is this better?", faster: "Okay, a bit faster.", slower: "Okay, a bit slower." }[change];
         this.navi(text);
         await this.say(text);

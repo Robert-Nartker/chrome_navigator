@@ -5,8 +5,9 @@ import { activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings
 import { installOnDevice, onDeviceProblem, onDeviceStatus } from "../lib/speech";
 import { Speaker } from "../lib/voice-output";
 
-// One-time microphone permission. Extension side panels can't show Chrome's
-// permission prompt, so it is granted here in a normal tab.
+// ---------- Microphone ----------
+// One-time permission. Extension side panels can't show Chrome's permission prompt, so it's granted here
+// in a normal tab.
 
 const grant = document.getElementById("grant") as HTMLButtonElement;
 const result = document.getElementById("mic-result") as HTMLElement;
@@ -145,15 +146,15 @@ const connect = document.getElementById("ai-connect") as HTMLButtonElement;
 const aiResult = document.getElementById("ai-result") as HTMLElement;
 const aiWarning = document.getElementById("ai-warning") as HTMLElement;
 
-const PROVIDER_PAGES: Record<ApiProvider, { name: string; placeholder: string; keysUrl: string }> = {
-  openai: { name: "OpenAI", placeholder: "sk-…", keysUrl: "https://platform.openai.com/api-keys" },
-  anthropic: { name: "Anthropic", placeholder: "sk-ant-…", keysUrl: "https://console.anthropic.com/settings/keys" },
+const PROVIDER_PAGES: Record<ApiProvider, { placeholder: string; keysUrl: string }> = {
+  openai: { placeholder: "sk-…", keysUrl: "https://platform.openai.com/api-keys" },
+  anthropic: { placeholder: "sk-ant-…", keysUrl: "https://console.anthropic.com/settings/keys" },
 };
 
 const chosenProvider = () => (providerRadios.find((r) => r.checked)?.value ?? "openai") as ApiProvider;
 
 function showProvider(provider: ApiProvider) {
-  const page = PROVIDER_PAGES[provider];
+  const page = { ...PROVIDER_PAGES[provider], name: PROVIDER_DEFAULTS[provider].name };
   for (const r of providerRadios) r.checked = r.value === provider;
   keyLabel.textContent = `${page.name} API key`;
   keyInput.placeholder = page.placeholder;
@@ -191,7 +192,7 @@ async function connectKey() {
   aiWarning.hidden = true;
   if (!key) {
     aiResult.className = "err";
-    aiResult.textContent = `Paste your ${PROVIDER_PAGES[provider].name} API key first.`;
+    aiResult.textContent = `Paste your ${PROVIDER_DEFAULTS[provider].name} API key first.`;
     keyInput.focus();
     return;
   }
@@ -216,11 +217,11 @@ async function connectKey() {
   });
   keyInput.value = "";
   keyInput.placeholder = "Connected. Paste a new key to replace it.";
-  showConnected(provider, `Connected to ${PROVIDER_PAGES[provider].name}. Navi Pro is on.`);
+  showConnected(provider, `Connected to ${PROVIDER_DEFAULTS[provider].name}. Navi Pro is on.`);
   void showFree();
   if (check.missing.length) {
     aiWarning.hidden = false;
-    aiWarning.textContent = `Your account doesn't list ${check.missing.join(" or ")} yet. Navi will still try it; if it fails, check model access at ${PROVIDER_PAGES[provider].name}.`;
+    aiWarning.textContent = `Your account doesn't list ${check.missing.join(" or ")} yet. Navi will still try it; if it fails, check model access at ${PROVIDER_DEFAULTS[provider].name}.`;
   }
 }
 
@@ -232,8 +233,8 @@ async function showSavedKeys() {
   if (!provider) return;
   showProvider(provider);
   keyInput.placeholder = "Connected. Paste a new key to replace it.";
-  const others = have.filter((p) => p !== provider).map((p) => PROVIDER_PAGES[p].name);
-  showConnected(provider, `Connected to ${PROVIDER_PAGES[provider].name}${others.length ? ` (and ${others.join(", ")})` : ""}.`);
+  const others = have.filter((p) => p !== provider).map((p) => PROVIDER_DEFAULTS[p].name);
+  showConnected(provider, `Connected to ${PROVIDER_DEFAULTS[provider].name}${others.length ? ` (and ${others.join(", ")})` : ""}.`);
   const used = activeSettings({ ...s, aiMode: "pro" });
   const d = PROVIDER_DEFAULTS[provider];
   if (used.model !== d.model || used.routerModel !== d.routerModel) {
@@ -264,7 +265,7 @@ async function showFree() {
 
 useFree.addEventListener("click", async () => {
   useFree.disabled = true;
-  let status = await nanoStatus();
+  const status = await nanoStatus();
   if (status === "downloadable" || status === "downloading") {
     freeResult.className = "hint";
     freeResult.textContent = "Downloading the on-device AI (about 4 GB, one time)…";
@@ -273,7 +274,6 @@ useFree.addEventListener("click", async () => {
     } catch (err) {
       freeResult.textContent = `The download didn't start: ${err instanceof Error ? err.message : String(err)}`;
     }
-    status = await nanoStatus();
   }
   // Free works without the model too (built-in commands only), so it's always the user's choice.
   await saveSettings({ aiMode: "free" });

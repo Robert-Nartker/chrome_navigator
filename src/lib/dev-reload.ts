@@ -43,7 +43,7 @@ function canonical(v: unknown): string {
 }
 
 /** The manifest on disk (canonical), if a build changed it since Chrome loaded it; only a full reload applies it. */
-export async function staleManifest(): Promise<string | null> {
+async function staleManifest(): Promise<string | null> {
   try {
     const onDisk = (await (await fetch(chrome.runtime.getURL("manifest.json"), { cache: "no-store" })).json()) as Record<string, unknown>;
     const loaded = chrome.runtime.getManifest() as unknown as Record<string, unknown>;
@@ -80,10 +80,10 @@ export async function reopenAfterDevRestart() {
 }
 
 /**
- * `background`: don't re-inject content scripts (Navi's background page can't; the panel or worker does).
+ * `skipReinject`: don't re-inject content scripts into open tabs (one page, the side panel, does it).
  * `reopen`: this is a tab, which the background reopens after a full extension restart.
  */
-export async function startDevReload(onStatus: (text: string) => void, { background = false, reopen = false } = {}) {
+export async function startDevReload(onStatus: (text: string) => void, { skipReinject = false, reopen = false } = {}) {
   // A manifest change (new permissions, cross-origin isolation) needs a full restart, which nothing may
   // have done if no Navi page was open when the build landed.
   if (await restartForManifest(reopen)) return onStatus("updating (extension restart)…");
@@ -111,7 +111,7 @@ export async function startDevReload(onStatus: (text: string) => void, { backgro
     if (mine && latest.buildId !== mine.buildId) {
       onStatus(`updating to #${latest.buildId}…`);
       source.close();
-      if (!background) await reinjectContentScripts();
+      if (!skipReinject) await reinjectContentScripts();
       location.reload();
     }
   };

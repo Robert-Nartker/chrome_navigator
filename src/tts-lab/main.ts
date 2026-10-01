@@ -3,6 +3,7 @@
 import { type Settings, loadSettings } from "../lib/settings";
 import { listVoices, pickVoice } from "../lib/voice-output";
 import { ChunkPlayer, sleep } from "./audio";
+import { hasWebGpu } from "../voice/gpu";
 import {
   type Download,
   type Engine,
@@ -83,7 +84,7 @@ function shownName(v: LabVoice): string {
 }
 
 /** Kokoro has one model per device; system voices need no loading. */
-function loadKey(v: { engine: EngineId; key?: string }): string {
+function loadKey(v: { engine: EngineId }): string {
   if (v.engine === "kokoro") return `kokoro@${kokoro.device}`;
   return v.engine;
 }
@@ -237,7 +238,7 @@ async function load(engine: EngineId, voice?: LabVoice): Promise<boolean> {
     if (blind) setStatus(`${blind}: downloading its voice model, ${formatBytes(d.loaded)}${d.total ? ` of ${formatBytes(d.total)}` : ""}…`);
   };
   try {
-    const stats = await engines[engine].prepare(onProgress, voice);
+    const stats = await engines[engine].prepare(onProgress);
     if (stats) {
       loads.set(key, stats);
       const size = stats.cached ? "already downloaded" : `${formatBytes(stats.bytes)} downloaded and saved for next time`;
@@ -449,14 +450,13 @@ async function deleteDownloads() {
 /** WebGPU when this computer has a usable graphics adapter, otherwise WebAssembly. */
 async function setUpKokoroDevice() {
   const select = $<HTMLSelectElement>("#kokoro-device");
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-  const adapter = await Promise.race([gpu?.requestAdapter().catch(() => null), sleep(2000).then(() => null)]);
-  if (!adapter) {
+  const gpu = await Promise.race([hasWebGpu(), sleep(2000).then(() => false)]);
+  if (!gpu) {
     const option = select.querySelector<HTMLOptionElement>("option[value=webgpu]")!;
     option.disabled = true;
     option.textContent += " (not available on this computer)";
   }
-  select.value = adapter ? "webgpu" : "wasm";
+  select.value = gpu ? "webgpu" : "wasm";
   kokoro.device = select.value as KokoroDevice;
   select.addEventListener("change", () => {
     kokoro.device = select.value as KokoroDevice;

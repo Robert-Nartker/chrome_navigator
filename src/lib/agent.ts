@@ -12,13 +12,14 @@ import {
   tabsWithUnsavedTyping,
   navigate,
   pageRequest,
+  sleep,
   snapshot,
   targetTab,
   waitForLoad,
 } from "./browser";
 import { KEYS, type Key, type PageSnapshot, type ScrollAmount, type ScrollDirection } from "./protocol";
 import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./custom-commands";
-import { NO_USAGE, type Usage, addUsage, claudeReasoning, costOf, effortFor, modelInfo } from "./models";
+import { NO_USAGE, type Usage, addUsage, claudeReasoning, claudeUsage, costOf, effortFor, modelInfo } from "./models";
 import { type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
 import { type Autonomy, isBlocked, keyFor, type Settings } from "./settings";
 
@@ -214,7 +215,7 @@ interface ToolOutcome {
 async function captureTab(tab: chrome.tabs.Tab): Promise<{ data: string; width: number; height: number }> {
   if (!tab.active && tab.id !== undefined) {
     await chrome.tabs.update(tab.id, { active: true });
-    await new Promise((r) => setTimeout(r, 150));
+    await sleep(150);
   }
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 75 });
   const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
@@ -277,7 +278,7 @@ const HISTORY_TTL_MS = 3 * 60 * 1000;
 const MAX_HISTORY_MESSAGES = 40;
 const PAGE_TEXT_LIMIT = 12000;
 
-export function formatSnapshot(snap: PageSnapshot): string {
+function formatSnapshot(snap: PageSnapshot): string {
   const lines = [`Page: ${snap.title || "(untitled)"}`, `URL: ${snap.url}`];
   const pct = snap.scrollMax > 0 ? Math.round((snap.scrollY / snap.scrollMax) * 100) : 0;
   lines.push(snap.scrollMax > 0 ? `Scrolled: ${pct}% of the page` : "Scrolled: page fits on screen");
@@ -348,12 +349,7 @@ class AnthropicBrain implements Brain {
         .join(" ")
         .trim(),
       refused: response.stop_reason === "refusal",
-      usage: {
-        input: response.usage.input_tokens,
-        cachedInput: response.usage.cache_read_input_tokens ?? 0,
-        cacheWrite: response.usage.cache_creation_input_tokens ?? 0,
-        output: response.usage.output_tokens,
-      },
+      usage: claudeUsage(response.usage),
     };
   }
 
@@ -665,7 +661,7 @@ export class NaviAgent {
           direction: input.direction as ScrollDirection,
           amount: input.amount as ScrollAmount,
         });
-        await new Promise((r) => setTimeout(r, 450));
+        await sleep(450);
         return `scrolled ${input.direction}`;
       }
       case "navigate": {
@@ -717,7 +713,7 @@ export class NaviAgent {
         hooks.onStep?.("Looking at the screen");
         // Show the number tags for the picture, so the model can refer to elements by id.
         const tagged = await pageRequest(tab, { kind: "showBadges" });
-        await new Promise((r) => setTimeout(r, 120));
+        await sleep(120);
         let shot: { data: string; width: number; height: number };
         try {
           shot = await captureTab(await chrome.tabs.get(tab.id!));
@@ -769,7 +765,7 @@ export class NaviAgent {
       }
       case "wait": {
         const seconds = Math.min(5, Math.max(1, Number(input.seconds) || 1));
-        await new Promise((r) => setTimeout(r, seconds * 1000));
+        await sleep(seconds * 1000);
         return `waited ${seconds}s`;
       }
       case "save_command": {

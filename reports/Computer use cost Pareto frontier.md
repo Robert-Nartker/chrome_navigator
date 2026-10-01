@@ -255,6 +255,6 @@ What it adds to the picture:
 - GPT-6.1 Sol passed 11–12 of 12 at every level; cost per task moved only from $0.008 to $0.013 between low and max, and median time from about 11 s to 16 s. For short, text-based browser tasks, reasoning level mostly buys latency, not success.
 - GPT-6 Astra also passed everything, at about 6x Sol's cost. It is dominated in Navi's setting, matching its position on the computer-use chart.
 - GPT-6 Luna was about 17x cheaper than Sol but passed 5–9 of 12, rising with reasoning; 'none' cost more than 'low' because it took extra steps, which matches Browser Use's Luna result.
-- At Navi's default limit of 12 steps, the multi-email reply task fails for every model (they run out of steps), so the default limit, not the model, is the binding constraint on longer tasks.
+- At Navi's default limit of 12 steps (since raised to 20), the multi-email reply task fails for every model (they run out of steps), so the default limit, not the model, is the binding constraint on longer tasks.
 
 The interactive chart with all three views (computer use, browser use, Navi's tests) is `reports/Computer use cost Pareto frontier.html`.

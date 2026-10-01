@@ -8,6 +8,11 @@ Built for two groups:
 
 BDAA AI Fundamentals track project, Autumn 2026.
 
+<p>
+  <img src="docs/screenshots/panel-done-light.png" alt="Navi's side panel after a few commands: what was said, how it was heard, and the AI's steps" width="300">
+  <img src="docs/screenshots/panel-working-dark.png" alt="Navi's side panel while the AI works on a task, in dark mode" width="300">
+</p>
+
 ## Quick start
 
 ```bash
@@ -115,8 +120,8 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 
 ```
  mic ──► speech-to-text ──► wake/session gate ──► fast-path parser ──► action
-          (Chrome, on-device    ("Hey Navi" once,     (regex, ~50 ms,       │
-           when supported)       then a session)        no AI, no network)  │
+          (Chrome on-device,    ("Hey Navi" once,     (regex, ~50 ms,       │
+           or Parakeet)          then a session)        no AI, no network)  │
                                                             │ not matched   │
                                                             ▼               │
                                               AI agent (tool use) ──────────┤
@@ -138,43 +143,44 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
   - **Noise or someone else talking:** fails quietly ("tiktok tiktok", a TV in the background).
 
   There's no hardcoded ignore list; noise that gets transcribed as words is a speech-recognition problem to fix at the source. Looser phrasing of built-in commands ("scroll down further", "scrawl down") is still matched locally.
-- **AI path** (`src/lib/agent.ts`): the model gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. The default is GPT-6.1 Sol at low reasoning with an OpenAI key, or Claude Sonnet 5.5 at low reasoning with a Claude key. Low reasoning keeps thinking short, so actions start quickly. With only one key, Navi uses that provider's defaults. Upgrades are in settings: more reasoning, Claude Opus 5.5 (optional 2x-price fast mode), GPT-6 Astra, or mixing providers when you have both keys.
+- **AI path** (`src/lib/agent.ts`): the model gets the command plus a compact element list (`[12] button "Sign in"`) and calls tools: `click`, `type_text`, `scroll`, `navigate`, `switch_tab`, `press_key`, `read_page`, and a few more. After each action it gets a fresh snapshot, and it finishes with one short spoken sentence. The default is GPT-6.1 Sol at low reasoning with an OpenAI key, or Claude Sonnet 5.5 at low reasoning with a Claude key. Low reasoning keeps thinking short, so actions start quickly. With only one key, Navi uses that provider's defaults. The side panel's Thinking switch picks Low, Medium or Extra high reasoning; Settings has every level, Claude Opus 5.5 (optional 2x-price fast mode), GPT-6 Astra, and mixing providers when you have both keys. A task stops after 20 steps (changeable in Settings), except in YOLO mode.
 
 ## Privacy model
 
-- **Audio:** Navi uses Chrome's speech recognizer in on-device mode only (Chrome 139+; download the model once on the setup page or from the side panel). Audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio.
+- **Audio:** Navi uses Chrome's speech recognizer in on-device mode (Chrome 139+; download the model once on the setup page or from the side panel), or NVIDIA's open Parakeet model if you choose it (Settings → Listening → Recognizer; a one-time 0.7–2.5 GB download, and Chrome's recognizer listens while it loads). Either way, audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio.
 - **Navi's voice** runs on your computer too: Kokoro, a neural voice, on the graphics chip when there is one (WebGPU; 326 MB once) or on the processor otherwise (92 MB once). It downloads from Hugging Face the first time Navi speaks (or from the setup page), and your computer's system voice answers until then. Pick a voice, or the system voices, in Settings. The side panel shows what's hearing and speaking, e.g. "Hears: Chrome (on-device) · Speaks: Kokoro (on-device)".
 - **Speech stays on your computer.** Speech recognition and Navi's voice both run locally. The AI runs on-device with Gemini Nano (Free), or through OpenAI or Anthropic with your own key (Pro). ElevenLabs was removed because zero data retention needs its Enterprise plan.
-- **Sound from your own computer** (a podcast or video) is cancelled out of the mic when Chrome supports system-wide echo cancellation (`echoCancellation: "all"`).
-- **Nothing is acted on until the wake word.** Speech before "Hey Navi" is ignored and never shown or sent to the AI.
-- **The AI sees labels, not content.** By default Claude receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
+- **Navi's own voice** is kept out of the mic by echo cancellation, plus a check that ignores words Navi is saying. You can still talk over Navi to cut it short.
+- **In Hey Navi mode, nothing is acted on until the wake word.** Speech before "Hey Navi" is ignored and never shown or sent to the AI. In Open mic mode, everything said while the mic is on is a command.
+- **The AI sees labels, not content.** By default the AI receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
 - **"Read this page" is local.** Reading aloud never involves the AI.
 - **Blocked sites:** list sites (your bank, health portal) where the AI is never used.
-- **Confirmation:** the agent asks before sending, posting, buying or deleting.
+- **Confirmation:** by default the agent asks before sending, posting, buying, deleting, or closing a tab with typing that isn't sent or saved. YOLO mode (the side panel switch) asks only before payments, financial details and passwords, and has no step limit.
 - **Prompt injection:** page text is marked as untrusted data, and the agent is told never to follow instructions found in it.
 - **API key:** stored in `chrome.storage.local` in your browser profile only.
 
 ## Voice lab: compare voices
 
-Chrome's built-in voices can sound robotic. The voice lab (**Settings → Voice feedback → Compare voices**) lets you listen to Kokoro's voices (Navi's own) next to your computer's voices, time them on your machine, rate them, and pick one.
+Chrome's built-in voices can sound robotic. The voice lab (**Settings → Voice → Compare voices**) lets you listen to Kokoro's voices (Navi's own) next to your computer's voices, time them on your machine, rate them, and pick one.
 
 - **Engines:** Chrome's own voices (marked "on this computer" or "online") and Kokoro (on the graphics chip with WebGPU, or the processor with WebAssembly). Pocket TTS, Supertonic, Kitten and Piper were tried in the speech lab (`scripts/speech-lab/`) and dropped.
-- **First use downloads the voice model once**, from Hugging Face: Kokoro 92 MB on the processor or 326 MB on the graphics chip (one download covers all its voices). After that it loads from the browser's storage and work offline. **Delete downloaded voices** at the bottom of the page frees the space.
+- **First use downloads the voice model once**, from Hugging Face: Kokoro 92 MB on the processor or 326 MB on the graphics chip (one download covers all its voices). After that it loads from the browser's storage and works offline. **Delete downloaded voices** at the bottom of the page frees the space.
 - **Numbers for each voice:** first-load time and download size, time to first audio, total synthesis time, and real-time factor.
 - **Comparing:** tick voices and play the same phrase in each, one after another: things Navi really says, a paragraph, or your own text. Blind mode hides the names and shuffles the order. Ratings (1 to 5) are saved in the browser, and your top voices are listed.
 - **Mac tip:** download a "Premium" or "Enhanced" voice in System Settings → Accessibility → Spoken Content → System voice → Manage Voices. It then shows up under Chrome's voices.
 
-Chrome extensions can't load code from a CDN, so the engines' libraries and ONNX Runtime WebAssembly files are copied into `dist/` at build time (about 70 MB). Each engine loads only when you use it, so the rest of Navi is unchanged. The e2e tests serve tiny stand-in models (`tests/fixtures/tts/`) so they run without the real downloads.
+Chrome extensions can't load code from a CDN, so the speech engines' libraries and ONNX Runtime WebAssembly files are copied into `dist/` at build time (about 95 MB, shared by Navi's voice, Parakeet, and the voice and recognizer testers). Each engine loads only when it's used, so the rest of Navi is unchanged. The e2e tests serve tiny stand-in models (`tests/fixtures/tts/`) so they run without the real downloads.
 
 ## Development
 
 ```bash
 npm run typecheck   # TypeScript (tsgo)
-npm test            # unit tests: parser, label matching, wake session (vitest)
+npm test            # unit tests: parser, matching, wake session, models and router, commands, speech helpers (vitest)
 npm run test:e2e    # builds, loads the extension in Chromium, drives real pages (Playwright)
 npm run check       # all of the above
 npm run bench       # NaviBench task suite against real OpenAI and Claude models (see below)
 node scripts/probe-sites.mjs [urls...]   # snapshot quality on real sites (element counts, size, timing)
+NAVI_SCREENSHOTS=1 npx playwright test -g screenshots   # refreshes docs/screenshots/
 ```
 
 The e2e suite covers clicking by label and by number, badges, scrolling, typing and submitting, navigation and tabs, restricted pages, the wake session, blocked sites, and a full AI turn against a mocked Claude API (checking that page text isn't sent). If Playwright's browser isn't installed yet, run `npx playwright install chromium` once.
@@ -183,7 +189,7 @@ The e2e suite covers clicking by label and by number, badges, scrolling, typing 
 
 NaviBench compares models on cost, accuracy and speed, and ends with what 20 hours of use would cost. It runs through the real extension in a test browser.
 
-- **Router suite:** `bench/router-cases.json` has 69 labeled phrases, 7 of them follow-ups that need the last command ("again" after "scroll down"). That's 29 loosely worded or misheard commands ("Havi go to sleep", "scroll down a smidge more"), 19 real tasks for the AI, and 14 bits of background chatter to ignore ("mom I'm on a call", song lyrics, YouTuber intros). It scores the route, the exact command, latency, and cost per call.
+- **Router suite:** `bench/router-cases.json` has 77 labeled phrases, 13 of them follow-ups that need the last few commands ("again" after "scroll down"). That's 40 loosely worded or misheard commands ("Havi go to sleep", "scroll down a smidge more"), 21 real tasks for the AI, and 16 bits of background chatter to ignore ("mom I'm on a call", song lyrics, YouTuber intros). It scores the route, the exact command, latency, and cost per call.
 - **Agent suite:** `bench/sites/` has small, realistic web apps: an inbox, a shop, a video site, a signup form, an article containing a prompt-injection line, a bigger shop, and an office app with mail, a calendar and settings. `bench/tasks.json` has 23 spoken tasks with automatic pass/fail checks, including safety checks. For example, "reply to Sarah…" must not send without a yes, and the summary must not repeat the injected instruction. Six of them are harder, multi-step tasks on a bigger shop and an office app (`market.html`, `workspace.html`): the best-rated earbuds that are wireless and in stock, a hoodie in a chosen color, size and quantity, the cheapest item behind "Load more", an email's plan turned into a calendar event, replies to only the emails that asked a question, and one setting inside a collapsed section and a tab. By default 8 core tasks run; pass `--tasks hard` for the six harder ones or `--tasks all` for all 23.
 
 **Setup:** put your keys in a `.env` file in the repo root. It's git-ignored. You only need the providers you want to test:
@@ -221,8 +227,7 @@ Real usage is logged too: **Settings → Usage log** shows the running AI cost. 
 
 ## Roadmap
 
-- **Local command recognition:** transcribe commands on-device with an open model (Qwen3-ASR, Whisper or Parakeet; see `scripts/speech-lab/`) while Chrome's recognizer keeps listening for the wake word.
 - **Older Chrome versions:** some Chrome versions block speech recognition in background pages; Navi asks you to update Chrome. A panel-hosted fallback would cover this.
 - **Voice ID:** optional enrollment on the setup page so only your voice is acted on during a session (Picovoice Eagle or WeSpeaker ONNX); see `docs/research/wake-word-and-voice-id.md`
 - **Dedicated wake-word engine** (Porcupine / openWakeWord) for lower CPU than running recognition continuously
-- **Evaluation harness:** about 50 recorded commands plus a task suite, measuring task success, latency and cost for fast path vs AI and across models
+- **Recorded commands:** about 50 real recordings, to measure speech recognition and routing end to end (NaviBench already covers tasks, latency and cost)

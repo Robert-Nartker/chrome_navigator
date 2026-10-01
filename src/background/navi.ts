@@ -3,6 +3,7 @@
 // panel and the floating pill on pages are views of this, so Navi works with the panel closed.
 
 import { routeUtterance } from "../lib/router";
+import { sleep } from "../lib/browser";
 import { type NanoStatus, setNanoTransport } from "../lib/nano";
 import { LogBook } from "../lib/logbook";
 import {
@@ -56,7 +57,7 @@ function ensureEars(): Promise<void> {
         justification: "Listens for voice commands and speaks Navi's replies, so Navi works with its panel closed.",
       });
     }
-    await Promise.race([ready, new Promise((r) => setTimeout(r, 5000))]);
+    await Promise.race([ready, sleep(5000)]);
     await sendEars({ type: "ears:configure", settings });
   })().catch((err) => {
     earsReady = null;
@@ -243,7 +244,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       })();
       return false;
     case "ears:command":
-      void controller.run(msg.text, { source: "voice", confidence: msg.confidence });
+      void controller.run(msg.text, { source: "voice" });
       return false;
     case "ears:cancel":
       controller.cancel();

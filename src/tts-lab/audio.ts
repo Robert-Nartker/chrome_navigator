@@ -75,7 +75,6 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 const ABBREVIATION = /\b(?:Dr|Mr|Mrs|Ms|Mt|St|Jr|Sr|Prof|vs|etc|No)\.$/i;
 
-/** Splits text into sentences, so engines that aren't streaming can start speaking after the first one. */
 /** Longer first sentences are split at a clause boundary, so a voice can start speaking sooner. */
 const QUICK_START_WORDS = 10;
 
@@ -98,6 +97,7 @@ export function splitFirstClause(text: string): [string, string] {
   return [head, trimmed.slice(trimmed.indexOf(head) + head.length).trim()];
 }
 
+/** Splits text into sentences, so engines that aren't streaming can start speaking after the first one. */
 export function splitSentences(text: string): string[] {
   const out: string[] = [];
   for (const piece of text.trim().split(/(?<=[.!?])\s+/)) {

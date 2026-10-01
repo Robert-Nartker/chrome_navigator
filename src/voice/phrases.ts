@@ -22,7 +22,7 @@ export interface PhraseTuning {
   maxSeconds: number;
 }
 
-export const DEFAULT_TUNING: PhraseTuning = { start: 0.5, still: 0.35, hangMs: 350, prerollMs: 300, minVoicedMs: 150, maxSeconds: 20 };
+const DEFAULT_TUNING: PhraseTuning = { start: 0.5, still: 0.35, hangMs: 350, prerollMs: 300, minVoicedMs: 150, maxSeconds: 20 };
 
 export class PhraseDetector {
   private readonly tuning: PhraseTuning;

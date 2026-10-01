@@ -97,7 +97,6 @@ function renderStatus() {
   ui.dictate.setAttribute("aria-label", ears.dictating ? "Stop dictating" : "Dictate a message");
   ui.mic.setAttribute("aria-pressed", String(listening));
   ui.mic.setAttribute("aria-label", listening ? "Stop listening" : "Start listening");
-  ui.mic.dataset.awake = String(ears.awake && settings.listenMode === "handsfree");
   // What's hearing and speaking right now, so it's always clear what runs locally and what's paid.
   const engines = [ears.engineLabel && `Hears: ${ears.engineLabel}`, ears.voiceLabel && `Speaks: ${ears.voiceLabel}`];
   const engineText = engines.filter(Boolean).join(" · ");
@@ -212,11 +211,16 @@ $("yolo").addEventListener("click", () => {
   void saveSettings({ autonomy: settings.autonomy === "yolo" ? "default" : "yolo" });
 });
 
+/** Opens Navi's setup page, e.g. at "#ai" (connecting a key). */
+function openSetup(section = "") {
+  void chrome.tabs.create({ url: chrome.runtime.getURL(`setup.html${section}`) });
+}
+
 $("plan").addEventListener("click", () => {
   if (aiModeOf(settings) === "pro") void saveSettings({ aiMode: "free" });
   // Pro needs a key: without one, go and connect it.
   else if (providersWithKeys(settings).length) void saveSettings({ aiMode: "pro" });
-  else void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html#ai") });
+  else openSetup("#ai");
 });
 
 async function checkMicPermission(): Promise<boolean> {
@@ -299,9 +303,9 @@ ui.form.addEventListener("submit", (e) => {
   void navi.run(text);
 });
 
-$("open-setup").addEventListener("click", () => void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") }));
+$("open-setup").addEventListener("click", () => openSetup());
 
-/** Navi only uses Chrome's on-device recognizer; offer its one-time download here (it needs a click). */
+/** Chrome's on-device recognizer (the default, and Parakeet's stand-in while it loads) needs a one-time download; offer it here (it needs a click). */
 async function checkOnDeviceSpeech() {
   const status = await onDeviceStatus(settings.lang);
   ui.speechBanner.hidden = status !== "downloadable" && status !== "downloading";
@@ -330,7 +334,7 @@ ui.downloadSpeech.addEventListener("click", async () => {
 $("open-settings").addEventListener("click", openSettings);
 $("open-settings-inline").addEventListener("click", (e) => {
   e.preventDefault();
-  void chrome.tabs.create({ url: chrome.runtime.getURL("setup.html#ai") });
+  openSetup("#ai");
 });
 $("help").addEventListener("click", () => void toWorker({ type: "navi:help" }));
 ui.gridButton.addEventListener("click", () => void toWorker({ type: "navi:toggle", what: "grid" }));

@@ -447,7 +447,7 @@ body {
   outline-offset: 1px;
 }
 
-/* Which speech recognizer is listening. */
+/* What's hearing and speaking right now. */
 .engine {
   max-width: 100%;
   margin: -4px 0 0;
@@ -461,16 +461,6 @@ body {
 
 /* Each mode's one-line explanation: read to screen readers and shown as a tooltip (the caption already
    says what to do). */
-.mode-hint {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 /* ---------- Activity feed: one block per command ---------- */
 
 .feed {

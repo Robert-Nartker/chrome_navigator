@@ -1,6 +1,6 @@
-// Navi's ears and voice: the microphone, speech recognition (Chrome's on-device recognizer), the
-// "Hey Navi" session, and spoken replies and sounds. It runs in Navi's
-// background page (an offscreen document), so Navi keeps listening with the side panel closed.
+// Navi's ears and voice: the microphone, speech recognition (Chrome's on-device recognizer, or Parakeet
+// when chosen), the "Hey Navi" session, and spoken replies and sounds. It runs in Navi's background page
+// (an offscreen document), so Navi keeps listening with the side panel closed.
 // It knows nothing about commands: finished commands go out through `EarsOutput`.
 
 import type { EarsState, LogKind } from "../lib/messages";
@@ -59,12 +59,16 @@ export class Ears {
   /** The mic should be on (even while a recognizer is between starts). */
   private wantListening = false;
   private micError = "";
-  private hearsLabel = "";
+  private engineLabel = "";
   private lastInfo = "";
   private lastState = "";
   private listenGeneration = 0;
   private wasAwake = false;
-  readonly session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
+  readonly session = new WakeSession({
+    mode: DEFAULT_SETTINGS.listenMode,
+    wakeName: DEFAULT_SETTINGS.wakeName,
+    timeoutSec: DEFAULT_SETTINGS.sessionTimeoutSec,
+  });
   readonly speaker: Speaker;
   private lastVoiceError = "";
   /** Dictating into the chat box: the next phrase is typed there instead of run. */
@@ -205,10 +209,14 @@ export class Ears {
     }
     if (decision.command) this.out.command(decision.command, confidence);
     // Asleep and not for Navi: show what was heard for a moment, so a missed "Hey Navi" is visible.
-    const asleep = this.settings.listenMode === "handsfree" && this.session.current === "sleeping";
-    this.heardAsleep = asleep && !decision.woke ? transcript : "";
+    this.heardAsleep = this.asleep && !decision.woke ? transcript : "";
     this.heardAt = Date.now();
     this.emit();
+  }
+
+  /** Waiting for the wake name (hands-free mode only). */
+  private get asleep(): boolean {
+    return this.settings.listenMode === "handsfree" && this.session.current === "sleeping";
   }
 
   get state(): EarsState {
@@ -216,7 +224,7 @@ export class Ears {
       listening: this.listening,
       awake: this.listening && this.session.current === "awake",
       micError: this.micError,
-      engineLabel: this.listening ? this.hearsLabel + (this.parakeetProgress ? ` · Parakeet ${this.parakeetProgress}` : "") : "",
+      engineLabel: this.listening ? this.engineLabel + (this.parakeetProgress ? ` · Parakeet ${this.parakeetProgress}` : "") : "",
       voiceLabel: this.speaker.lastVoice,
       remainingMs: this.listening && this.settings.listenMode === "handsfree" ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
@@ -260,9 +268,8 @@ export class Ears {
       if (words(text).length < 2 || isEcho(text, this.speaker.lastSaid)) return;
       this.speaker.stop();
     }
-    const asleep = this.settings.listenMode === "handsfree" && this.session.current === "sleeping";
     // While asleep, only show speech once the wake word is heard (nothing else is acted on).
-    this.out.interim(asleep && !this.session.hearsWakePhrase(text) ? "" : text);
+    this.out.interim(this.asleep && !this.session.hearsWakePhrase(text) ? "" : text);
   }
 
   /** What either recognizer reports to. */
@@ -273,7 +280,7 @@ export class Ears {
     onError: (message, fatal) => void this.onEngineError(message, fatal),
     onInfo: (message) => {
       if (message.startsWith("Speech: ")) {
-        this.hearsLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
+        this.engineLabel = message.slice("Speech: ".length).replace(/^Chrome speech/, "Chrome");
         this.emit();
         return;
       }

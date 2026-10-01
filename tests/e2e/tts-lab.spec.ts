@@ -1,19 +1,18 @@
-// Voice lab (tts-lab.html). Kokoro's real model is a 92-326 MB download from Hugging Face, so these tests
+// Voice lab (tts-lab.html), then the speech recognizer tester (asr-lab.html). Kokoro's real model is a 92-326 MB download from Hugging Face, so these tests
 // either make that download fail or serve a tiny stand-in model (tests/fixtures/tts/) that outputs a
 // tone. Everything else is real: the vendored ONNX Runtime, the phonemizer, Kokoro's worker, caching and
 // playback, all under the extension's content security policy.
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { KOKORO, KOKORO_STAND_INS } from "./fake-models";
+import { CHROMIUM } from "./helpers";
 
 const DIST = path.resolve("dist");
-const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 
 type Fixtures = {
   /** A WAV file the fake microphone plays once (instead of its default beeps). */
@@ -84,7 +83,6 @@ async function watchedPage(context: BrowserContext, problems: string[]): Promise
 
 const HF = "https://huggingface.co/";
 /** Stand-ins for the files Kokoro downloads from Hugging Face. */
-const STAND_INS = KOKORO_STAND_INS;
 
 /** Serves the stand-ins (404 for anything else) and returns the URLs requested. */
 async function serveStandIns(context: BrowserContext): Promise<string[]> {
@@ -93,7 +91,7 @@ async function serveStandIns(context: BrowserContext): Promise<string[]> {
   await context.route(`${HF}**`, async (route) => {
     const url = route.request().url();
     requested.push(url);
-    const file = STAND_INS[url];
+    const file = KOKORO_STAND_INS[url];
     if (!file) return route.fulfill({ status: 404, body: "Entry not found" });
     return route.fulfill({ status: 200, body: await file() });
   });

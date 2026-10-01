@@ -56,11 +56,8 @@ export interface SpeakOptions {
 }
 
 export interface Engine {
-  /**
-   * Loads the engine (and `voice`, for engines with one model per voice), downloading it the first time.
-   * Returns stats only to the call that actually loaded something.
-   */
-  prepare(onProgress: (d: Download) => void, voice?: LabVoice): Promise<LoadStats | null>;
+  /** Loads the engine, downloading it the first time. Returns stats only to the call that actually loaded something. */
+  prepare(onProgress: (d: Download) => void): Promise<LoadStats | null>;
   /** Speaks and resolves when playback has finished. */
   speak(voice: LabVoice, o: SpeakOptions): Promise<RunStats>;
   stop(): void;

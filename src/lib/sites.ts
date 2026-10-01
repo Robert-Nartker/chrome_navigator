@@ -1,6 +1,6 @@
 // Spoken site names -> URLs, so common "open X" commands skip the AI entirely.
 
-export const SITES: Record<string, string> = {
+const SITES: Record<string, string> = {
   google: "https://www.google.com",
   gmail: "https://mail.google.com",
   "my email": "https://mail.google.com",

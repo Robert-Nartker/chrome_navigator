@@ -331,7 +331,7 @@ export async function showGrid(image?: string): Promise<string> {
 }
 
 /** Zooms into one block per cell ("5 3": block 5, then block 3 inside it). */
-export function zoomGrid(cells: number[]): string {
+function zoomGrid(cells: number[]): string {
   requireGrid();
   checkCells(cells);
   const room = MAX_LEVELS - 1 - path.length;
@@ -342,7 +342,7 @@ export function zoomGrid(cells: number[]): string {
   return path.length >= MAX_LEVELS - 1 ? `${at} Say click, or click and a number.` : `${at} Say another number, or click.`;
 }
 
-export function backGrid(): string {
+function backGrid(): string {
   requireGrid();
   if (!path.length) return "This is the whole screen. Say a number, or hide grid.";
   path.pop();
@@ -359,7 +359,7 @@ export function hideGrid() {
 }
 
 /** Clicks the center of the current block, or of the block the cells lead to, then hides the grid. */
-export function clickGrid(how: GridClick, cells: number[] = []): string {
+function clickGrid(how: GridClick, cells: number[] = []): string {
   requireGrid();
   if (cells.length) checkCells(cells);
   const region = regionOf([...path, ...cells]);
@@ -367,7 +367,7 @@ export function clickGrid(how: GridClick, cells: number[] = []): string {
   return clickAtPoint(region.x + region.w / 2, region.y + region.h / 2, how);
 }
 
-/** Runs a grid request from the side panel and returns what to tell the user. */
+/** Runs a grid request from Navi's background worker and returns what to tell the user. */
 export async function runGrid(action: GridAction, cells: number[] = [], image?: string): Promise<string> {
   switch (action) {
     case "show":

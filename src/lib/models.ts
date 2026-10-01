@@ -143,6 +143,16 @@ export interface Usage {
 
 export const NO_USAGE: Usage = { input: 0, cachedInput: 0, cacheWrite: 0, output: 0 };
 
+/** Token counts from a Claude response's usage. */
+export function claudeUsage(u: {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+}): Usage {
+  return { input: u.input_tokens, cachedInput: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0, output: u.output_tokens };
+}
+
 export function addUsage(a: Usage, b: Usage): Usage {
   return {
     input: a.input + b.input,

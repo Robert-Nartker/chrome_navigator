@@ -1,11 +1,11 @@
 // Browser-level control (tabs, navigation) plus a typed channel to the content
-// script in the tab being controlled. Runs in the side panel.
+// script in the tab being controlled. Runs in Navi's background service worker.
 
 import type { ContentRequest, ContentResponse, PageSnapshot } from "./protocol";
 
 const WEB_URL = /^(https?|file|ftp):/;
 
-export class RestrictedPageError extends Error {
+class RestrictedPageError extends Error {
   constructor(url?: string) {
     super(
       url?.startsWith("chrome")
@@ -44,7 +44,7 @@ async function inject(tabId: number) {
 }
 
 /** Sends a request to the page, injecting the content script first if needed. */
-export async function sendToPage(tab: chrome.tabs.Tab, req: ContentRequest): Promise<ContentResponse> {
+async function sendToPage(tab: chrome.tabs.Tab, req: ContentRequest): Promise<ContentResponse> {
   if (tab.id === undefined) throw new Error("No tab to control.");
   if (!isWebUrl(tab.url)) throw new RestrictedPageError(tab.url);
   const send = () => chrome.tabs.sendMessage(tab.id!, req) as Promise<ContentResponse | undefined>;
@@ -108,7 +108,7 @@ export function sleep(ms: number) {
 }
 
 /** A tab with nothing in it yet: a new tab page or a blank one. */
-export function isBlankTab(url?: string): boolean {
+function isBlankTab(url?: string): boolean {
   return !url || /^(?:about:blank|chrome:\/\/(?:newtab|new-tab-page)|chrome-search:\/\/local-ntp)/.test(url);
 }
 

@@ -6,7 +6,7 @@
 //   - each layer's MLP gate and up projections are fused into one interleaved NAME.gate_up matrix,
 //   - lm_head is dropped (it's tied to the embedding), and everything else is stored as f32.
 
-export const BLOCK = 64;
+const BLOCK = 64;
 const ALIGN = 64;
 
 export interface TensorInfo {
@@ -231,7 +231,7 @@ function toF32(info: TensorInfo, bytes: Uint8Array, name: string): Uint8Array {
  * Blocks of 64 bf16 values to int8 with one f32 scale each: scale = max|w| / 127, q = round(w / scale)
  * (half away from zero), in f32 arithmetic like the C. With `b`, rows alternate a0, b0, a1, b1, ...
  */
-export function quantizeRows(q: Int8Array, s: Float32Array, rows: number, cols: number, a: Uint16Array, b?: Uint16Array) {
+function quantizeRows(q: Int8Array, s: Float32Array, rows: number, cols: number, a: Uint16Array, b?: Uint16Array) {
   const bits = new Uint32Array(cols);
   const w = new Float32Array(bits.buffer);
   const fround = Math.fround;

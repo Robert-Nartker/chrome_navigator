@@ -6,7 +6,7 @@
 // "run this spoken command". So a custom command can only do what you could
 // already say out loud: no settings, no scripts, no access to anything else.
 
-import { normalize, parseCommand } from "./parser";
+import { escapeRegExp, normalize, parseCommand } from "./parser";
 
 export type Step = { type: "open"; url: string; newTab: boolean } | { type: "run"; command: string };
 
@@ -51,10 +51,6 @@ function normalizePhrase(phrase: string): string {
     return `slot${slots.length - 1}x`;
   });
   return normalize(masked).replace(/slot(\d+)x/g, (_m, i: string) => `{${slots[Number(i)]}}`);
-}
-
-function escapeRegExp(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function phraseRegex(phrase: string): { re: RegExp; names: string[] } {
@@ -108,7 +104,7 @@ export function fillStep(step: Step, params: Record<string, string>): Step {
     : { ...step, command: fill(step.command, false) };
 }
 
-export function describeStep(step: Step): string {
+function describeStep(step: Step): string {
   return step.type === "open" ? `open ${step.url}${step.newTab ? " in a new tab" : ""}` : `“${step.command}”`;
 }
 
@@ -180,10 +176,7 @@ export async function deleteCommand(phraseOrId: string): Promise<CustomCommand |
   const found =
     existing.find((c) => c.id === phraseOrId) ??
     existing.find((c) => c.phrases.includes(target)) ??
-    (() => {
-      const m = matchCommand(phraseOrId, existing);
-      return m?.command;
-    })();
+    matchCommand(phraseOrId, existing)?.command;
   if (!found) return null;
   await chrome.storage.sync.remove(KEY_PREFIX + found.id);
   return found;

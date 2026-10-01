@@ -20,7 +20,7 @@ interface Model {
 
 const HF = "https://huggingface.co";
 const MODELS: Model[] = [
-  { id: "chrome", name: "Chrome on-device", note: "What Navi uses today", engine: "chrome", size: "built in" },
+  { id: "chrome", name: "Chrome on-device", note: "Navi's default", engine: "chrome", size: "built in" },
   {
     id: "qwen-1.7b",
     name: "Qwen3-ASR 1.7B",
@@ -436,7 +436,7 @@ async function init() {
     .catch((err) => {
       $("#detector").textContent = `The speech detector didn't load (${err instanceof Error ? err.message : String(err)}), so phrases are split by loudness.`;
     });
-  if (__DEV__) void startDevReload(() => undefined, { background: true, reopen: true });
+  if (__DEV__) void startDevReload(() => undefined, { skipReinject: true, reopen: true });
 }
 
 void init();

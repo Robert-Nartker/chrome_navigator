@@ -4,7 +4,7 @@
 
 ## What this means for Navi
 
-1. **The side panel can run speech recognition.** Chromium has allowed Web Speech in side panels since Chrome 120, and that's what Navi uses today.
+1. **The side panel can run speech recognition.** Chromium has allowed Web Speech in side panels since Chrome 120. (Navi has since moved recognition to an offscreen document, so it keeps listening with the panel closed.)
 2. **The mic prompt can't appear in a side panel or offscreen document.** Permission has to be granted once from a normal extension tab (`setup.html`). Navi does this.
 3. **On-device recognition exists and needs opting in.**
 
@@ -18,7 +18,7 @@
    - Setting `phrases` without `processLocally` raises `phrases-not-supported`.
    - `install()` needs a user click, so Navi's setup page has a "Download on-device speech" button.
    - With on-device mode, listening for "Hey Navi" is private without a separate wake-word engine.
-4. **Keep listening with the panel closed: next step.**
+4. **Keep listening with the panel closed (done: Navi works this way now).**
    - Move audio into an **offscreen document** (reasons `USER_MEDIA` + `AUDIO_PLAYBACK`).
    - `USER_MEDIA` has no lifetime limit in Chromium's lifetime enforcer.
    - Web Speech works in offscreen documents only from **Chrome 150**.
@@ -60,7 +60,7 @@ await ppn.process(int16Frame); // ppn.frameLength samples at ppn.sampleRate
 
 ## Avoiding self-triggering
 
-- Capture with `echoCancellation: true`, but also run half-duplex: ignore recognition while Navi is speaking, then resume 300–700 ms later. Navi does this now.
+- Capture with `echoCancellation: true`, but also run half-duplex: ignore recognition while Navi is speaking, then resume 300–700 ms later. (Navi now does something better: you can talk over it, and words that match what Navi is saying are ignored as echo.)
 - "Stop" still interrupts a long read-aloud.
 - Voice ID would additionally reject Navi's own voice.
 

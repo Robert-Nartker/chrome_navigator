@@ -1,4 +1,4 @@
-// Message protocol between the side panel (which runs the command pipeline) and
+// Message protocol between Navi's background worker (which runs the command pipeline) and
 // the content script (which reads and acts on the page).
 
 export type ScrollDirection = "up" | "down" | "left" | "right" | "top" | "bottom";

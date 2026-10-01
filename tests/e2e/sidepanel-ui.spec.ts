@@ -2,21 +2,16 @@
 // Set NAVI_SCREENSHOTS=1 to also save the screenshots in docs/screenshots/.
 
 import { type BrowserContext, type Page, type Route, chromium, expect, test as base } from "@playwright/test";
-import { createServer, type Server } from "node:http";
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, mkdtemp } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { installFakeRecognizer } from "./fake-speech";
+import { CHROMIUM, startServer } from "./helpers";
 
 const DIST = path.resolve("dist");
-const FIXTURES = path.resolve("tests/fixtures");
 const SCREENSHOTS = path.resolve("docs/screenshots");
-const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-// Uses Playwright's own Chromium unless NAVI_CHROMIUM (or the sandbox build) is present.
-const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 
 type Fixtures = {
   context: BrowserContext;
@@ -31,26 +26,6 @@ type Fixtures = {
   /** With fakeMic: the microphone plays this WAV file once instead of a tone. */
   micFile: string | undefined;
 };
-
-function startServer(): Promise<{ server: Server; baseUrl: string }> {
-  return new Promise((resolve) => {
-    const server = createServer(async (req, res) => {
-      const url = new URL(req.url ?? "/", "http://localhost");
-      const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-      try {
-        const body = await readFile(path.join(FIXTURES, path.basename(file)));
-        res.writeHead(200, { "content-type": "text/html" }).end(body);
-      } catch {
-        res.writeHead(404).end("not found");
-      }
-    });
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address();
-      const port = typeof addr === "object" && addr ? addr.port : 0;
-      resolve({ server, baseUrl: `http://localhost:${port}` });
-    });
-  });
-}
 
 const test = base.extend<Fixtures>({
   fakeMic: [false, { option: true }],
@@ -152,7 +127,8 @@ async function mockClaude(
     let content: unknown[];
     // The quick router asks for structured JSON.
     if (body.output_config?.format) {
-      const said = JSON.stringify(body.messages);
+      // Only what was just heard counts, not the recent commands listed before it.
+      const said = JSON.stringify(body.messages).match(/Heard: \\"(.*?)\\"/)?.[1] ?? "";
       const hit = Object.entries(opts.routed ?? {}).find(([phrase]) => said.includes(phrase));
       content = [{ type: "text", text: JSON.stringify(hit ? { route: "command", command: hit[1] } : { route: "agent", command: "" }) }];
     } else if (body.messages.length === 1) {

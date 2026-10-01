@@ -1,10 +1,10 @@
-// Minimal OpenAI Responses API client (fetch only, so it runs in the side panel).
+// Minimal OpenAI Responses API client (fetch only, so it runs in Navi's background worker).
 // store:false keeps responses out of OpenAI's 30-day conversation storage; Navi keeps
 // the conversation itself and sends it back each step.
 
 import type { Usage } from "./models";
 
-const URL = "https://api.openai.com/v1/responses";
+const RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 export interface FunctionCallItem {
   type: "function_call";
@@ -43,7 +43,7 @@ export interface OpenAIResponse {
   };
 }
 
-export class OpenAIError extends Error {
+class OpenAIError extends Error {
   constructor(
     message: string,
     readonly status: number,
@@ -58,7 +58,7 @@ export async function createResponse(
   signal: AbortSignal,
   timeoutMs: number,
 ): Promise<OpenAIResponse> {
-  const res = await fetch(URL, {
+  const res = await fetch(RESPONSES_URL, {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({ store: false, ...body }),

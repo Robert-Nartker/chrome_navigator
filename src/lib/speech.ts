@@ -80,20 +80,11 @@ export async function installOnDevice(lang: string): Promise<boolean> {
   return Ctor.install({ langs: [lang], processLocally: true });
 }
 
-/**
- * Opens the mic with noise suppression. With `systemAudio`, asks for echo cancellation "all"
- * (Chrome 141+), which also removes audio the computer itself is playing, such as a podcast.
- */
-export async function openCleanMic(systemAudio = false): Promise<MediaStream> {
-  const base = { noiseSuppression: true, autoGainControl: true, channelCount: 1 };
-  if (!systemAudio) return navigator.mediaDevices.getUserMedia({ audio: { ...base, echoCancellation: true } });
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      audio: { ...base, echoCancellation: "all" as unknown as boolean },
-    });
-  } catch {
-    return navigator.mediaDevices.getUserMedia({ audio: { ...base, echoCancellation: true } });
-  }
+/** Opens the mic with noise suppression and echo cancellation. */
+function openCleanMic(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio: { noiseSuppression: true, autoGainControl: true, channelCount: 1, echoCancellation: true },
+  });
 }
 
 export function speechSupported(): boolean {

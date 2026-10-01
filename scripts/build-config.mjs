@@ -24,8 +24,8 @@ const staticFiles = [
   ["src/icons", "icons"],
 ];
 
-// Kokoro's runtime (transformers.js). Chrome extensions can't load code from a CDN, so the WebAssembly
-// build transformers.js would normally fetch is copied in from node_modules (see src/tts-lab/engines.ts).
+// transformers.js's runtime (Kokoro, and Whisper in the recognizer tester). Chrome extensions can't load code
+// from a CDN, so the WebAssembly build it would normally fetch is copied in from node_modules.
 const vendorFiles = [
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.wasm", "vendor/transformers/ort-wasm-simd-threaded.jsep.wasm"],
   ["node_modules/@huggingface/transformers/dist/ort-wasm-simd-threaded.jsep.mjs", "vendor/transformers/ort-wasm-simd-threaded.jsep.mjs"],

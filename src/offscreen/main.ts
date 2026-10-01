@@ -93,4 +93,4 @@ function test(msg: Extract<EarsRequest, { type: "ears:test" }>): unknown {
 setInterval(() => send({ type: "ears:heartbeat" }), 20_000);
 
 send({ type: "ears:ready" });
-if (__DEV__) void startDevReload(() => undefined, { background: true });
+if (__DEV__) void startDevReload(() => undefined, { skipReinject: true });

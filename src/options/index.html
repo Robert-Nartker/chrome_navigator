@@ -12,8 +12,6 @@
       .commands .empty { color: var(--muted); border: 0; background: none; padding: 0; font-size: 12px; }
       #saved { color: var(--good); font-size: 12.5px; }
       #cmd-result { font-size: 12.5px; }
-      #cmd-result.err { color: var(--bad); }
-      #cmd-result.ok { color: var(--good); }
       #blockedSites { font-family: var(--mono); font-size: 12px; }
       .presets { margin-top: 14px; flex-wrap: wrap; }
       .presets .hint { margin: 0; }
@@ -125,7 +123,7 @@
           <div class="row">
             <div>
               <label for="voiceName">System voice (while Navi's voice downloads, or if chosen above)</label>
-              <select id="voiceName"><option value="">Navi voice (Google US English)</option></select>
+              <select id="voiceName"><option value="">Automatic (Google US English if available)</option></select>
             </div>
             <div>
               <label for="speechRate">Speed</label>
