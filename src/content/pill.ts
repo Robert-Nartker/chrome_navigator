@@ -19,15 +19,15 @@ const STYLE = `
     max-width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
     padding: 8px 16px 8px 12px; border-radius: 20px;
     font: 500 14px/1.4 "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    letter-spacing: -.005em; color: #f4f4f5; background: rgba(24, 24, 27, .62);
+    letter-spacing: -.005em; color: #f4f4f5; background: rgba(24, 24, 27, .74);
     text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
-    -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, .28), 0 0 0 1px rgba(255, 255, 255, .08) inset;
+    /* No backdrop blur: it re-renders the page under the pill every frame, which slows slower computers to a crawl. */
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .25), 0 0 0 1px rgba(255, 255, 255, .08) inset;
     opacity: 0; transition: opacity .18s ease, transform .18s ease;
   }
   .pill[data-shown="true"] { opacity: 1; transform: translate(-50%, 0); }
   /* Just the listening bars: see-through, so it never hides what's under it. */
-  .pill[data-compact="true"] { padding: 9px 12px; background: rgba(24, 24, 27, .45); }
+  .pill[data-compact="true"] { padding: 9px 12px; background: rgba(24, 24, 27, .5); }
   .text {
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow-wrap: anywhere;
@@ -40,10 +40,13 @@ const STYLE = `
   .pill[data-kind="error"] .text { color: #fca5a5; }
   .icon { flex: none; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; }
   .bars { display: flex; align-items: center; gap: 3px; height: 16px; }
-  .bars i { width: 3px; height: 6px; border-radius: 2px; background: #8b8bff; animation: bar 1s ease-in-out infinite; }
-  .bars i:nth-child(2) { animation-delay: .15s; }
-  .bars i:nth-child(3) { animation-delay: .3s; }
-  @keyframes bar { 0%, 100% { height: 5px; } 50% { height: 15px; } }
+  /* Still while just listening; they move only while words are coming in (transform only, so it's cheap). */
+  .bars i { width: 3px; height: 15px; border-radius: 2px; background: #8b8bff; transform: scaleY(.4); }
+  .bars i:nth-child(2) { transform: scaleY(.7); }
+  .pill[data-kind="hear"] .bars i { animation: bar 1s ease-in-out infinite; }
+  .pill[data-kind="hear"] .bars i:nth-child(2) { animation-delay: .15s; }
+  .pill[data-kind="hear"] .bars i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bar { 0%, 100% { transform: scaleY(.33); } 50% { transform: scaleY(1); } }
   .spin {
     width: 14px; height: 14px; border-radius: 50%;
     border: 1.5px solid rgba(139, 139, 255, .3); border-top-color: #8b8bff; animation: spin .8s linear infinite;
@@ -53,8 +56,7 @@ const STYLE = `
   .pill[data-kind="error"] .dot { background: #f87171; }
   @media (prefers-reduced-motion: reduce) {
     .pill { transition: opacity .18s ease; transform: translate(-50%, 0); }
-    .bars i, .spin { animation: none; }
-    .bars i:nth-child(2) { height: 12px; }
+    .pill[data-kind="hear"] .bars i, .spin { animation: none; }
   }
   @media print { .pill { display: none; } }
 `;
@@ -97,9 +99,13 @@ function ensurePill(): HTMLDivElement {
   return pill;
 }
 
+/** The pending fade-in, cancelled if the pill is hidden first (or it would show again after hiding). */
+let showFrame = 0;
+
 function render() {
   const look = last && document.visibilityState === "visible" ? pillLook(last) : null;
   if (!look) {
+    cancelAnimationFrame(showFrame);
     if (pill) pill.dataset.shown = "false";
     return;
   }
@@ -114,7 +120,8 @@ function render() {
   const shown = look.kind === "hear" && look.text.length > 140 ? `…${look.text.slice(-140)}` : look.text;
   if (text!.textContent !== shown) text!.textContent = shown;
   // Next frame, so a newly added pill fades in.
-  requestAnimationFrame(() => (el.dataset.shown = "true"));
+  cancelAnimationFrame(showFrame);
+  showFrame = requestAnimationFrame(() => (el.dataset.shown = "true"));
 }
 
 export function updatePill(update: PillUpdate) {

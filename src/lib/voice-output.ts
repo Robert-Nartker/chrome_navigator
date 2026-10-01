@@ -2,6 +2,7 @@
 // wake/sleep/error. System voices go through chrome.tts where it exists, and through
 // speechSynthesis in Navi's background page, which has no chrome.tts (they're the same voices).
 
+import { loadModule } from "./load-module";
 import type * as NeuralModule from "../voice/neural";
 
 /**
@@ -201,7 +202,7 @@ export class Speaker implements Voice {
       this.onNote?.(`Downloading Navi's voice (once${size}). Chrome's voice speaks until it's ready.`);
     }, 1500);
     try {
-      const neural = (await import(chrome.runtime.getURL("voice/neural.js"))) as typeof NeuralModule;
+      const neural = await loadModule<typeof NeuralModule>("voice/neural.js");
       entry.voice = neural.createNeuralVoice(await neural.hasWebGpu());
       // Warmed up in the chosen voice, so the first reply doesn't also wait for that.
       await entry.voice.load(() => undefined, this.getVoice().neural?.voice);

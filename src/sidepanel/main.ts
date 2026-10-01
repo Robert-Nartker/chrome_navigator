@@ -128,7 +128,9 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, STATUS_LABELS[state] ?? text);
   const hint =
     state === "off"
-      ? "Click the mic to talk, or type below."
+      ? settings.listenMode === "handsfree"
+        ? `Mic off. Turn it on and Navi listens for “Hey ${settings.wakeName}”, even with this panel closed.`
+        : "Mic off. Turn it on and everything you say is a command."
       : state === "error"
         ? ears.micError || worker.problem || text
         : state === "working"

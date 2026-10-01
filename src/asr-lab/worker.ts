@@ -5,7 +5,8 @@
 export type AsrEngine = "whisper" | "parakeet";
 
 export type AsrRequest =
-  | { type: "load"; engine: AsrEngine; model: string; device: "webgpu" | "wasm"; vendor: string }
+  /** `threads`: processor threads for the model (default: ONNX Runtime's own choice). */
+  | { type: "load"; engine: AsrEngine; model: string; device: "webgpu" | "wasm"; vendor: string; threads?: number }
   | { type: "transcribe"; id: number; pcm: Float32Array };
 
 export type AsrReply =
@@ -63,9 +64,10 @@ async function loadWhisper(model: string, device: "webgpu" | "wasm", vendor: str
   throw lastError;
 }
 
-async function loadParakeet(model: string, device: "webgpu" | "wasm", vendor: string): Promise<string> {
+async function loadParakeet(model: string, device: "webgpu" | "wasm", vendor: string, threads?: number): Promise<string> {
   const ort = await import("onnxruntime-web");
   ort.env.wasm.wasmPaths = `${vendor}ort-1.24/`;
+  if (threads) ort.env.wasm.numThreads = threads;
   const { fromHub } = await import("parakeet.js");
   const update = progress();
   const onProgress = (p: { file?: string; loaded?: number; total?: number }) => update(p.file ?? "model", p.loaded ?? 0, p.total ?? 0);
@@ -97,7 +99,7 @@ self.onmessage = async ({ data }: MessageEvent<AsrRequest>) => {
       const detail =
         data.engine === "whisper"
           ? await loadWhisper(data.model, data.device, data.vendor)
-          : await loadParakeet(data.model, data.device, data.vendor);
+          : await loadParakeet(data.model, data.device, data.vendor, data.threads);
       post({ type: "ready", ms: performance.now() - start, detail });
     } catch (err) {
       post({ type: "error", message: err instanceof Error ? err.message : String(err) });

@@ -10,6 +10,7 @@ import { type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupport
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import type * as ParakeetModule from "../voice/parakeet";
 import { parakeetModelFor } from "../voice/parakeet-langs";
+import { loadModule } from "../lib/load-module";
 
 export interface EarsOutput {
   /** A command to run (the wake word is already handled). */
@@ -298,8 +299,12 @@ export class Ears {
     this.emit();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const mod = (await import(chrome.runtime.getURL("voice/parakeet.js"))) as typeof ParakeetModule;
-      const engine = await mod.createParakeetEngine(lang, this.callbacks, this.fakeParakeet);
+      const mod = await loadModule<typeof ParakeetModule>("voice/parakeet.js");
+      const engine = await mod.createParakeetEngine(lang, this.callbacks, {
+        // Asleep, Navi only needs finished phrases (to catch its name): no live captions to compute.
+        live: () => this.dictating || this.session.current === "awake",
+        fake: this.fakeParakeet,
+      });
       let noted = false;
       timer = setTimeout(() => {
         noted = true;
@@ -343,10 +348,15 @@ export class Ears {
     }
     // Parakeet stopped working (not a blocked mic, which Chrome's recognizer can't fix): Chrome's takes over.
     if (this.parakeet && this.engine === this.parakeet && !/microphone access is blocked/i.test(message)) {
-      this.out.log("error", `${message}. Chrome's recognizer is listening instead; Navi tries Parakeet again later.`);
+      // Too slow won't get better by itself: not again until the setting is chosen again.
+      const tooSlow = /too slow/i.test(message);
+      this.out.log(
+        "error",
+        `${message}. Chrome's recognizer is listening instead; ${tooSlow ? "choose Parakeet in Settings to try it again" : "Navi tries Parakeet again later"}.`,
+      );
       this.parakeet.dispose();
       this.parakeet = null;
-      this.parakeetRetryAt = Date.now() + PARAKEET_RETRY_MS;
+      this.parakeetRetryAt = tooSlow ? Infinity : Date.now() + PARAKEET_RETRY_MS;
       void this.start();
       return;
     }

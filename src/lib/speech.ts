@@ -144,6 +144,9 @@ export class WebSpeechEngine implements SpeechEngine {
   private lastSign = 0;
   private watchdog: number | undefined;
   private hearing = false;
+  /** When the current session started, and whether it heard anything: quick empty sessions back off. */
+  private launchedAt = 0;
+  private heardSinceLaunch = false;
 
   constructor(
     private readonly options: WebSpeechOptions,
@@ -231,10 +234,8 @@ export class WebSpeechEngine implements SpeechEngine {
         this.callbacks.onRunningChange(true);
       }
     };
-    // Audio is flowing: the mic works, so errors before this don't slow the next restart.
     rec.onaudiostart = () => {
       this.lastSign = Date.now();
-      this.restartDelay = 250;
     };
     rec.onresult = (event) => {
       this.lastSign = Date.now();
@@ -243,8 +244,7 @@ export class WebSpeechEngine implements SpeechEngine {
         const result = event.results[i];
         const transcript = result[0]?.transcript ?? "";
         if (result.isFinal) {
-          // Hearing speech means the mic works: reset the retry delay.
-          this.restartDelay = 250;
+          this.heardSinceLaunch = true;
           this.lastError = "";
           if (transcript.trim()) this.callbacks.onFinal(transcript.trim(), result[0]?.confidence ?? 0);
         } else {
@@ -295,6 +295,10 @@ export class WebSpeechEngine implements SpeechEngine {
     rec.onend = () => {
       window.clearTimeout(this.stallTimer);
       this.hearing = false;
+      // A session that heard something, or ran a while, means all is well: restart right away. One that
+      // ended at once with nothing heard waits longer each time, so Chrome isn't restarted in a tight loop.
+      if (this.heardSinceLaunch || Date.now() - this.launchedAt > 5000) this.restartDelay = 250;
+      else this.restartDelay = Math.min(Math.max(this.restartDelay * 2, 500), MAX_RESTART_MS);
       // Anything still shown as "hearing" was never finished; don't leave it on screen.
       this.callbacks.onInterim("");
       // Chrome ends continuous recognition periodically; restart while we still want it.
@@ -310,6 +314,8 @@ export class WebSpeechEngine implements SpeechEngine {
     };
 
     this.recognition = rec;
+    this.launchedAt = Date.now();
+    this.heardSinceLaunch = false;
     const track = this.stream?.getAudioTracks()[0];
     try {
       if (track?.readyState === "live") rec.start(track);
