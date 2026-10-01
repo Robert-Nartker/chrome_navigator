@@ -64,8 +64,9 @@ const toWorker = <T = unknown>(request: WorkerRequest) => chrome.runtime.sendMes
 
 function renderStatus() {
   let state = "off";
-  let text = "Mic off";
-  const problem = ears.micError || worker.problem;
+  let text = "Off";
+  // Turned off, Navi is just off: a problem from when it last listened doesn't matter now.
+  const problem = worker.listening && (ears.micError || worker.problem);
   if (problem) {
     state = "error";
     text = "Mic unavailable";
@@ -96,7 +97,7 @@ function renderStatus() {
   ui.dictate.setAttribute("aria-pressed", String(ears.dictating));
   ui.dictate.setAttribute("aria-label", ears.dictating ? "Stop dictating" : "Dictate a message");
   ui.mic.setAttribute("aria-pressed", String(listening));
-  ui.mic.setAttribute("aria-label", listening ? "Stop listening" : "Start listening");
+  ui.mic.setAttribute("aria-label", listening ? "Turn Navi off" : "Turn Navi on");
   // What's hearing and speaking right now, so it's always clear what runs locally and what's paid.
   const engines = [ears.engineLabel && `Hears: ${ears.engineLabel}`, ears.voiceLabel && `Speaks: ${ears.voiceLabel}`];
   const engineText = engines.filter(Boolean).join(" · ");
@@ -109,7 +110,7 @@ function renderStatus() {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  off: "Mic off",
+  off: "Off",
   error: "Mic unavailable",
   working: "Working",
   awake: "Listening",
@@ -127,9 +128,7 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, STATUS_LABELS[state] ?? text);
   const hint =
     state === "off"
-      ? settings.listenMode === "handsfree"
-        ? `Mic off. Turn it on and Navi listens for “Hey ${settings.wakeName}”, even with this panel closed.`
-        : "Mic off. Turn it on and everything you say is a command."
+      ? `Navi is off and stays off, even after Chrome restarts. Click the mic or press Alt+Shift+M to turn it on.`
       : state === "error"
         ? ears.micError || worker.problem || text
         : state === "working"
@@ -326,10 +325,10 @@ ui.downloadSpeech.addEventListener("click", async () => {
   }
   if ((await checkOnDeviceSpeech()) !== "available") return;
   // Listening stopped because the recognizer was missing: start again now that it's here.
-  if (worker.listening || settings.listenMode === "handsfree") {
+  if (worker.listening) {
     await toWorker({ type: "navi:listen", on: false });
     void toWorker({ type: "navi:listen", on: true });
-  }
+  } else void toWorker({ type: "navi:resume" });
 });
 $("open-settings").addEventListener("click", openSettings);
 $("open-settings-inline").addEventListener("click", (e) => {
@@ -448,8 +447,8 @@ async function init() {
   void loadSpentToday();
   const granted = await checkMicPermission();
   void checkOnDeviceSpeech();
-  // In "Hey Navi" mode, Navi listens for its name whenever it can.
-  if (granted && settings.listenMode === "handsfree" && !worker.listening) void toWorker({ type: "navi:listen", on: true });
+  // Navi listens for its name whenever it's on (only turning it off stops that).
+  if (granted) void toWorker({ type: "navi:resume" });
   renderStatus();
 }
 

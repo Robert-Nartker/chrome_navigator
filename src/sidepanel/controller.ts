@@ -54,7 +54,7 @@ export interface ControllerUi {
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done, or turn off to stop listening completely.";
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
@@ -112,7 +112,7 @@ export class Controller {
     private readonly getSettings: () => Settings,
     private readonly ui: ControllerUi,
     readonly speaker: Voice,
-    private readonly hooks: { onSleep(): void; onActivity(): void; onMetric?(metric: CommandMetric): void },
+    private readonly hooks: { onSleep(): void; onTurnOff(): void; onActivity(): void; onMetric?(metric: CommandMetric): void },
   ) {
     this.agent = new NaviAgent(getSettings);
     const refresh = () =>
@@ -613,6 +613,14 @@ export class Controller {
         this.navi("Going to sleep.");
         this.hooks.onSleep();
         return;
+      case "turnOff": {
+        // Said before the mic goes off, so someone who can't see the screen knows how to turn it back on.
+        const text = "Navi is off and isn't listening. Press Alt+Shift+M or click the mic to turn it back on.";
+        this.navi(text);
+        await this.say(text);
+        this.hooks.onTurnOff();
+        return;
+      }
       case "help":
         this.navi(HELP_TEXT);
         await this.say(HELP_TEXT);

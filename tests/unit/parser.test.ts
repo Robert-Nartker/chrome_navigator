@@ -107,6 +107,14 @@ describe("parseCommand fast path", () => {
     expect(parseCommand("turn the volume up a bit")).toEqual({ type: "media", action: "volumeUp" });
   });
 
+  it("turns Navi off (not just asleep) when asked", () => {
+    for (const said of ["turn off", "turn yourself off", "turn off navi", "navi off", "turn the mic off", "turn off the microphone", "shut down"]) {
+      expect(parseCommand(said), said).toEqual({ type: "turnOff" });
+    }
+    expect(parseCommand("go to sleep")).toEqual({ type: "sleep" });
+    expect(parseCommand("turn off autoplay")).not.toEqual({ type: "turnOff" });
+  });
+
   it("leaves phrases that depend on what was just said to the router and AI", () => {
     // "Turn it to 30" after asking about a game's difficulty isn't the volume; "unflag" in a mail app isn't the flags.
     for (const said of ["turn it to 30", "turn it up", "turn down", "turn it down more", "unflag", "on flag", "flag", "open your tab"]) {
@@ -180,6 +188,10 @@ describe("wake phrase", () => {
     expect(stripWakePhrase("Hey Navi, scroll down", aliases)).toEqual({ woke: true, rest: "scroll down" });
     expect(stripWakePhrase("hey navy open youtube", aliases)).toEqual({ woke: true, rest: "open youtube" });
     expect(stripWakePhrase("Navi", aliases)).toEqual({ woke: true, rest: "" });
+    // "Navigator", Navi's full name, wakes it too: recognizers spell a dictionary word reliably.
+    expect(stripWakePhrase("Hey Navigator, open YouTube", aliases)).toEqual({ woke: true, rest: "open YouTube" });
+    expect(stripWakePhrase("navigator scroll down", aliases)).toEqual({ woke: true, rest: "scroll down" });
+    expect(stripWakePhrase("hey navvy scroll down", aliases)).toEqual({ woke: true, rest: "scroll down" });
     // Parakeet punctuates.
     expect(stripWakePhrase("Hey, Navi. Open YouTube.", aliases)).toEqual({ woke: true, rest: "Open YouTube." });
     expect(stripWakePhrase("So, hey, Navi, scroll down.", aliases, true)).toEqual({ woke: true, rest: "scroll down." });

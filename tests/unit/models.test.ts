@@ -47,8 +47,11 @@ describe("model catalog", () => {
   it("adds usage and formats small costs readably", () => {
     const a = { input: 1, cachedInput: 2, cacheWrite: 3, output: 4 };
     expect(addUsage(a, a)).toEqual({ input: 2, cachedInput: 4, cacheWrite: 6, output: 8 });
-    expect(formatCost(0.00021)).toBe("$0.0002");
-    expect(formatCost(0.0345)).toBe("$0.035");
+    // To the cent: "$0.032" would read as 32 cents.
+    expect(formatCost(0.00021)).toBe("<$0.01");
+    expect(formatCost(0.032)).toBe("$0.03");
+    expect(formatCost(0.0345)).toBe("$0.03");
+    expect(formatCost(0.0051)).toBe("$0.01");
     expect(formatCost(3.456)).toBe("$3.46");
   });
 

@@ -168,9 +168,10 @@ export function costOf(id: string, u: Usage): number {
   return (u.input * p.input + u.cachedInput * p.cachedInput + u.cacheWrite * p.cacheWrite + u.output * p.output) / 1e6;
 }
 
+/** Dollars to the cent ("$0.03", not "$0.032", which reads as 32 cents); under half a cent is "<$0.01". */
 export function formatCost(usd: number | undefined): string {
   if (usd === undefined || Number.isNaN(usd)) return "$?";
   if (usd === 0) return "$0";
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  return `$${usd.toFixed(usd < 1 ? 3 : 2)}`;
+  if (usd < 0.005) return "<$0.01";
+  return `$${usd.toFixed(2)}`;
 }

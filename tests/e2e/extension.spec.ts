@@ -1198,7 +1198,7 @@ test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is 
     () => (window as unknown as { navi: { metrics: { costUsd?: number }[] } }).navi.metrics.at(-1)?.costUsd,
   );
   expect(cost).toBeCloseTo(expected, 10);
-  await expect(panel.locator("#log li.navi").last()).toContainText("$0.0002");
+  await expect(panel.locator("#log li.navi").last()).toContainText("<$0.01");
 });
 
 test("typed: a message goes straight to the main model as chat, with the tabs but not the page, and isn't spoken", async ({

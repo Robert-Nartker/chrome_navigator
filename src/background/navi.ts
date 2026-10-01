@@ -19,7 +19,7 @@ import {
   type WorkerState,
 } from "../lib/messages";
 import type { CommandMetric } from "../lib/metrics";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, activeSettings } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, activeSettings, saveSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
 import { Controller, HELP_TEXT } from "../sidepanel/controller";
 
@@ -75,17 +75,45 @@ async function sendEars<T = unknown>(request: EarsRequest): Promise<T | undefine
   }
 }
 
-async function setListening(on: boolean) {
+/**
+ * Set when the user turns Navi off (the mic button, the shortcut, or "turn off"): no mic at all, across
+ * Chrome restarts, until they turn it on again. Otherwise Navi is on, listening for its name from the moment
+ * Chrome starts.
+ */
+const OFF_KEY = "naviOff";
+/** Set once per Chrome session (session storage clears when Chrome closes). */
+const SESSION_KEY = "naviSession";
+
+/** `byUser`: an explicit on/off, remembered. Otherwise (resuming, a failed start) nothing is remembered. */
+async function setListening(on: boolean, byUser = false) {
+  if (byUser) await chrome.storage.local.set({ [OFF_KEY]: !on });
   worker = { ...worker, listening: on };
   broadcastWorker();
-  await chrome.storage.local.set({ listening: on });
   if (on && !(await earsOrProblem())) {
     worker = { ...worker, listening: false };
     broadcastWorker();
-    await chrome.storage.local.set({ listening: false });
     return;
   }
   if (on || (await earsExist())) await sendEars({ type: "ears:listen", on });
+}
+
+async function turnedOff(): Promise<boolean> {
+  return (await chrome.storage.local.get(OFF_KEY))[OFF_KEY] === true;
+}
+
+/** Whether the mic is allowed (unknown counts as yes: starting will say if it isn't). */
+async function micAllowed(): Promise<boolean> {
+  try {
+    return (await navigator.permissions.query({ name: "microphone" as PermissionName })).state === "granted";
+  } catch {
+    return true;
+  }
+}
+
+/** Listens for the wake name, unless the user turned Navi off (or the mic isn't allowed yet). */
+async function resume() {
+  if (worker.listening || (await turnedOff()) || !(await micAllowed())) return;
+  await setListening(true);
 }
 
 /** Opens the background page; if it can't, says why (once) and returns false. */
@@ -168,9 +196,12 @@ const controller = new Controller(
   voice,
   {
     onSleep() {
-      // In open-mic mode, "go to sleep" turns the mic off.
-      if (settings.listenMode === "open") void setListening(false);
+      // In open-mic mode, "go to sleep" goes back to listening for the name.
+      if (settings.listenMode === "open") void saveSettings({ listenMode: "handsfree" });
       else void sendEars({ type: "ears:session", action: "sleep" });
+    },
+    onTurnOff() {
+      void setListening(false, true);
     },
     onActivity() {
       void sendEars({ type: "ears:session", action: "touch" });
@@ -281,7 +312,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       // For the side panel's chat box, which hears it directly.
       return false;
     case "navi:listen":
-      void setListening(msg.on)
+      void setListening(msg.on, true)
         .catch((err: unknown) => log("error", `Couldn't turn the mic ${msg.on ? "on" : "off"}: ${String(err)}`))
         .finally(() => sendResponse(true));
       return true;
@@ -306,8 +337,12 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       return false;
     case "navi:mic-granted":
       // Setup just allowed the mic: start listening for the name.
-      if (settings.listenMode === "handsfree" && !worker.listening) void setListening(true);
+      void resume();
       return false;
+    case "navi:resume":
+      // A view opened: listen if Navi is on but isn't yet (e.g. the mic was allowed in Chrome's settings).
+      void resume().finally(() => sendResponse(true));
+      return true;
     case "navi:test":
       void test(msg).then(sendResponse);
       return true;
@@ -321,8 +356,8 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
  * command, or puts it back to sleep. In open-mic mode it turns the mic on or off.
  */
 export async function toggleWake() {
-  if (settings.listenMode === "open") return setListening(!worker.listening);
-  if (!worker.listening) await setListening(true);
+  if (settings.listenMode === "open") return setListening(!worker.listening, true);
+  if (!worker.listening) await setListening(true, true);
   if (!worker.listening) return; // the mic couldn't start (the reason is logged)
   await sendEars({ type: "ears:session", action: ears.awake ? "sleep" : "wake" });
 }
@@ -396,13 +431,19 @@ export function startNavi() {
       const toHandsFree = next.listenMode === "handsfree" && settings.listenMode !== "handsfree";
       settings = next;
       void earsExist().then((open) => open && sendEars({ type: "ears:configure", settings }));
-      // Choosing "Hey Navi" means Navi should be listening for its name.
-      if (toHandsFree && !worker.listening) void setListening(true);
+      // Choosing "Hey Navi" means Navi should be listening for its name (unless it was turned off).
+      if (toHandsFree) void resume();
       pushPill();
     });
-    const stored = await chrome.storage.local.get("listening");
-    if (stored.listening) await setListening(true);
-    else if (await earsExist()) await earsOrProblem();
+    // A new Chrome session listens for the name: Open mic (every word a command) is only on when chosen.
+    if (!(await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY]) {
+      await chrome.storage.session.set({ [SESSION_KEY]: true });
+      if (settings.listenMode === "open") await saveSettings({ listenMode: "handsfree" });
+    }
+    // Replaced by OFF_KEY (on unless turned off).
+    void chrome.storage.local.remove("listening");
+    await resume();
+    if (!worker.listening && (await earsExist())) await earsOrProblem();
     void updateBadge();
   })();
 }

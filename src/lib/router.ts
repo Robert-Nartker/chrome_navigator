@@ -36,7 +36,7 @@ type <text>; type <text> and press enter; press enter; escape
 pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; volume <0-100>; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
-go to sleep; stop`;
+go to sleep; turn off (stops listening until turned back on); stop`;
 
 /** One of the last few commands and what came of it: "ran", "AI task", "ignored", "failed", "cancelled". */
 export interface RecentCommand {

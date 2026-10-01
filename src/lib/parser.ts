@@ -8,6 +8,8 @@ import { SEARCH_ENGINES, resolveSite, searchUrl } from "./sites";
 export type Intent =
   | { type: "stop" }
   | { type: "sleep" }
+  /** Completely off: no mic until turned on again (the mic button or the shortcut). */
+  | { type: "turnOff" }
   | { type: "help" }
   | { type: "scroll"; direction: ScrollDirection; amount: ScrollAmount }
   | { type: "back" }
@@ -140,7 +142,9 @@ export function wakeAliases(name: string): WakeWords {
   const n = name.trim().toLowerCase();
   const misheard =
     n === "navi" ? ["navy", "navie", "navvy", "nabi", "nav e", "nave", "novi", "nobby", "knavey", "havi", "havey", "nevi"] : [];
-  return { exact: [n], misheard: misheard.sort((a, b) => b.length - a.length) };
+  // "Navigator", Navi's full name, is a dictionary word, so recognizers write it down reliably.
+  const exact = n === "navi" ? [n, "navigator"] : [n];
+  return { exact, misheard: misheard.sort((a, b) => b.length - a.length) };
 }
 
 export function escapeRegExp(s: string) {
@@ -171,6 +175,8 @@ const RULES: Rule[] = [
   [/^(?:talk|speak) (?:slower|more slowly)$|^slow down(?: talking)?$/, () => ({ type: "voice", change: "slower" })],
   [/^what(?:'s| is) the time$|^what time is it$/, () => ({ type: "time" })],
   [/^what(?:'s| is) (?:the date|today'?s date)$|^what day is (?:it|today)$/, () => ({ type: "date" })],
+  // Off, not asleep: the mic goes off until turned on again.
+  [/^(?:turn (?:yourself |navi |the mic |the microphone )?off|turn off (?:navi|the mic|the microphone|listening)|(?:navi|mic|microphone) off|shut (?:yourself )?down)$/, () => ({ type: "turnOff" })],
   [
     /^(?:go to sleep|sleep|stop listening|that's all|that is all|goodbye|good bye|bye|(?:thanks|thank you) that's all|dismiss|pause listening)$/,
     () => ({ type: "sleep" }),

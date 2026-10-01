@@ -104,7 +104,10 @@ export type ViewEvent =
 export type WorkerRequest =
   /** A typed message (or, for tests and the benchmark, a command as if spoken). */
   | { type: "navi:run"; text: string; source?: "typed" | "voice" }
+  /** The user turning Navi on or off (remembered across Chrome restarts). */
   | { type: "navi:listen"; on: boolean }
+  /** Listen for the name if Navi is on but not listening yet. */
+  | { type: "navi:resume" }
   /** Dictate one phrase into the chat box. */
   | { type: "navi:dictate"; on: boolean }
   | { type: "navi:toggle"; what: "numbers" | "grid" }

@@ -234,7 +234,7 @@ test("while Navi works, the card shows a spinner with the latest step and the ca
   await done;
   await expect(card).toHaveAttribute("data-state", "done");
   await expect(card.locator(".trace-label")).toHaveText("3 steps");
-  await expect(panel.locator("#status-text")).toHaveText("Mic off");
+  await expect(panel.locator("#status-text")).toHaveText("Off");
 });
 
 test("a command said mid-task is noted in the running card, and stop ends it", async ({ panel, context }) => {
@@ -257,7 +257,7 @@ test("a command said mid-task is noted in the running card, and stop ends it", a
   const cards = panel.locator("#log > li.turn");
   await expect(cards.last().locator("li.user")).toContainText("stop");
   await expect(panel.locator("#log li.user").filter({ hasText: "scroll down" })).toHaveCount(0);
-  await expect(panel.locator("#status-text")).toHaveText("Mic off");
+  await expect(panel.locator("#status-text")).toHaveText("Off");
   release();
 });
 
@@ -412,7 +412,7 @@ test.describe("live caption", () => {
 
     await panel.evaluate(() => (window as unknown as Hooks).navi.stopListening());
     await expect(voice).toHaveAttribute("data-state", "off");
-    await expect(panel.locator("#status-text")).toHaveText("Mic off");
+    await expect(panel.locator("#status-text")).toHaveText("Off");
     await expect(panel.locator("#mic")).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -451,6 +451,17 @@ test.describe("live caption", () => {
     await expect.poll(busy, { timeout: 500 }).toBe(false);
     await hear(panel, "scroll down a little", true);
     await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("scroll down a little");
+  });
+
+  test("saying “turn off” turns Navi off (not just asleep) and says how to turn it back on", async ({ panel }) => {
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    await run(panel, "turn off");
+    await expect(panel.locator("#status-text")).toHaveText("Off");
+    await expect(panel.locator("#log li.navi").last()).toContainText("Press Alt+Shift+M or click the mic");
+    expect(await lastSaid(panel)).toContain("turn it back on");
+    expect(await panel.evaluate(async () => (await chrome.storage.local.get("naviOff")).naviOff)).toBe(true);
+    await expect(panel.locator("#caption-hint")).toContainText("stays off, even after Chrome restarts");
   });
 
   test("respects reduced motion", async ({ panel }) => {
@@ -555,6 +566,74 @@ test.describe("live caption", () => {
     await reopened.goto(`chrome-extension://${extensionId}/sidepanel.html`);
     await expect(reopened.locator("#log > li.turn").last().locator("li.user")).toContainText("what time is it");
     await expect(reopened.locator("#voice")).toHaveAttribute("data-state", "awake");
+  });
+});
+
+test.describe("on and off across Chrome restarts", () => {
+  /** Chrome with Navi and a fake microphone, on one profile that survives a restart. */
+  async function launch(dir: string) {
+    const context = await chromium.launchPersistentContext(dir, {
+      executablePath: CHROMIUM,
+      headless: true,
+      args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+    });
+    await context.route("https://huggingface.co/**", (route) => route.abort());
+    const isNavi = (w: import("@playwright/test").Worker) => w.url().startsWith("chrome-extension://") && w.url().endsWith("/background.js");
+    const worker = context.serviceWorkers().find(isNavi) ?? (await context.waitForEvent("serviceworker", { predicate: isNavi }));
+    // Chrome attaches the extension APIs a moment after the worker starts.
+    await expect.poll(() => worker.evaluate(() => typeof chrome !== "undefined" && !!chrome.runtime?.sendMessage).catch(() => false)).toBe(true);
+    return { context, worker, id: new URL(worker.url()).host };
+  }
+  const openPanel = async (context: BrowserContext, id: string) => {
+    const panel = await context.newPage();
+    await panel.goto(`chrome-extension://${id}/sidepanel.html`);
+    await panel.waitForFunction(() => "navi" in window);
+    return panel;
+  };
+  const listening = (worker: import("@playwright/test").Worker) =>
+    worker.evaluate(async () => (await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType] })).length > 0);
+
+  test("Navi listens from the moment Chrome starts, with no clicks; turned off, it stays off until turned on", async () => {
+    test.setTimeout(120_000);
+    const dir = await mkdtemp(path.join(tmpdir(), "navi-restart-"));
+
+    // First run: once the mic is allowed (setup does this), Navi starts listening by itself.
+    let chrome1 = await launch(dir);
+    await chrome1.worker.evaluate(() => chrome.runtime.sendMessage({ type: "navi:mic-granted" }).catch(() => undefined));
+    await expect.poll(() => listening(chrome1.worker), { timeout: 15_000 }).toBe(true);
+    await chrome1.context.close();
+
+    // Chrome starts again: listening with no panel, no click.
+    chrome1 = await launch(dir);
+    await expect.poll(() => listening(chrome1.worker), { timeout: 15_000 }).toBe(true);
+    // Turned off: the mic stops.
+    const panel = await openPanel(chrome1.context, chrome1.id);
+    await panel.getByRole("button", { name: "Turn Navi off" }).click();
+    await expect(panel.locator("#status-text")).toHaveText("Off");
+    await chrome1.context.close();
+
+    // Next start: still off, and opening the panel doesn't turn it on.
+    const chrome2 = await launch(dir);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    expect(await listening(chrome2.worker)).toBe(false);
+    const panel2 = await openPanel(chrome2.context, chrome2.id);
+    await panel2.waitForTimeout(1500);
+    await expect(panel2.locator("#status-text")).toHaveText("Off");
+    expect(await listening(chrome2.worker)).toBe(false);
+
+    // Open mic is for this session only: the next Chrome start listens for the name again.
+    await panel2.getByRole("button", { name: "Turn Navi on" }).click();
+    await panel2.evaluate(async () => {
+      const { settings } = (await chrome.storage.local.get("settings")) as { settings?: Record<string, unknown> };
+      await chrome.storage.local.set({ settings: { ...settings, listenMode: "open" } });
+    });
+    await chrome2.context.close();
+    const chrome3 = await launch(dir);
+    await expect.poll(() => listening(chrome3.worker), { timeout: 15_000 }).toBe(true);
+    const mode = () =>
+      chrome3.worker.evaluate(async () => ((await chrome.storage.local.get("settings")) as { settings: { listenMode: string } }).settings.listenMode);
+    await expect.poll(mode).toBe("handsfree");
+    await chrome3.context.close();
   });
 });
 
