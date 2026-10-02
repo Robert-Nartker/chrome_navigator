@@ -420,3 +420,17 @@ describe("mouse grid: sequences, clicks and closing", () => {
     }
   });
 });
+
+describe("Navi's window", () => {
+  it("pins Navi to this window, and unpins it", () => {
+    for (const text of ["pin navi to this window", "pin yourself here", "make this the navi window", "keep navi in this window", "stay in this window"]) {
+      expect(parseCommand(text), text).toEqual({ type: "pinWindow", on: true });
+    }
+    for (const text of ["unpin navi", "unpin this window", "follow me", "navi follow me", "follow my window"]) {
+      expect(parseCommand(text), text).toEqual({ type: "pinWindow", on: false });
+    }
+    // Pinning tabs is something else.
+    expect(parseCommand("pin this tab")).toEqual({ type: "pinTab", pinned: true });
+    expect(parseCommand("unpin tab")).toEqual({ type: "pinTab", pinned: false });
+  });
+});

@@ -56,7 +56,14 @@ export type Intent =
   | { type: "edit"; action: EditAction }
   | { type: "print" }
   | { type: "time" }
-  | { type: "date" };
+  | { type: "date" }
+  /** Threads: separate conversations, each with its own feed and AI context. */
+  | { type: "newThread"; title?: string }
+  | { type: "switchThread"; name: string }
+  | { type: "listThreads" }
+  | { type: "renameThread"; title: string }
+  /** Navi works only in this window (on), or in whichever window the user is using (off). */
+  | { type: "pinWindow"; on: boolean };
 
 /**
  * Commands understood while the mouse grid is showing. Cells are keypad numbers 1-9,
@@ -147,6 +154,11 @@ export function wakeAliases(name: string): WakeWords {
   return { exact, misheard: misheard.sort((a, b) => b.length - a.length) };
 }
 
+/** "trip planning" -> "Trip planning". */
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -177,6 +189,21 @@ const RULES: Rule[] = [
   [/^what(?:'s| is) (?:the date|today'?s date)$|^what day is (?:it|today)$/, () => ({ type: "date" })],
   // Off, not asleep: the mic goes off until turned on again.
   [/^(?:turn (?:yourself |navi |the mic |the microphone )?off|turn off (?:navi|the mic|the microphone|listening)|(?:navi|mic|microphone) off|shut (?:yourself )?down)$/, () => ({ type: "turnOff" })],
+
+  // Threads ("new thread about trip planning", "go back to the shopping thread", "previous thread")
+  [/^(?:start |open |make |create |begin )?(?:a )?(?:new|fresh|separate) (?:thread|conversation|chat)(?: (?:about|for|on|called|named) (.+))?$/, (m) => ({
+    type: "newThread",
+    title: m[1] ? titleCase(m[1]) : undefined,
+  })],
+  [/^(?:(?:go |switch |jump |move )?back to|switch to|go to|change to|return to|jump to|open|resume) (?:the |my )?(.+?) (?:thread|conversation|chat)$/, (m) => ({ type: "switchThread", name: m[1] })],
+  [/^(?:(?:go )?back to|switch to|go to|open|resume) (?:thread|conversation|chat) (?:number )?(.+)$/, (m) => ({ type: "switchThread", name: m[1] })],
+  [/^(?:the )?(previous|last|other) (?:thread|conversation|chat)$/, (m) => ({ type: "switchThread", name: m[1] })],
+  [/^(?:list|show)(?: me)? (?:my |the |all )?(?:my )?(?:threads|conversations|chats)$|^what (?:threads|conversations|chats) (?:do i have|are there)$|^which (?:threads|conversations) do i have$/, () => ({ type: "listThreads" })],
+  [/^(?:rename|call|name) (?:this|the) (?:thread|conversation|chat)(?: to)? (.+)$/, (m) => ({ type: "renameThread", title: titleCase(m[1]) })],
+
+  // Navi's window ("pin navi to this window": Navi keeps working there while you use another one)
+  [/^(?:pin|keep|lock) (?:navi |yourself )?(?:to |in |on )?(?:this|the current|my current) window$|^pin (?:navi|yourself) here$|^(?:make|set) this (?:window )?(?:the |my )?navi(?:'s)? window$|^(?:work|stay) in this window$|^use this window for navi$/, () => ({ type: "pinWindow", on: true })],
+  [/^unpin (?:navi|yourself|(?:this|the|navi'?s) window)$|^(?:navi )?follow me$|^follow (?:my|the) (?:focus|window)$|^(?:stop staying|don't stay) in (?:this|that|one) window$/, () => ({ type: "pinWindow", on: false })],
   [
     /^(?:go to sleep|sleep|stop listening|that's all|that is all|goodbye|good bye|bye|(?:thanks|thank you) that's all|dismiss|pause listening)$/,
     () => ({ type: "sleep" }),

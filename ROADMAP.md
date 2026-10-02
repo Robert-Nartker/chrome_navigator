@@ -4,33 +4,19 @@ Planned changes and ideas for Navi. Shipped work is in [CHANGELOG.md](CHANGELOG.
 
 **Status:** *Idea* (worth exploring) → *Planned* (agreed, not started) → *In progress* → shipped (moved to the changelog).
 
-Most of what's next shares one theme: **several agents, windows and tasks at once**, without them stepping on each other or on the user. Items 1, 4 and 5 build on the shared groundwork below. (Items 2 and 3 have shipped.)
+Most of what's next shares one theme: **several agents, windows and tasks at once**, without them stepping on each other or on the user. Items 4 and 5 build on the shared groundwork below. (Items 1–3 and part of 5 have shipped.)
 
 ## Shared groundwork for concurrency
 
 Today Navi runs one agent at a time, and every action targets "the tab the user is looking at". Running several at once needs:
 
-- **Agent targets.** Each agent is bound to its own window (and the tabs it opened) instead of the focused tab. This is the main refactor: the browser tools currently resolve the target tab on every call.
+- **Agent targets.** Each agent is bound to its own window (and the tabs it opened) instead of the focused tab. *Started:* a command is bound to its window for as long as it runs; running several agents in different windows at once is next.
 - **Locks.** At most one agent drives a given window. Changes to Navi's settings, personal commands and memory go through a single writer, so two agents can't edit them at once.
 - **A supervisor.** Every agent gets a step limit, a time limit and a cost budget, plus stuck detection: the same action repeated with no change on the page, or no progress for a while. A stuck or runaway agent is stopped and reported. "Stop" (or "stop everything") ends all agents. The side panel lists what's running, with a stop button for each.
 - **Questions from agents the user isn't watching.** A background agent that needs a yes ("send it?") or is stuck waits in a queue. The panel shows it, and Navi says it out loud at a quiet moment instead of interrupting.
 - **Speech.** Replies from several agents are queued, never spoken over each other, and say where they come from ("Background task: …").
 
-## 1. Threads — *Planned*
-
-Separate conversations, like a chat app: start a new thread, switch between threads, and come back to the first one with its context intact.
-
-- **Requirements**
-  - New thread, switch thread and list threads, in the panel and by voice ("new thread", "go back to the shopping thread").
-  - Each thread keeps its own conversation and activity feed.
-  - Voice and typed messages go to the current thread.
-  - Concurrency: two agents must never drive the same browser window at once, or edit Navi's commands or settings at the same time. Until Navi can run agents in separate windows (item 4), only one thread's agent runs at a time, and a command for another thread waits its turn or asks.
-- **Notes**
-  - Fast built-in commands (scroll, back, close tab) don't belong to a thread; they act on the window you're looking at.
-  - Threads are stored locally, like the activity log.
-- **Depends on:** the locks above, and agent targets once threads can each have their own window.
-
-Memory (item 2) and Free/Pro presets (item 3) shipped on 2026-10-02; see the changelog.
+Threads (item 1), memory (item 2) and Free/Pro presets (item 3) shipped on 2026-10-02; see the changelog. Threads run one command at a time; running several at once needs the groundwork above.
 
 ## 4. Subagents and background Navi — *Idea*
 
@@ -61,19 +47,13 @@ Research, summarizing, planning, drafting. These are entirely possible: they're 
   - Background agents follow the same asking rules as the main agent. Their questions go to the queue above.
   - A visible list of running agents, with "stop" for each and for all.
 
-## 5. Talk to a background window while you work — *Idea*
+## 5. Talk to a background window while you work — *Partly shipped*
 
-Work in one window yourself while Navi works in another, and talk to the Navi window without clicking into it or the side panel, and without triggering anything in the window you're using.
+Shipped on 2026-10-02: each command stays in the window it was given in, and Navi can be pinned to one window ("pin Navi to this window") so you can work in another while it works there. Still open:
 
-- **Why it's possible:**
-  - Navi's actions go through each page's elements, so your own typing and clicking in window A don't conflict with Navi clicking and typing in window B.
-  - Speech is already handled away from any window: it reaches Navi wherever your focus is.
-- **What needs designing:** where a spoken request goes. Proposal:
-  - Each thread (item 1) can be tied to a window. Requests go to the current thread, and so to its window.
-  - The panel and the page caption show which one Navi is listening for ("Talking to: Work tasks window").
-  - Switch by voice ("talk to the background window") or with a shortcut.
-  - Quick built-in commands (scroll, back) always act on the window you're looking at.
-- **Depends on:** threads (1) and agent targets (4b).
+- **A minimized or hidden Navi window** (see 4b's limits): today the pinned window should stay open on screen, because Chrome slows down pages it isn't showing.
+- **Per-thread windows:** tie a thread to a window, so "go back to the shopping thread" also means "work in the shopping window".
+- **Showing the pinned window on the page:** the panel shows it today; the caption on web pages could say "Navi works in another window" too.
 
 ## 6. First-run tutorial — *Idea*
 

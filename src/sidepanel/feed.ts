@@ -64,6 +64,8 @@ export class Feed {
   /** The card of the command Navi is working on. */
   private active: Turn | null = null;
   private working = false;
+  /** The command being worked on (its card may be in a thread that isn't showing). */
+  private workingTurn: string | undefined;
   private ticker: number | undefined;
   private readonly sizes = new WeakMap<Element, number>();
   private total = 0;
@@ -86,7 +88,7 @@ export class Feed {
 
   /** Rebuilds the feed from saved entries (all finished, except a command still running). */
   restore(entries: LogEntry[]) {
-    const activeId = this.active?.id;
+    const activeId = this.workingTurn ?? this.active?.id;
     this.list.replaceChildren();
     this.turns.clear();
     this.total = 0;
@@ -106,11 +108,16 @@ export class Feed {
   }
 
   /** Mirrors the controller's working state onto the command card. Safe to call repeatedly. */
-  setWorking(on: boolean, detail?: string) {
+  setWorking(on: boolean, detail?: string, turn?: string) {
+    this.workingTurn = on ? turn : undefined;
     if (on && !this.working) {
       this.working = true;
-      // The command that was just logged is the one being worked on.
-      if (this.latest?.state === "idle") {
+      // The command being worked on: the one named, else the one just logged.
+      const named = turn === undefined ? undefined : this.turns.get(turn);
+      if (named) {
+        this.active = named;
+        this.active.state = "working";
+      } else if (turn === undefined && this.latest?.state === "idle") {
         this.active = this.latest;
         this.active.state = "working";
       }
@@ -126,6 +133,12 @@ export class Feed {
         this.paint(finished);
       }
       if (this.latest?.state === "idle") this.latest.state = "done";
+    }
+    // Its card showed up after the work started (e.g. its thread was opened).
+    if (on && !this.active && turn !== undefined && this.turns.get(turn)) {
+      this.active = this.turns.get(turn)!;
+      this.active.state = "working";
+      this.paint(this.active);
     }
     if (on && detail && this.active) {
       this.active.activity = detail;

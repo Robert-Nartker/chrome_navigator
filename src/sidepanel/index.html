@@ -105,6 +105,28 @@
       <p id="engine" class="engine" hidden><span id="engine-label"></span></p>
     </section>
 
+    <!-- Threads: separate conversations, each with its own feed (“new thread”, “go back to the … thread”). -->
+    <nav id="threads" class="threads" aria-label="Threads">
+      <button id="thread-current" class="thread-current" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="thread-menu" title="Threads">
+        <span id="thread-title" class="thread-title">New thread</span>
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6.25 8 10l4-3.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="thread-running" class="thread-running" type="button" hidden></button>
+      <span class="spacer"></span>
+      <!-- Navi's window: pinned, Navi works only in this window, even while you use another. -->
+      <button id="pin-elsewhere" class="thread-running" type="button" hidden title="Show the window Navi works in">Navi works in another window</button>
+      <button id="pin-window" class="icon-button pin" type="button" aria-pressed="false">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 2.5h4M7 2.5v3.75L4.75 9h6.5L9 6.25V2.5M8 9v4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="thread-new" class="icon-button" type="button" aria-label="New thread" title="New thread (“new thread”)">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <div id="thread-menu" class="thread-menu" hidden>
+        <ul id="thread-list" class="thread-list" aria-label="Your threads"></ul>
+      </div>
+    </nav>
+
+    <p id="feed-empty" class="feed-empty" hidden>New thread. Say “Hey <span class="wake-name">Navi</span>” or type below; the other threads keep their own history.</p>
     <ol id="log" class="feed" aria-label="Activity"></ol>
     <!-- Screen readers hear Navi's replies and errors, not every step. -->
     <div id="announcer" class="sr-only" aria-live="polite" aria-relevant="additions"></div>

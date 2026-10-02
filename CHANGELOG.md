@@ -4,6 +4,10 @@ What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md);
 
 ## 2026-10-02
 
+- **Navi's window.** Each command now stays in the window it was given in: move to another window mid-task and Navi keeps working where it started, without taking focus. A command given while Navi works waits its turn, then runs in its own window.
+  - **Pin Navi to a window** ("pin Navi to this window", or the pin button in the panel): Navi then works only there, whichever window you're using, so you can work in one window while Navi works in another. "Unpin Navi" goes back to following you; closing the pinned window unpins it (Navi says so).
+- **Threads.** Separate conversations, like a chat app: "new thread" (or "new thread about trip planning", or the + in the panel) starts one; "go back to the trip thread", "previous thread" or the thread menu switches; "list threads" and "rename this thread to …" too. Each thread keeps its own feed and its own AI conversation; one that has expired is recapped from its last exchanges. Threads and their feeds are kept in this browser profile (up to 20 threads).
+  - One command runs at a time across threads. Starting or switching threads works mid-task: the task finishes in its own thread (the panel says "Working in …"), and a command given meanwhile waits its turn, then runs in the thread it was given in.
 - **Memory.** Navi keeps one short note about you (up to 3,000 characters: who you are, your preferences, your projects) and reads it at the start of each conversation. A background job on the quick model (GPT-6 Luna, or Sonnet 5.5 with only a Claude key) updates it a minute after Navi goes quiet, or sooner after 10 exchanges. On by default in Pro, off in Free; see, edit or clear it in Settings, or just tell Navi to remember or forget something.
   - **Poisoning-safe:** the job only sees what you said and what Navi replied, never page text; it stores facts you gave, never instructions, and never passwords, payment, ID or health details. The AI reads the note as background facts, not commands.
   - Its cost shows in today's total and the usage log, but doesn't count as a command.

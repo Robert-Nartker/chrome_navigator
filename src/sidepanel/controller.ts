@@ -6,6 +6,8 @@ import {
   activateTab,
   cycleTab,
   findTab,
+  focusedWindowId,
+  setWorkWindow,
   matchingTabs,
   hostOf,
   isWebUrl,
@@ -43,19 +45,28 @@ import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGrid
 import { type RecentCommand, routeUtterance } from "../lib/router";
 import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import { searchUrl, siteEngine } from "../lib/sites";
+import { type ThreadBook, findThread, threadTitle, threadTranscript } from "../lib/threads";
+import type { WindowPin } from "../lib/window-pin";
 import type { Voice } from "../lib/voice-output";
 
 import type { LogKind } from "../lib/messages";
 
+/** Where a log entry goes: by default the thread of the command running now (else the current one). */
+export interface LogPlace {
+  thread?: string;
+  /** A note of its own, not part of the command running now. */
+  solo?: boolean;
+}
+
 export interface ControllerUi {
-  log(kind: LogKind, text: string, meta?: string): void;
+  log(kind: LogKind, text: string, meta?: string, place?: LogPlace): void;
   setWorking(working: boolean, detail?: string): void;
   numbersShown(shown: boolean): void;
   gridShown?(shown: boolean): void;
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Say go to sleep when you're done, or turn off to stop listening completely.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely.";
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
@@ -75,7 +86,17 @@ export interface RunOptions {
   routed?: boolean;
   /** Only run built-in or personal commands; never fall through to the AI. */
   fastOnly?: boolean;
+  /** The thread it was said in (default: the current one). */
+  thread?: string;
+  /** The window it acts in: Navi's pinned window, else the one it was given in. */
+  window?: number;
 }
+
+/** Commands about threads and Navi's window: they run right away, even while another command runs. */
+type InstantIntent = Extract<Intent, { type: "newThread" | "switchThread" | "listThreads" | "renameThread" | "pinWindow" }>;
+
+const INSTANT = new Set(["newThread", "switchThread", "listThreads", "renameThread", "pinWindow"]);
+const isInstant = (intent: Intent | null): intent is InstantIntent => !!intent && INSTANT.has(intent.type);
 
 interface Outcome {
   intent?: string;
@@ -100,8 +121,8 @@ export class Controller {
   private lastMessage = "";
   /** What Navi showed for the command running now. */
   private turnMessage = "";
-  /** The last few commands and what came of them, so the AI can answer "why did that fail?". */
-  private recent: string[] = [];
+  /** Each thread's last few commands and what came of them, so the AI can answer "why did that fail?". */
+  private recentByThread = new Map<string, string[]>();
   /** The same, in brief, for the router ("again", "a bit more" and other follow-ups). */
   private recentForRouter: RecentCommand[] = [];
   /** Speech in order: an early answer finishes before the final reply starts. */
@@ -121,6 +142,8 @@ export class Controller {
       /** Something said to the AI and its reply (for memory). */
       onExchange?(said: string, reply: string): void;
     },
+    private readonly threads: ThreadBook,
+    private readonly pin: WindowPin,
   ) {
     this.agent = new NaviAgent(getSettings);
     const refresh = () =>
@@ -188,17 +211,32 @@ export class Controller {
   async run(text: string, options: RunOptions = { source: "typed" }): Promise<void> {
     const command = text.trim();
     if (!command) return;
-    if (parseCommand(command)?.type === "stop") {
+    const intent = parseCommand(command);
+    if (intent?.type === "stop") {
       this.ui.log("user", command);
       this.cancel();
       return;
     }
-    if (this.busy) {
-      // Commands spoken while Navi is working run in order afterwards.
-      if (this.queue.length < 5) this.queue.push({ text: command, options });
-      this.ui.log("info", `Next: “${command}”`);
+    await Promise.all([this.threads.ready, this.pin.ready]);
+    // Threads and pinning don't wait: a command already running finishes in its own thread and window.
+    if (isInstant(intent) && options.source !== "step") {
+      await this.instantCommandNow(intent, command, options);
       return;
     }
+    // The window the command acts in, decided now: the user may move to another window meanwhile.
+    const windowId = options.window ?? this.pin.window ?? (await focusedWindowId());
+    if (this.busy) {
+      // Commands spoken while Navi is working run in order afterwards, in the thread and window they were given in.
+      const thread = options.thread ?? this.threads.current;
+      if (this.queue.length < 5) this.queue.push({ text: command, options: { ...options, thread, window: windowId } });
+      this.ui.log("info", `Next: “${command}”`, undefined, { thread, solo: thread !== this.threads.running });
+      return;
+    }
+    const thread = this.threads.get(options.thread) ? options.thread! : this.threads.current;
+    this.threads.running = thread;
+    this.threads.noteTurn(thread, command);
+    this.agent.useThread(thread);
+    setWorkWindow(windowId);
     this.ui.log("user", command);
     this.busy = true;
     this.turnMessage = "";
@@ -246,7 +284,10 @@ export class Controller {
         this.hooks.onMetric?.(row);
         void recordMetric(row).catch(() => undefined);
         this.remember(command, options, metric);
-        if (metric.path === "ai" && reply) this.hooks.onExchange?.(command, reply);
+        if (metric.path === "ai" && reply) {
+          this.hooks.onExchange?.(command, reply);
+          this.threads.noteExchange(thread, command, reply);
+        }
       }
       // Speak after timing, so latency numbers measure the action, not the voice. A typed chat reply
       // is read on screen, so it's only spoken in spoken-feedback mode; so is a spoken command's reply
@@ -259,6 +300,8 @@ export class Controller {
       }
       this.busy = false;
       this.current = null;
+      this.threads.running = undefined;
+      setWorkWindow(undefined);
       this.ui.setWorking(false);
       this.hooks.onActivity();
       const next = this.queue.shift();
@@ -271,6 +314,11 @@ export class Controller {
     }
   }
 
+  /** The last few commands in the thread of the command running now. */
+  private get recent(): string[] {
+    return this.recentByThread.get(this.threads.running ?? this.threads.current) ?? [];
+  }
+
   private remember(command: string, options: RunOptions, metric: Omit<CommandMetric, "t" | "command">) {
     const how = options.source === "typed" ? "typed" : "said";
     const result =
@@ -281,7 +329,8 @@ export class Controller {
           : metric.path === "ignored"
             ? "ignored (not understood)"
             : this.turnMessage || "done";
-    this.recent = [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6);
+    const thread = this.threads.running ?? this.threads.current;
+    this.recentByThread.set(thread, [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6));
     const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled", background: "background" }[metric.path];
     this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-3);
   }
@@ -466,7 +515,7 @@ export class Controller {
           if (!typed || this.getSettings().feedback === "spoken") void this.say(text);
         },
       },
-      { typed, recent: this.recent },
+      { typed, recent: this.recent, earlier: this.earlier() },
     );
     const seconds = (result.totalMs / 1000).toFixed(1);
     this.navi(
@@ -506,6 +555,7 @@ export class Controller {
       commands: this.commands.map(describeCommand),
       recent: this.recent,
       memory: settings.memory ? memoryBlock(await loadMemory()) : undefined,
+      earlier: this.earlier(3),
     });
     const modelMs = performance.now() - t0;
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -545,6 +595,87 @@ export class Controller {
     const gen = this.speechGen;
     this.speech = this.speech.catch(() => undefined).then(() => (gen === this.speechGen ? this.speaker.say(text) : undefined));
     return this.speech;
+  }
+
+  /** What was said earlier in the thread of the command running now. */
+  private earlier(max?: number): string {
+    const thread = this.threads.get(this.threads.running ?? this.threads.current);
+    return thread ? threadTranscript(thread, max) : "";
+  }
+
+  /**
+   * A thread or window command said or typed directly: it runs right away, even while another command
+   * runs. A new or switched-to thread shows its own feed, so nothing is logged for those; anything else
+   * is a note in the current thread.
+   */
+  private async instantCommandNow(intent: InstantIntent, command: string, options: RunOptions) {
+    const started = performance.now();
+    const { text, speak, ok } = await this.instantCommand(intent);
+    if ((intent.type !== "newThread" && intent.type !== "switchThread") || !ok) {
+      this.lastMessage = text;
+      this.ui.log("navi", text, undefined, { thread: this.threads.current, solo: true });
+    }
+    const row: CommandMetric = { t: new Date().toISOString(), command, path: "fast", intent: intent.type, ms: Math.round(performance.now() - started) };
+    this.hooks.onMetric?.(row);
+    void recordMetric(row).catch(() => undefined);
+    if (options.source === "typed" && this.getSettings().feedback !== "spoken") return;
+    if (speak || this.getSettings().feedback === "spoken") void this.say(text).catch(() => undefined);
+    else this.speaker.sound("done");
+  }
+
+  /** Starts, switches, lists or renames threads, or pins Navi's window. `speak`: worth saying aloud (not just a chime). */
+  private async instantCommand(intent: InstantIntent): Promise<{ text: string; speak: boolean; ok: boolean }> {
+    const threads = this.threads;
+    switch (intent.type) {
+      case "pinWindow": {
+        if (!intent.on) {
+          await this.pin.set(undefined);
+          return { text: "Navi works in whichever window you're using again.", speak: true, ok: true };
+        }
+        await this.pin.set(await focusedWindowId());
+        return { text: "Navi will work in this window, even while you use another one. Say “unpin Navi” to undo.", speak: true, ok: true };
+      }
+      case "newThread": {
+        const thread = threads.create(intent.title);
+        return { text: intent.title ? `New thread: ${threadTitle(thread)}.` : "New thread.", speak: false, ok: true };
+      }
+      case "switchThread": {
+        const all = threads.list();
+        const found = findThread(intent.name, all, threads.current);
+        if (!found) {
+          const names = all.map((t) => threadTitle(t)).join(", ");
+          return { text: `I couldn't tell which thread you meant by “${intent.name}”. Your threads: ${names}.`, speak: true, ok: false };
+        }
+        if (found.id === threads.current) return { text: `You're already in “${threadTitle(found)}”.`, speak: true, ok: true };
+        threads.switchTo(found.id);
+        return { text: `Switched to “${threadTitle(found)}”.`, speak: true, ok: true };
+      }
+      case "listThreads": {
+        const all = threads.list();
+        const names = all.map((t) => `${threadTitle(t)}${t.id === threads.current ? " (this one)" : ""}`);
+        return { text: `You have ${all.length} thread${all.length === 1 ? "" : "s"}: ${names.join(", ")}.`, speak: true, ok: true };
+      }
+      case "renameThread":
+        threads.rename(threads.current, intent.title);
+        return { text: `Renamed this thread to “${intent.title}”.`, speak: false, ok: true };
+    }
+  }
+
+  /** The panel's pin button: Navi works only in this window, or (null) in whichever window the user is using. */
+  async pinWindow(window: number | null) {
+    await this.pin.ready;
+    await this.pin.set(window ?? undefined);
+  }
+
+  /** The panel's thread menu. */
+  threadAction(action: "new" | "switch" | "rename" | "delete", id?: string, title?: string) {
+    if (action === "new") this.threads.create(title);
+    else if (action === "switch" && id) this.threads.switchTo(id);
+    else if (action === "rename" && id && title) this.threads.rename(id, title);
+    else if (action === "delete" && id && this.threads.remove(id)) {
+      this.agent.forgetThread(id);
+      this.recentByThread.delete(id);
+    }
   }
 
   /** Shows Navi's reply in the log and keeps it for "what did you say". */
@@ -617,6 +748,15 @@ export class Controller {
 
   /** `confirmed`: the user already said yes to closing tabs with unsaved typing. */
   private async execute(intent: Intent, confirmed = false): Promise<void> {
+    // Understood by the router ("let's start fresh on something else"): part of this command's card.
+    if (isInstant(intent)) {
+      const { text, speak } = await this.instantCommand(intent);
+      if (speak) {
+        this.navi(text);
+        await this.say(text);
+      } else await this.confirm(text);
+      return;
+    }
     const tab = await targetTab();
     switch (intent.type) {
       case "sleep":

@@ -5,7 +5,7 @@
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -42,6 +42,8 @@ const test = base.extend<Fixtures>({
     });
     await use(context);
     await context.close();
+    // Each test's Chrome profile is a few hundred MB.
+    await rm(userDataDir, { recursive: true, force: true });
   },
   extensionId: async ({ context }, use) => {
     let [worker] = context.serviceWorkers();

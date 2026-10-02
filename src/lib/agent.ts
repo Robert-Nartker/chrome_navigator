@@ -243,6 +243,8 @@ export interface AgentContext {
   typed?: boolean;
   /** What happened with the last few commands, oldest first, e.g. `"scroll down" → Scrolling down`. */
   recent?: string[];
+  /** The thread's earlier exchanges, for when its conversation starts over (see threadTranscript). */
+  earlier?: string;
 }
 
 export interface AgentResult {
@@ -277,7 +279,16 @@ interface Brain {
 const FAST_MODE_MODELS = ["claude-opus-5-5", "claude-opus-5"];
 const HISTORY_TTL_MS = 3 * 60 * 1000;
 const MAX_HISTORY_MESSAGES = 40;
+/** Conversations kept for threads the user switched away from (the oldest go first). */
+const KEPT_THREADS = 4;
+
 const PAGE_TEXT_LIMIT = 12000;
+
+interface Conversation {
+  brain: Brain | null;
+  model: string;
+  lastActivity: number;
+}
 
 function formatSnapshot(snap: PageSnapshot): string {
   const lines = [`Page: ${snap.title || "(untitled)"}`, `URL: ${snap.url}`];
@@ -469,6 +480,9 @@ export class NaviAgent {
   private brain: Brain | null = null;
   private brainModel = "";
   private lastActivity = 0;
+  private thread = "";
+  /** Other threads' conversations, so switching back continues where it left off. */
+  private kept = new Map<string, Conversation>();
   private lastSnapshot: PageSnapshot | null = null;
   private lastShot: { width: number; viewport: PageSnapshot["viewport"] } | null = null;
 
@@ -476,6 +490,25 @@ export class NaviAgent {
 
   reset() {
     this.brain?.reset();
+  }
+
+  /** Continues `thread`'s conversation (each thread has its own). */
+  useThread(thread: string) {
+    if (thread === this.thread) return;
+    if (this.thread) this.kept.set(this.thread, { brain: this.brain, model: this.brainModel, lastActivity: this.lastActivity });
+    const next = this.kept.get(thread);
+    this.kept.delete(thread);
+    this.brain = next?.brain ?? null;
+    this.brainModel = next?.model ?? "";
+    this.lastActivity = next?.lastActivity ?? 0;
+    this.thread = thread;
+    while (this.kept.size > KEPT_THREADS) this.kept.delete(this.kept.keys().next().value!);
+  }
+
+  /** Forgets a deleted thread's conversation. */
+  forgetThread(thread: string) {
+    this.kept.delete(thread);
+    if (thread === this.thread) this.brain?.reset();
   }
 
   async run(command: string, hooks: AgentHooks, context: AgentContext = {}): Promise<AgentResult> {
@@ -548,7 +581,7 @@ export class NaviAgent {
   /**
    * What the model gets with a message. Spoken commands come with the page's element list; typed
    * messages (often questions or chat) only with the tabs, unless the user chose to include the page.
-   * Navi's memory comes once, at the start of a conversation.
+   * Navi's memory, and what was said earlier in the thread, come once, at the start of a conversation.
    */
   private async firstMessage(command: string, context: AgentContext, fresh: boolean): Promise<string> {
     const parts: string[] = [];
@@ -559,6 +592,7 @@ export class NaviAgent {
       parts.push(`Command: "${command}"`, await this.observe());
     }
     if (fresh && this.getSettings().memory) parts.push(memoryBlock(await loadMemory()));
+    if (fresh && context.earlier) parts.push(context.earlier);
     parts.push(`Open tabs:\n${await formatTabs()}`);
     if (context.recent?.length) parts.push(`Recent activity (oldest first):\n${context.recent.map((r) => `- ${r}`).join("\n")}`);
     return parts.join("\n\n");

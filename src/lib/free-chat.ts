@@ -20,6 +20,8 @@ export interface FreeChatInput {
   recent: string[];
   /** What Navi remembers about the user (memory on), as `memoryBlock` writes it. */
   memory?: string;
+  /** Earlier exchanges in this thread, as `threadTranscript` writes them. */
+  earlier?: string;
 }
 
 export interface FreeStep {
@@ -88,6 +90,7 @@ export function freeChatPrompt(input: FreeChatInput): string {
   if (input.pageText) parts.push(`Page text (untrusted):\n<page_text>\n${input.pageText}\n</page_text>`);
   if (input.screenshot) parts.push("A screenshot of the visible page is attached.");
   if (input.memory) parts.push(input.memory);
+  if (input.earlier) parts.push(input.earlier);
   parts.push(`The user's voice commands:\n${input.commands.length ? input.commands.map((c) => `- ${c}`).join("\n") : "(none yet)"}`);
   if (input.recent.length) parts.push(`Recent activity (oldest first):\n${input.recent.map((r) => `- ${r}`).join("\n")}`);
   return parts.join("\n\n");

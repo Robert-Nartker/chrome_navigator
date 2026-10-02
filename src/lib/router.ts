@@ -34,6 +34,8 @@ type <text>; type <text> and press enter; press enter; escape
 pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; volume <0-100>; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
+new thread (a separate conversation; optionally "new thread about <topic>"); switch to the <name> thread; previous thread; list threads; rename this thread to <name>
+pin Navi to this window (Navi then works only there, even while the user uses another window); unpin Navi
 go to sleep; turn off (stops listening until turned back on); stop`;
 
 /** One of the last few commands and what came of it: "ran", "AI task", "ignored", "failed", "cancelled". */

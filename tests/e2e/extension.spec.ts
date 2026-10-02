@@ -2,7 +2,7 @@
 // side panel's command pipeline against local test pages.
 
 import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -130,6 +130,8 @@ const test = base.extend<Fixtures>({
     await context.route("https://huggingface.co/**", (route) => route.abort());
     await use(context);
     await context.close();
+    // Each test's Chrome profile is a few hundred MB.
+    await rm(userDataDir, { recursive: true, force: true });
   },
   extensionId: async ({ context }, use) => {
     let [worker] = context.serviceWorkers();
@@ -1221,6 +1223,118 @@ test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is 
   );
   expect(cost).toBeCloseTo(expected, 10);
   await expect(panel.locator("#log li.navi").last()).toContainText("<$0.01");
+});
+
+test.describe("Navi's window", () => {
+  /** Window A has the test page; window B opens a second copy. Returns their ids and B's page. */
+  async function twoWindows(panel: Page, context: BrowserContext, baseUrl: string) {
+    const a = await panel.evaluate(async () => (await chrome.tabs.query({})).find((t) => t.url?.endsWith("/index.html"))!.windowId);
+    const [b, bPage] = await Promise.all([
+      panel.evaluate((url) => chrome.windows.create({ url }).then((w) => w!.id!), `${baseUrl}/index.html?b`),
+      context.waitForEvent("page", { predicate: (p) => p.url().endsWith("?b") }),
+    ]);
+    await bPage.waitForLoadState();
+    return { a, b, bPage };
+  }
+  /** The user moves to a window (headless Chrome doesn't move focus, so Navi is told). */
+  const focus = (panel: Page, window: number) => panel.evaluate((w) => chrome.runtime.sendMessage({ type: "navi:test", action: "focus", window: w }), window);
+  const scrolled = (page: Page) => page.evaluate(() => scrollY);
+  /** Where a page ends up once its smooth scrolling stops (unchanged for 0.6 s). */
+  async function settled(page: Page) {
+    let last = -1;
+    let still = 0;
+    while (still < 3) {
+      const y = await scrolled(page);
+      still = y === last ? still + 1 : 0;
+      last = y;
+      await page.waitForTimeout(200);
+    }
+    return last;
+  }
+  const said = (panel: Page) => panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid);
+
+  test("a command stays in the window it was given in, even if the user moves to another window", async ({ panel, site, context, baseUrl }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    let calls = 0;
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const input = (route.request().postDataJSON() as { input: { content?: unknown }[] }).input;
+      if (++calls === 1) {
+        await hold;
+        const id = Number(String(input[0].content).match(/\[(\d+)\] button "Subscribe"/)?.[1]);
+        return route.fulfill(
+          openaiReply([{ type: "function_call", id: "fc_1", call_id: "call_1", name: "click", arguments: JSON.stringify({ element_id: id }) }]),
+        );
+      }
+      return route.fulfill(openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Subscribed." }] }]));
+    });
+    await panel.evaluate(() =>
+      chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }),
+    );
+    await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+    const { a, b, bPage } = await twoWindows(panel, context, baseUrl);
+    // In front in its window, so Chrome doesn't slow its scrolling down.
+    await site.bringToFront();
+    await focus(panel, a);
+    const task = run(panel, "hit the subscribe thing for me");
+    await expect.poll(() => calls).toBe(1);
+    // Said in A while Navi works: it waits its turn, and runs in A too.
+    const queued = run(panel, "scroll down");
+    // The user moves to window B before Navi acts: Navi still acts in A.
+    await focus(panel, b);
+    release();
+    await task;
+    await queued;
+    await expect(site.locator("#subs")).toHaveText("1");
+    await expect(bPage.locator("#subs")).toHaveText("0");
+    await expect.poll(() => scrolled(site)).toBeGreaterThan(0);
+    expect(await scrolled(bPage)).toBe(0);
+    // The next command acts where the user is now.
+    const before = await settled(site);
+    await run(panel, "scroll down");
+    await expect.poll(() => scrolled(bPage)).toBeGreaterThan(0);
+    expect(await scrolled(site)).toBe(before);
+  });
+
+  test("pinned, Navi works only in its window while the user is in another; unpin, the panel's pin button, and closing the window", async ({
+    panel,
+    site,
+    context,
+    baseUrl,
+  }) => {
+    const { a, b, bPage } = await twoWindows(panel, context, baseUrl);
+    await focus(panel, a);
+    await run(panel, "pin navi to this window");
+    await expect.poll(() => said(panel)).toContain("Navi will work in this window");
+    await focus(panel, b);
+    await run(panel, "scroll down");
+    await expect.poll(() => scrolled(site)).toBeGreaterThan(0);
+    expect(await scrolled(bPage)).toBe(0);
+
+    await run(panel, "unpin navi");
+    await expect.poll(() => said(panel)).toContain("whichever window you're using");
+    await run(panel, "scroll down");
+    await expect.poll(() => scrolled(bPage)).toBeGreaterThan(0);
+
+    // The panel's button pins the panel's own window; pinned elsewhere, the panel says so.
+    await panel.locator("#pin-window").click();
+    await expect(panel.locator("#pin-window")).toHaveAttribute("aria-pressed", "true");
+    await expect(panel.locator("#pin-elsewhere")).toBeHidden();
+    await panel.locator("#pin-window").click();
+    await expect(panel.locator("#pin-window")).toHaveAttribute("aria-pressed", "false");
+    const panelWindow = await panel.evaluate(async () => (await chrome.windows.getCurrent()).id);
+    expect(panelWindow).not.toBe(b);
+    await run(panel, "pin navi here");
+    await expect(panel.locator("#pin-elsewhere")).toBeVisible();
+    await expect(panel.locator("#pin-window")).toHaveAttribute("aria-pressed", "false");
+
+    // Closing Navi's window unpins it, and says so.
+    await panel.evaluate((id) => chrome.windows.remove(id), b);
+    await expect(panel.locator("#log li.info .text").last()).toHaveText(
+      "Navi's window was closed, so Navi works in whichever window you're using again.",
+    );
+    await expect(panel.locator("#pin-elsewhere")).toBeHidden();
+  });
 });
 
 test("typed: a message goes straight to the main model as chat, with the tabs but not the page, and isn't spoken", async ({

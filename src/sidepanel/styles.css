@@ -760,6 +760,150 @@ body {
   padding: 0 10px;
 }
 
+/* ---------- Threads ---------- */
+
+.threads {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0;
+}
+
+.thread-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 70%;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.thread-current:hover,
+.thread-current[aria-expanded="true"] {
+  background: var(--surface);
+}
+
+.thread-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-current svg {
+  flex: none;
+  color: var(--muted);
+}
+
+/* Navi is working in another thread: says which, and goes there on click. */
+.thread-running {
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(100%, 320px);
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--elevated);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thread-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.thread-pick {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.thread-pick:hover {
+  background: var(--surface);
+}
+
+.thread-pick[aria-current="true"] {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+}
+
+.thread-pick .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-pick .when {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.thread-list .icon-button {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.icon-button.pin[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.feed-empty {
+  flex: none;
+  margin: 16px 22px 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 /* ---------- Composer: typed commands, Flags and Grid ---------- */
 
 .composer {

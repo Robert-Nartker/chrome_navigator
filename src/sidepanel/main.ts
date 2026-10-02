@@ -28,6 +28,7 @@ import {
   saveSettings,
 } from "../lib/settings";
 import { installOnDevice, onDeviceStatus } from "../lib/speech";
+import type { ThreadsState } from "../lib/threads";
 import { Feed } from "./feed";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -59,6 +60,9 @@ let worker: WorkerState = { working: false, numbers: false, grid: false, listeni
 /** Mirror of the worker's metrics (for tests and the benchmark). */
 const metrics: CommandMetric[] = [];
 const feed = new Feed(ui.log, $("announcer"));
+/** Every thread's entries; the feed shows the current thread's. */
+let entries: LogEntry[] = [];
+let threads: ThreadsState = { current: "", threads: [] };
 
 const toWorker = <T = unknown>(request: WorkerRequest) => chrome.runtime.sendMessage(request) as Promise<T>;
 
@@ -122,7 +126,7 @@ const captionHint = $("caption-hint");
 
 /** Header pill (short, announced), the voice card's look, and the hint shown while nothing is being heard. */
 function showStatus(state: string, text: string, detail?: string) {
-  feed.setWorking(worker.working, detail);
+  feed.setWorking(worker.working, detail, worker.turn);
   ui.status.dataset.state = state;
   voiceCard.dataset.state = state;
   setText(ui.statusText, STATUS_LABELS[state] ?? text);
@@ -347,11 +351,17 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
     | { type: "navi:mic-granted" };
   switch (msg.type) {
     case "view:log":
-      feed.push(msg.entry);
+      entries = [...entries, msg.entry].slice(-500);
+      if (inThread(msg.entry)) feed.push(msg.entry);
+      renderThreads();
+      break;
+    case "view:threads":
+      showThreads(msg.state);
       break;
     case "view:worker":
       worker = msg.state;
       renderStatus();
+      renderPin();
       break;
     case "view:metric":
       addMetric(msg.metric);
@@ -417,9 +427,144 @@ const navi = {
 };
 (window as unknown as { navi: typeof navi }).navi = navi;
 
+// ---------- Threads ----------
+
+const threadUi = {
+  current: $<HTMLButtonElement>("thread-current"),
+  title: $("thread-title"),
+  running: $<HTMLButtonElement>("thread-running"),
+  menu: $("thread-menu"),
+  list: $<HTMLUListElement>("thread-list"),
+  empty: $("feed-empty"),
+};
+
+const inThread = (entry: LogEntry) => (entry.thread ?? threads.current) === threads.current;
+const titleOf = (id: string | undefined) => threads.threads.find((t) => t.id === id)?.title ?? "";
+
+/** A new state from the worker: the feed changes if the current thread did. */
+function showThreads(state: ThreadsState, force = false) {
+  const switched = state.current !== threads.current;
+  threads = state;
+  if (switched || force) feed.restore(entries.filter(inThread));
+  renderThreads();
+}
+
+/** "now", "5 min", "3 h", "2 d". */
+function ago(t: number): string {
+  const min = Math.round((Date.now() - t) / 60_000);
+  if (min < 1) return "now";
+  if (min < 60) return `${min} min`;
+  if (min < 48 * 60) return `${Math.round(min / 60)} h`;
+  return `${Math.round(min / 1440)} d`;
+}
+
+function renderThreads() {
+  setText(threadUi.title, titleOf(threads.current) || "New thread");
+  threadUi.current.setAttribute("aria-label", `Thread: ${titleOf(threads.current) || "New thread"}. Show all threads.`);
+  const elsewhere = threads.running && threads.running !== threads.current ? threads.running : undefined;
+  threadUi.running.hidden = !elsewhere;
+  if (elsewhere) setText(threadUi.running, `Working in “${titleOf(elsewhere)}”`);
+  threadUi.empty.hidden = entries.some(inThread);
+  if (!threadUi.menu.hidden) renderThreadMenu();
+}
+
+function renderThreadMenu() {
+  threadUi.list.replaceChildren(
+    ...threads.threads.map((t) => {
+      const li = document.createElement("li");
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "thread-pick";
+      pick.setAttribute("aria-current", String(t.id === threads.current));
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = t.title;
+      const when = document.createElement("span");
+      when.className = "when";
+      when.textContent = t.id === threads.running ? "working" : ago(t.updated);
+      pick.append(name, when);
+      pick.addEventListener("click", () => {
+        closeThreadMenu();
+        void toWorker({ type: "navi:thread", action: "switch", id: t.id });
+      });
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "icon-button";
+      del.setAttribute("aria-label", `Delete thread ${t.title}`);
+      del.title = "Delete thread";
+      del.disabled = t.id === threads.running;
+      del.innerHTML =
+        '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+      del.addEventListener("click", () => void toWorker({ type: "navi:thread", action: "delete", id: t.id }));
+      li.append(pick, del);
+      return li;
+    }),
+  );
+}
+
+function closeThreadMenu() {
+  threadUi.menu.hidden = true;
+  threadUi.current.setAttribute("aria-expanded", "false");
+}
+
+threadUi.current.addEventListener("click", () => {
+  const open = threadUi.menu.hidden;
+  threadUi.menu.hidden = !open;
+  threadUi.current.setAttribute("aria-expanded", String(open));
+  if (open) {
+    renderThreadMenu();
+    threadUi.list.querySelector<HTMLButtonElement>("[aria-current=true]")?.focus();
+  }
+});
+threadUi.menu.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  closeThreadMenu();
+  threadUi.current.focus();
+});
+document.addEventListener("click", (e) => {
+  if (!threadUi.menu.hidden && !$("threads").contains(e.target as Node)) closeThreadMenu();
+});
+$("thread-new").addEventListener("click", () => {
+  closeThreadMenu();
+  void toWorker({ type: "navi:thread", action: "new" });
+  ui.input.focus();
+});
+threadUi.running.addEventListener("click", () => {
+  if (threads.running) void toWorker({ type: "navi:thread", action: "switch", id: threads.running });
+});
+
+// ---------- Navi's window ----------
+
+/** The window this panel is in. */
+let myWindow: number | undefined;
+const pinButton = $<HTMLButtonElement>("pin-window");
+const pinElsewhere = $<HTMLButtonElement>("pin-elsewhere");
+
+function renderPin() {
+  const pinned = worker.pinnedWindow;
+  const here = pinned !== undefined && pinned === myWindow;
+  pinButton.setAttribute("aria-pressed", String(here));
+  const label = here
+    ? "Navi is pinned to this window: it works here even while you use another window. Click to unpin."
+    : "Pin Navi to this window: it keeps working here even while you use another window.";
+  pinButton.setAttribute("aria-label", label);
+  pinButton.title = label;
+  pinElsewhere.hidden = pinned === undefined || here;
+}
+
+pinButton.addEventListener("click", () => {
+  const here = worker.pinnedWindow !== undefined && worker.pinnedWindow === myWindow;
+  void toWorker({ type: "navi:pin", window: here ? null : (myWindow ?? null) });
+});
+pinElsewhere.addEventListener("click", () => {
+  if (worker.pinnedWindow !== undefined) void chrome.windows.update(worker.pinnedWindow, { focused: true });
+});
+
 /** Tells the background worker this panel is open, so the shortcut can close it. */
 async function registerPanel() {
   const { id } = await chrome.windows.getCurrent();
+  myWindow = id;
+  renderPin();
   const port = chrome.runtime.connect({ name: `navi-panel:${id}` });
   port.onMessage.addListener((msg: { type?: string }) => {
     if (msg.type === "navi:close-panel") window.close();
@@ -440,9 +585,11 @@ async function init() {
   const hello = await toWorker<WorkerHello>({ type: "navi:hello" }).catch(() => undefined);
   if (hello) {
     worker = hello.worker;
+    renderPin();
     ears = hello.ears;
     for (const m of hello.metrics) addMetric(m);
-    feed.restore(hello.log as LogEntry[]);
+    entries = hello.log;
+    showThreads(hello.threads, true);
   }
   void loadSpentToday();
   const granted = await checkMicPermission();

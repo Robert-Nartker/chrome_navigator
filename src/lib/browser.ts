@@ -19,17 +19,44 @@ export function isWebUrl(url?: string): boolean {
   return !!url && WEB_URL.test(url) && !url.startsWith("https://chromewebstore.google.com");
 }
 
-/** The tab the user is looking at: the active tab in this window, else the most recent web tab. */
-export async function targetTab(): Promise<chrome.tabs.Tab> {
-  const win = await chrome.windows.getCurrent().catch(() => undefined);
-  const [active] = await chrome.tabs.query(
-    win?.id !== undefined ? { active: true, windowId: win.id } : { active: true, lastFocusedWindow: true },
-  );
+/**
+ * The window Navi acts in for the command running now: the one it was given in, or the one Navi is
+ * pinned to. Unset between commands (then it's the window the user is using).
+ */
+let workWindow: number | undefined;
+/** Tests: stands in for the window with focus (headless Chrome doesn't move focus). */
+let focusForTests: number | undefined;
+
+export function setWorkWindow(id: number | undefined) {
+  workWindow = id;
+}
+
+export function setFocusedWindowForTests(id: number | undefined) {
+  focusForTests = id;
+}
+
+/** The window the user is using. */
+export async function focusedWindowId(): Promise<number | undefined> {
+  if (focusForTests !== undefined) return focusForTests;
+  return (await chrome.windows.getCurrent().catch(() => undefined))?.id;
+}
+
+async function windowId(): Promise<number | undefined> {
+  return workWindow ?? (await focusedWindowId());
+}
+
+/**
+ * The tab Navi acts on: the active tab in its window, else that window's (or any) most recent web tab.
+ * `inWindow`: a helper agent's own window instead.
+ */
+export async function targetTab(inWindow?: number): Promise<chrome.tabs.Tab> {
+  const win = inWindow ?? (await windowId());
+  const [active] = await chrome.tabs.query(win !== undefined ? { active: true, windowId: win } : { active: true, lastFocusedWindow: true });
   if (active && !isExtensionPage(active.url)) return active;
   const tabs = await chrome.tabs.query({});
   const web = tabs
     .filter((t) => isWebUrl(t.url))
-    .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+    .sort((a, b) => Number(b.windowId === win) - Number(a.windowId === win) || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
   if (web[0]) return web[0];
   if (active) return active;
   throw new Error("No tab to control.");
@@ -116,14 +143,14 @@ function isBlankTab(url?: string): boolean {
  * Opens a URL in this tab, or with `newTab` in a new one next to it (a blank tab is simply reused).
  * Spoken commands decide by their verb: "open" opens a new tab, "go to" stays in this one.
  */
-export async function navigate(url: string, newTab: boolean): Promise<chrome.tabs.Tab> {
-  const current = await targetTab().catch(() => undefined);
+export async function navigate(url: string, newTab: boolean, inWindow?: number): Promise<chrome.tabs.Tab> {
+  const current = await targetTab(inWindow).catch(() => undefined);
   const usable = !!current?.id && !isExtensionPage(current.url);
   if (!usable || (newTab && !isBlankTab(current.url))) {
     const tab = await chrome.tabs.create({
       url,
       active: true,
-      ...(usable ? { index: current.index + 1, openerTabId: current.id, windowId: current.windowId } : {}),
+      ...(usable ? { index: current.index + 1, openerTabId: current.id, windowId: current.windowId } : { windowId: inWindow ?? workWindow }),
     });
     return waitForLoad(tab.id!);
   }
@@ -163,16 +190,20 @@ export async function goBack(tab: chrome.tabs.Tab): Promise<chrome.tabs.Tab> {
   }
 }
 
-export async function listTabs(): Promise<chrome.tabs.Tab[]> {
-  const win = await chrome.windows.getCurrent().catch(() => undefined);
-  const tabs = await chrome.tabs.query(win?.id !== undefined ? { windowId: win.id } : { currentWindow: true });
+/** The tabs in Navi's window (or `inWindow`). */
+export async function listTabs(inWindow?: number): Promise<chrome.tabs.Tab[]> {
+  const win = inWindow ?? (await windowId());
+  const tabs = await chrome.tabs.query(win !== undefined ? { windowId: win } : { currentWindow: true });
   return tabs.filter((t) => !isExtensionPage(t.url));
 }
 
+/** Shows a tab. Its window comes to the front only if it's the one the user is using: Navi working in another window never takes focus. */
 export async function activateTab(tab: chrome.tabs.Tab) {
   if (tab.id === undefined) return;
   await chrome.tabs.update(tab.id, { active: true });
-  if (tab.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true });
+  if (tab.windowId !== undefined && tab.windowId === (await focusedWindowId())) {
+    await chrome.windows.update(tab.windowId, { focused: true });
+  }
 }
 
 export async function cycleTab(offset: 1 | -1): Promise<chrome.tabs.Tab | undefined> {

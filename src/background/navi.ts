@@ -23,12 +23,32 @@ import {
 import type { CommandMetric } from "../lib/metrics";
 import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, activeSettings, saveSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
-import { Controller, HELP_TEXT } from "../sidepanel/controller";
+import { Controller, HELP_TEXT, type LogPlace } from "../sidepanel/controller";
+import { ThreadBook } from "../lib/threads";
+import { WindowPin } from "../lib/window-pin";
+import { setFocusedWindowForTests } from "../lib/browser";
 
 let settings: Settings = DEFAULT_SETTINGS;
 let settingsLoaded: Promise<void> = Promise.resolve();
 const metrics: CommandMetric[] = [];
-const logBook = new LogBook();
+const threads = new ThreadBook((state) => {
+  broadcast({ type: "view:threads", state });
+  logBook.keepThreads(state.threads.map((t) => t.id));
+});
+const logBook = new LogBook(threads.ready.then(() => threads.current));
+const pin = new WindowPin((id, closed) => {
+  worker = { ...worker, pinnedWindow: id };
+  broadcastWorker();
+  if (closed) {
+    const text = "Navi's window was closed, so Navi works in whichever window you're using again.";
+    log("info", text, undefined, false);
+    void voice.say(text);
+  }
+});
+void pin.ready.then(() => {
+  worker = { ...worker, pinnedWindow: pin.window };
+  broadcastWorker();
+});
 let worker: WorkerState = { working: false, numbers: false, grid: false, listening: false };
 let ears: EarsState = EARS_OFF;
 let interim = "";
@@ -160,9 +180,12 @@ const voice: Voice = {
   },
 };
 
-/** `onPage`: also show a reply or error in the caption on the page (not for speech-service hiccups). */
-function log(kind: LogKind, text: string, meta?: string, onPage = true) {
-  const entry = logBook.add(kind, text, meta);
+/**
+ * `onPage`: also show a reply or error in the caption on the page (not for speech-service hiccups).
+ * Entries go to the thread of the command running now, else the current thread.
+ */
+function log(kind: LogKind, text: string, meta?: string, onPage = true, place: LogPlace = {}) {
+  const entry = logBook.add(kind, text, meta, place.thread ?? threads.running ?? threads.current, place.solo);
   broadcast({ type: "view:log", entry });
   if (onPage && (kind === "navi" || kind === "error")) {
     reply = { kind, text };
@@ -180,10 +203,10 @@ const controller = new Controller(
   // With only one provider's key, that provider's models run.
   () => activeSettings(settings),
   {
-    log,
+    log: (kind, text, meta, place) => log(kind, text, meta, true, place),
     setWorking(on, detail) {
-      logBook.setWorking(on);
-      worker = { ...worker, working: on, detail: on ? detail : undefined };
+      const turn = logBook.setWorking(on);
+      worker = { ...worker, working: on, detail: on ? detail : undefined, turn };
       broadcastWorker();
     },
     numbersShown(shown) {
@@ -216,6 +239,8 @@ const controller = new Controller(
       void noteExchange(said, reply).then((waiting) => scheduleMemoryUpdate(waiting >= MEMORY_BATCH ? 5000 : MEMORY_IDLE_MS));
     },
   },
+  threads,
+  pin,
 );
 
 function addMetric(metric: CommandMetric) {
@@ -341,9 +366,9 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
     case "ears:heartbeat":
       return false;
     case "navi:hello":
-      void Promise.all([logBook.ready, settingsLoaded]).then(() => {
-        if (!logBook.all.length) logBook.add("info", greeting());
-        sendResponse({ worker, ears, log: logBook.all, metrics } satisfies WorkerHello);
+      void Promise.all([logBook.ready, threads.ready, settingsLoaded]).then(() => {
+        if (!logBook.all.length) logBook.add("info", greeting(), undefined, threads.current);
+        sendResponse({ worker, ears, log: logBook.all, metrics, threads: threads.state() } satisfies WorkerHello);
       });
       return true;
     case "navi:run":
@@ -372,6 +397,15 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       else controller.setNumbers(!controller.numbersShown).then(done, fail);
       return true;
     }
+    case "navi:pin":
+      void controller.pinWindow(msg.window).finally(() => sendResponse(true));
+      return true;
+    case "navi:thread":
+      void threads.ready.then(() => {
+        controller.threadAction(msg.action, msg.id, msg.title);
+        sendResponse(threads.state());
+      });
+      return true;
     case "navi:help":
       log("navi", HELP_TEXT);
       void voice.say(HELP_TEXT);
@@ -429,6 +463,9 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
     case "memory":
       await updateMemory();
       return loadMemory();
+    case "focus":
+      setFocusedWindowForTests(msg.window);
+      return true;
     case "wake":
       await toggleWake();
       return true;

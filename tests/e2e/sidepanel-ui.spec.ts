@@ -2,7 +2,7 @@
 // Set NAVI_SCREENSHOTS=1 to also save the screenshots in docs/screenshots/.
 
 import { type BrowserContext, type Page, type Route, chromium, expect, test as base } from "@playwright/test";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -56,6 +56,8 @@ const test = base.extend<Fixtures>({
     await context.route("https://huggingface.co/**", (route) => route.abort());
     await use(context);
     await context.close();
+    // Each test's Chrome profile is a few hundred MB.
+    await rm(userDataDir, { recursive: true, force: true });
   },
   extensionId: async ({ context }, use) => {
     let [worker] = context.serviceWorkers();
@@ -256,7 +258,7 @@ test("a command said mid-task is noted in the running card, and stop ends it", a
   // "stop" is its own card after the cancelled one; the queued command was dropped.
   const cards = panel.locator("#log > li.turn");
   await expect(cards.last().locator("li.user")).toContainText("stop");
-  await expect(panel.locator("#log li.user").filter({ hasText: "scroll down" })).toHaveCount(0);
+  await expect(panel.locator("#log li.user .text").filter({ hasText: "scroll down" })).toHaveCount(0);
   await expect(panel.locator("#status-text")).toHaveText("Off");
   release();
 });
@@ -292,7 +294,7 @@ test("reopening the panel rebuilds the same cards", async ({ panel, site, contex
   await run(panel, "yo smash that sub thingy");
   await run(panel, "hit the subscribe thing for me");
   await expect(site.locator("#subs")).toHaveText("2");
-  await expect(panel.locator("#log li.navi").last()).toContainText("Subscribed.");
+  await expect(panel.locator("#log li.navi .text").last()).toContainText("Subscribed.");
 
   const url = panel.url();
   await panel.waitForTimeout(500); // the log is saved shortly after each entry
@@ -332,7 +334,7 @@ test("reopening the panel rebuilds the same cards", async ({ panel, site, contex
 test("a log saved before cards existed is grouped by order, and survives the worker restarting", async ({ panel, context }) => {
   await panel.waitForTimeout(500); // let the greeting's save go first
   await panel.evaluate(() =>
-    chrome.storage.session.set({
+    chrome.storage.local.set({
       panelLog: [
         { kind: "info", text: "Hi! Old greeting." },
         { kind: "user", text: "open the news" },
@@ -357,6 +359,168 @@ test("a log saved before cards existed is grouped by order, and survives the wor
   await expect(card.locator(".trace-label")).toHaveText("2 steps");
   await expect(card.locator("li.navi")).toContainText("Opened the news.");
   await expect(reopened.locator("#log > li.info")).toHaveText(["Hi! Old greeting.", "Went to sleep."]);
+});
+
+test.describe("threads", () => {
+  type Chat = { asked: string; users: string[] };
+  /**
+   * Mocks Claude as a chat: it answers "Answer to: <what was asked>", and records each request's user
+   * messages. Answers to questions containing `slow` wait for `hold`.
+   */
+  async function mockChat(context: BrowserContext, opts: { slow?: string; hold?: Promise<void> } = {}) {
+    const chats: Chat[] = [];
+    await context.route("https://api.anthropic.com/**", async (route: Route) => {
+      const body = route.request().postDataJSON() as { model: string; messages: { role: string; content: unknown }[] };
+      const text = (c: unknown) =>
+        typeof c === "string" ? c : Array.isArray(c) ? c.map((b: { text?: string }) => b.text ?? "").join("") : "";
+      const users = body.messages.filter((m) => m.role === "user").map((m) => text(m.content)).filter(Boolean);
+      const asked = /(?:Typed message|Command): "(.*)"/.exec(users.at(-1) ?? "")?.[1] ?? "";
+      chats.push({ asked, users });
+      if (opts.slow && asked.includes(opts.slow)) await opts.hold;
+      await route
+        .fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: "msg", type: "message", role: "assistant", model: body.model, stop_sequence: null, stop_reason: "end_turn",
+            usage: { input_tokens: 900, output_tokens: 20 },
+            content: [{ type: "text", text: `Answer to: ${asked}` }],
+          }),
+        })
+        .catch(() => undefined);
+    });
+    return chats;
+  }
+  const type = (panel: Page, text: string) => panel.evaluate((t) => (window as unknown as Hooks).navi.run(t, "typed"), text);
+  const feedText = (panel: Page) => panel.locator("#log").innerText();
+
+  test("each thread has its own feed and AI conversation: new thread, back by name, list", async ({ panel, context }) => {
+    const chats = await mockChat(context);
+    await useClaude(panel);
+    await type(panel, "my favorite color is green");
+    await expect(panel.locator("#thread-title")).toHaveText("My favorite color is green");
+
+    // A new thread starts empty, with a fresh conversation (said, so no AI call for the command itself).
+    await run(panel, "new thread");
+    await expect(panel.locator("#thread-title")).toHaveText("New thread");
+    await expect(panel.locator("#log > li")).toHaveCount(0);
+    await expect(panel.locator("#feed-empty")).toBeVisible();
+    expect(chats).toHaveLength(1);
+    await type(panel, "what's my favorite color?");
+    expect(chats[1].users).toHaveLength(1);
+    expect(chats[1].users[0]).not.toContain("green");
+    await expect(panel.locator("#feed-empty")).toBeHidden();
+    expect(await feedText(panel)).not.toContain("my favorite color is green");
+
+    // Back by name: its feed, and the same conversation continues.
+    await run(panel, "go back to the favorite color thread");
+    await expect(panel.locator("#thread-title")).toHaveText("My favorite color is green");
+    await expect(panel.locator("#log li.user .text")).toHaveText(["my favorite color is green"]);
+    await type(panel, "and my favorite food is pizza");
+    expect(chats[2].users.map((u) => /"(.*)"/.exec(u)?.[1])).toEqual(["my favorite color is green", "and my favorite food is pizza"]);
+
+    // "Previous thread" goes to the one used before; asking for an unknown one lists them.
+    await run(panel, "previous thread");
+    await expect(panel.locator("#thread-title")).toHaveText("What's my favorite color");
+    await run(panel, "switch to the taxes thread");
+    await expect(panel.locator("#log > li.solo.navi .text").last()).toHaveText(
+      "I couldn't tell which thread you meant by “taxes”. Your threads: What's my favorite color, My favorite color is green.",
+    );
+    await expect.poll(() => lastSaid(panel)).toContain("I couldn't tell which thread");
+    await run(panel, "list my threads");
+    await expect(panel.locator("#log > li.solo.navi .text").last()).toHaveText(
+      "You have 2 threads: What's my favorite color (this one), My favorite color is green.",
+    );
+    await run(panel, "rename this thread to quiz");
+    await expect(panel.locator("#thread-title")).toHaveText("Quiz");
+
+    // Once a thread's conversation has expired, the AI gets a recap of it instead.
+    await run(panel, "go to the first thread");
+    await panel.evaluate(() => (window as unknown as { navi: { resetConversation(): Promise<void> } }).navi.resetConversation());
+    await type(panel, "what did I tell you?");
+    const recap = chats.at(-1)!;
+    expect(recap.users).toHaveLength(1);
+    expect(recap.users[0]).toContain("Earlier in this thread (“My favorite color is green”), oldest first:\nUser: my favorite color is green\nNavi: Answer to: my favorite color is green\nUser: and my favorite food is pizza");
+  });
+
+  test("a task keeps running in its own thread while you start another; the next command waits its turn", async ({ panel, context }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const chats = await mockChat(context, { slow: "research standing desks", hold });
+    await useClaude(panel);
+    const first = type(panel, "research standing desks");
+    await expect(panel.locator("#log > li.turn")).toHaveAttribute("data-state", "working");
+
+    // "New thread" said while it works: it doesn't wait. The running task is named, and can't be deleted.
+    await run(panel, "new thread");
+    await expect(panel.locator("#thread-title")).toHaveText("New thread");
+    await expect(panel.locator("#thread-running")).toHaveText("Working in “Research standing desks”");
+    await panel.locator("#thread-current").click();
+    const menu = panel.locator("#thread-list li");
+    await expect(menu).toHaveCount(2);
+    await expect(menu.filter({ hasText: "Research standing desks" }).locator(".when")).toHaveText("working");
+    await expect(menu.filter({ hasText: "Research standing desks" }).getByRole("button", { name: /^Delete/ })).toBeDisabled();
+    await panel.keyboard.press("Escape");
+    await expect(panel.locator("#thread-menu")).toBeHidden();
+
+    // Typed here meanwhile: noted here, and run here once the task is done, even after switching away.
+    const second = type(panel, "what time is it in tokyo");
+    await expect(panel.locator("#log > li.solo.info .text")).toHaveText("Next: “what time is it in tokyo”");
+    expect(chats).toHaveLength(1);
+    await panel.locator("#thread-running").click();
+    await expect(panel.locator("#thread-title")).toHaveText("Research standing desks");
+    // Its card is still working.
+    await expect(panel.locator("#log > li.turn")).toHaveAttribute("data-state", "working");
+    release();
+    await first;
+    await second;
+    await expect(panel.locator("#log li.navi .text")).toHaveText(["Answer to: research standing desks"]);
+    await expect(panel.locator("#log > li.turn")).toHaveAttribute("data-state", "done");
+    expect(await feedText(panel)).not.toContain("tokyo");
+    expect(chats[1]).toMatchObject({ asked: "what time is it in tokyo" });
+    // A fresh conversation: nothing from the desk research.
+    expect(chats[1].users).toHaveLength(1);
+    expect(chats[1].users[0]).not.toContain("desks");
+    await expect(panel.locator("#thread-running")).toBeHidden();
+
+    await panel.locator("#thread-current").click();
+    await panel.locator(".thread-pick", { hasText: "What time is it in tokyo" }).click();
+    await expect(panel.locator("#thread-menu")).toBeHidden();
+    await expect(panel.locator("#log li.navi .text")).toHaveText(["Answer to: what time is it in tokyo"]);
+  });
+
+  test("threads and their feeds survive the worker restarting and the panel reopening; deleting one forgets its feed", async ({ panel, context }) => {
+    await mockChat(context);
+    await useClaude(panel);
+    await type(panel, "plan a trip to denver");
+    // The panel's + starts a thread too.
+    await panel.locator("#thread-new").click();
+    await expect(panel.locator("#thread-title")).toHaveText("New thread");
+    await expect(panel.locator("#command-input")).toBeFocused();
+    await run(panel, "rename this thread to taxes");
+    await expect(panel.locator("#thread-title")).toHaveText("Taxes");
+    await type(panel, "when are taxes due");
+    await panel.waitForTimeout(500); // saves are batched
+
+    const cdp = await context.newCDPSession(panel);
+    await cdp.send("ServiceWorker.enable");
+    await cdp.send("ServiceWorker.stopAllWorkers");
+    const reopened = await context.newPage();
+    await reopened.goto(panel.url());
+    await panel.close();
+    await reopened.waitForFunction(() => "navi" in window);
+    await expect(reopened.locator("#thread-title")).toHaveText("Taxes");
+    await expect(reopened.locator("#log li.user .text")).toHaveText(["when are taxes due"]);
+
+    await reopened.locator("#thread-current").click();
+    await reopened.getByRole("button", { name: "Delete thread Taxes" }).click();
+    await expect(reopened.locator("#thread-title")).toHaveText("Plan a trip to denver");
+    await expect(reopened.locator("#log li.user .text")).toHaveText(["plan a trip to denver"]);
+    await expect(reopened.locator("#thread-list li")).toHaveCount(1);
+    await reopened.waitForTimeout(500);
+    const saved = await reopened.evaluate(async () => (await chrome.storage.local.get("panelLog")).panelLog as { text: string }[]);
+    expect(saved.map((e) => e.text)).not.toContain("when are taxes due");
+  });
 });
 
 test("labels: listening modes and the Flags and Grid toggles", async ({ panel }) => {
@@ -391,7 +555,7 @@ test.describe("live caption", () => {
     // A finished phrase without the name shows briefly, so a missed "Hey Navi" is easy to spot.
     await hear(panel, "so I told my friend", true);
     await expect(panel.locator("#caption-hint")).toHaveText("Heard “so I told my friend”. Start with “Hey Navi”.");
-    await expect(panel.locator("#log li.user").filter({ hasText: "so I told my friend" })).toHaveCount(0);
+    await expect(panel.locator("#log li.user .text").filter({ hasText: "so I told my friend" })).toHaveCount(0);
 
     await hear(panel, "hey navi", true);
     await expect(voice).toHaveAttribute("data-state", "awake");
@@ -458,7 +622,7 @@ test.describe("live caption", () => {
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
     await run(panel, "turn off");
     await expect(panel.locator("#status-text")).toHaveText("Off");
-    await expect(panel.locator("#log li.navi").last()).toContainText("Press Alt+Shift+M or click the mic");
+    await expect(panel.locator("#log li.navi .text").last()).toContainText("Press Alt+Shift+M or click the mic");
     expect(await lastSaid(panel)).toContain("turn it back on");
     expect(await panel.evaluate(async () => (await chrome.storage.local.get("naviOff")).naviOff)).toBe(true);
     await expect(panel.locator("#caption-hint")).toContainText("stays off, even after Chrome restarts");
@@ -511,7 +675,7 @@ test.describe("live caption", () => {
     await expect(dictate).toHaveAttribute("aria-pressed", "false");
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
     // Nothing ran: dictated words aren't commands.
-    await expect(panel.locator("#log li.user")).toHaveCount(0);
+    await expect(panel.locator("#log li.user .text")).toHaveCount(0);
 
     // Mic off: dictation turns it on for one phrase, then off again.
     await panel.evaluate(() => (window as unknown as Hooks).navi.stopListening());
@@ -523,7 +687,7 @@ test.describe("live caption", () => {
     await expect(input).toHaveValue("what is on this page");
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "off");
     await expect(input).toBeFocused();
-    await expect(panel.locator("#log li.user")).toHaveCount(0);
+    await expect(panel.locator("#log li.user .text")).toHaveCount(0);
   });
 
   test("with the panel closed, Navi still listens, and a pill on the page shows what it hears and says", async ({
@@ -634,6 +798,7 @@ test.describe("on and off across Chrome restarts", () => {
       chrome3.worker.evaluate(async () => ((await chrome.storage.local.get("settings")) as { settings: { listenMode: string } }).settings.listenMode);
     await expect.poll(mode).toBe("handsfree");
     await chrome3.context.close();
+    await rm(dir, { recursive: true, force: true });
   });
 });
 
@@ -652,7 +817,7 @@ test.describe("Parakeet recognizer", () => {
     await useParakeet(panel);
     await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
     await expect(panel.locator("#engine-label")).toContainText("Hears: Parakeet (on-device, test model)");
-    const said = panel.locator("#log li.user");
+    const said = panel.locator("#log li.user .text");
     await expect(said).toHaveText([/Scroll down a little/, /Scroll down\./, /Go to the top/], { timeout: 20_000 });
     await panel.waitForTimeout(1500);
     await expect(said).toHaveCount(3);

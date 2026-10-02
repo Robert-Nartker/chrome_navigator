@@ -8,6 +8,7 @@ import type { CommandMetric } from "./metrics";
 import type { NanoRequest } from "./nano";
 import type { RecentCommand } from "./router";
 import type { Settings } from "./settings";
+import type { ThreadsState } from "./threads";
 import type { EarconName } from "./voice-output";
 
 export type LogKind = "user" | "navi" | "step" | "info" | "error";
@@ -20,6 +21,8 @@ export interface LogEntry {
   t?: number;
   /** The command (turn) it belongs to; unset for notes outside a command. */
   turn?: string;
+  /** The thread it belongs to (each thread has its own feed). */
+  thread?: string;
 }
 
 export interface EarsState {
@@ -58,12 +61,16 @@ export const EARS_OFF: EarsState = {
 export interface WorkerState {
   working: boolean;
   detail?: string;
+  /** The command (turn) being worked on. */
+  turn?: string;
   numbers: boolean;
   grid: boolean;
   /** The user wants Navi listening (mic on). */
   listening: boolean;
   /** Why Navi's background page (mic and voice) couldn't start, if it couldn't. */
   problem?: string;
+  /** The window Navi is pinned to (it works only there), if it is. */
+  pinnedWindow?: number;
 }
 
 /** Ears -> worker (views may listen in on state and interim). */
@@ -98,7 +105,8 @@ export type EarsTestAction = "final" | "state" | "session" | "speakerBusy" | "la
 export type ViewEvent =
   | { type: "view:log"; entry: LogEntry }
   | { type: "view:worker"; state: WorkerState }
-  | { type: "view:metric"; metric: CommandMetric };
+  | { type: "view:metric"; metric: CommandMetric }
+  | { type: "view:threads"; state: ThreadsState };
 
 /** Views -> worker; each gets a response. */
 export type WorkerRequest =
@@ -113,7 +121,19 @@ export type WorkerRequest =
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }
-  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears" | "wake" | "memory"; text?: string; recent?: RecentCommand[]; ears?: Extract<EarsRequest, { type: "ears:test" }> };
+  /** The panel's pin button: Navi works only in this window (null: in whichever window the user is using). */
+  | { type: "navi:pin"; window: number | null }
+  /** The panel's thread menu: start, switch to, rename or delete a thread. */
+  | { type: "navi:thread"; action: "new" | "switch" | "rename" | "delete"; id?: string; title?: string }
+  | {
+      type: "navi:test";
+      action: "reset" | "route" | "busy" | "ears" | "wake" | "memory" | "focus";
+      text?: string;
+      recent?: RecentCommand[];
+      ears?: Extract<EarsRequest, { type: "ears:test" }>;
+      /** "focus": the window to treat as the one the user is using (headless Chrome doesn't move focus). */
+      window?: number;
+    };
 
 /** What a view gets when it opens. */
 export interface WorkerHello {
@@ -121,6 +141,7 @@ export interface WorkerHello {
   ears: EarsState;
   log: LogEntry[];
   metrics: CommandMetric[];
+  threads: ThreadsState;
 }
 
 /** Worker -> the floating pill in the active tab. */
