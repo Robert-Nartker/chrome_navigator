@@ -92,6 +92,19 @@ export async function downloadNano(onProgress?: (fraction: number) => void): Pro
 
 /** A ready session per instruction text; each request runs on a copy, so requests don't pile up history. */
 const sessions = new Map<string, Promise<LanguageModelSession>>();
+/**
+ * While any session exists, Chrome keeps Gemini Nano loaded (several GB, much of it on the graphics
+ * chip). After this long without a request they're closed, so Chrome can unload it.
+ */
+const NANO_IDLE_MS = 3 * 60_000;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Closes Navi's Gemini Nano sessions, so Chrome can unload the model. */
+export function releaseNano() {
+  clearTimeout(idleTimer);
+  for (const base of sessions.values()) void base.then((s) => s.destroy()).catch(() => undefined);
+  sessions.clear();
+}
 
 export async function runNano(req: NanoRequest): Promise<string> {
   const lm = api();
@@ -121,5 +134,7 @@ export async function runNano(req: NanoRequest): Promise<string> {
     return await session.prompt(input, req.schema ? { responseConstraint: req.schema } : undefined);
   } finally {
     session.destroy();
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(releaseNano, NANO_IDLE_MS);
   }
 }

@@ -363,6 +363,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
       renderStatus();
       renderPin();
       renderHelpers();
+      renderTutorial();
       break;
     case "view:metric":
       addMetric(msg.metric);
@@ -534,6 +535,31 @@ threadUi.running.addEventListener("click", () => {
   if (threads.running) void toWorker({ type: "navi:thread", action: "switch", id: threads.running });
 });
 
+// ---------- Tutorial ----------
+
+const tutorialUi = {
+  section: $("tutorial"),
+  progress: $("tutorial-progress"),
+  title: $("tutorial-title"),
+  text: $("tutorial-text"),
+  yes: $<HTMLButtonElement>("tutorial-yes"),
+  no: $<HTMLButtonElement>("tutorial-no"),
+};
+
+function renderTutorial() {
+  const t = worker.tutorial;
+  tutorialUi.section.hidden = !t;
+  if (!t) return;
+  tutorialUi.progress.textContent = `Tutorial ${t.step} of ${t.total} ·`;
+  tutorialUi.title.textContent = t.title;
+  tutorialUi.text.textContent = t.text;
+  tutorialUi.yes.hidden = tutorialUi.no.hidden = !t.question;
+}
+
+for (const action of ["yes", "no", "repeat", "next", "end"] as const) {
+  $<HTMLButtonElement>(`tutorial-${action}`).addEventListener("click", () => void toWorker({ type: "navi:tutorial", action }));
+}
+
 // ---------- Helpers ----------
 
 const helperUi = { section: $("helpers"), list: $<HTMLUListElement>("helper-list"), stopAll: $<HTMLButtonElement>("helpers-stop-all") };
@@ -551,7 +577,7 @@ function renderHelpers() {
       task.title = `${h.task}\n${h.activity}`;
       const meta = document.createElement("span");
       meta.className = "helper-meta";
-      meta.textContent = `step ${h.step} · ${formatCost(h.costUsd)}`;
+      meta.textContent = `${Math.floor((Date.now() - h.started) / 60_000)} min · ${formatCost(h.costUsd)}`;
       const stop = document.createElement("button");
       stop.type = "button";
       stop.className = "icon-button";
@@ -579,11 +605,10 @@ function renderPin() {
   const pinned = worker.pinnedWindow;
   const here = pinned !== undefined && pinned === myWindow;
   pinButton.setAttribute("aria-pressed", String(here));
-  const label = here
-    ? "Navi is pinned to this window: it works here even while you use another window. Click to unpin."
-    : "Pin Navi to this window: it keeps working here even while you use another window.";
-  pinButton.setAttribute("aria-label", label);
-  pinButton.title = label;
+  pinButton.dataset.on = String(here);
+  pinButton.title = here
+    ? "Navi stays in this window, even while you use another. Click (or say “follow me”) to let it follow you."
+    : "Keep Navi in this window, even while you use another (“stay in this window”).";
   pinElsewhere.hidden = pinned === undefined || here;
 }
 
@@ -622,6 +647,7 @@ async function init() {
     worker = hello.worker;
     renderPin();
     renderHelpers();
+    renderTutorial();
     ears = hello.ears;
     for (const m of hello.metrics) addMetric(m);
     entries = hello.log;

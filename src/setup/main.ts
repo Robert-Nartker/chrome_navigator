@@ -58,6 +58,10 @@ async function requestMic() {
 
 grant.addEventListener("click", () => void requestMic());
 
+document.getElementById("tutorial")!.addEventListener("click", () => {
+  void chrome.runtime.sendMessage({ type: "navi:tutorial", action: "start" }).catch(() => undefined);
+});
+
 void navigator.permissions
   .query({ name: "microphone" as PermissionName })
   .then((status) => {

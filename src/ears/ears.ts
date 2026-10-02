@@ -13,8 +13,8 @@ import { parakeetModelFor } from "../voice/parakeet-langs";
 import { loadModule } from "../lib/load-module";
 
 export interface EarsOutput {
-  /** A command to run (the wake word is already handled). */
-  command(text: string, confidence: number): void;
+  /** A command to run (the wake word is already handled), and the recognizer's other guesses at it. */
+  command(text: string, confidence: number, alternatives: string[]): void;
   /** "Stop" heard while Navi was talking. */
   cancel(): void;
   state(state: EarsState): void;
@@ -89,7 +89,7 @@ export class Ears {
         neural: naviVoiceOf(this.settings),
       }),
       (message) => {
-        if (message !== this.lastVoiceError) this.out.log("error", `Voice: ${message} Using Chrome's voice.`);
+        if (message !== this.lastVoiceError) this.out.log("error", `Voice: ${message.replace(/[.!]?$/, ".")} Using Chrome's voice.`);
         this.lastVoiceError = message;
       },
       (note) => this.out.log("info", note),
@@ -107,7 +107,8 @@ export class Ears {
       (next.lang !== this.settings.lang ||
         next.wakeName !== this.settings.wakeName ||
         next.listenMode !== this.settings.listenMode ||
-        next.recognizer !== this.settings.recognizer);
+        next.recognizer !== this.settings.recognizer ||
+        next.micDeviceId !== this.settings.micDeviceId);
     if (next.speechOutput !== this.settings.speechOutput || next.naviVoice !== this.settings.naviVoice) this.lastVoiceError = "";
     // Parakeet was turned off (or hears another language now): free its memory.
     if (this.parakeet && (next.recognizer !== "parakeet" || next.lang !== this.settings.lang)) {
@@ -183,7 +184,7 @@ export class Ears {
   }
 
   /** A finished phrase from the recognizer (also used by tests). */
-  final(transcript: string, confidence = 0) {
+  final(transcript: string, confidence = 0, alternatives: string[] = []) {
     this.out.interim("");
     if (this.dictating) {
       this.out.dictation(transcript, true);
@@ -206,12 +207,24 @@ export class Ears {
     if (decision.woke) {
       earcons.wake();
       this.wasAwake = true;
+      this.warmVoice();
+    } else if (decision.named && !decision.command) {
+      // "Hey Navi" while already awake (or in open mic): a sound says it heard.
+      earcons.wake();
     }
-    if (decision.command) this.out.command(decision.command, confidence);
+    if (decision.command) {
+      const others = alternatives.map((a) => this.session.withoutName(a)).filter((a) => a && a !== decision.command);
+      this.out.command(decision.command, confidence, others);
+    }
     // Asleep and not for Navi: show what was heard for a moment, so a missed "Hey Navi" is visible.
     this.heardAsleep = this.asleep && !decision.woke ? transcript : "";
     this.heardAt = Date.now();
     this.emit();
+  }
+
+  /** Woken: Navi's voice (unloaded when idle) starts loading, so the reply is in it. */
+  private warmVoice() {
+    if (naviVoiceOf(this.settings)) void this.speaker.prepareVoice().catch(() => undefined);
   }
 
   /** Waiting for the wake name (hands-free mode only). */
@@ -268,14 +281,22 @@ export class Ears {
       if (words(text).length < 2 || isEcho(text, this.speaker.lastSaid)) return;
       this.speaker.stop();
     }
-    // While asleep, only show speech once the wake word is heard (nothing else is acted on).
-    this.out.interim(this.asleep && !this.session.hearsWakePhrase(text) ? "" : text);
+    // While asleep, nothing is shown or acted on until the name is heard. Hearing it wakes Navi right
+    // away, without waiting for the recognizer to finish the phrase.
+    if (this.asleep && this.session.hearsWakePhrase(text) && this.session.wakeMidPhrase()) {
+      earcons.wake();
+      this.wasAwake = true;
+      this.warmVoice();
+      this.heardAsleep = "";
+      this.emit();
+    }
+    this.out.interim(this.asleep ? "" : text);
   }
 
   /** What either recognizer reports to. */
   private readonly callbacks: SpeechCallbacks = {
     onInterim: (text) => this.interim(text),
-    onFinal: (text, confidence) => this.final(text, confidence),
+    onFinal: (text, confidence, alternatives) => this.final(text, confidence, alternatives),
     onRunningChange: () => this.emit(),
     onError: (message, fatal) => void this.onEngineError(message, fatal),
     onInfo: (message) => {
@@ -310,6 +331,7 @@ export class Ears {
       const engine = await mod.createParakeetEngine(lang, this.callbacks, {
         // Asleep, Navi only needs finished phrases (to catch its name): no live captions to compute.
         live: () => this.dictating || this.session.current === "awake",
+        deviceId: () => this.settings.micDeviceId,
         fake: this.fakeParakeet,
       });
       let noted = false;
@@ -344,7 +366,7 @@ export class Ears {
 
   private chromeEngine(): SpeechEngine {
     // No word boosting: it made Chrome "hear" boosted words in background noise.
-    return new WebSpeechEngine({ lang: this.settings.lang }, this.callbacks);
+    return new WebSpeechEngine({ lang: this.settings.lang, deviceId: this.settings.micDeviceId }, this.callbacks);
   }
 
   private async onEngineError(message: string, fatal: boolean) {

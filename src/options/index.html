@@ -26,7 +26,7 @@
       <img src="icons/icon48.png" width="28" height="28" alt="" />
       <div>
         <h1>Navi settings</h1>
-        <p class="lead">Keys, models, listening and voice. Everything is stored in this browser profile.</p>
+        <p class="lead">Keys, models, listening and voice. Everything is stored in this browser profile. New to Navi? <button id="start-tutorial" type="button" class="link-button">Take the spoken tour</button></p>
       </div>
     </header>
     <main>
@@ -94,7 +94,9 @@
               </select>
             </div>
           </div>
-          <p class="hint">Helpers are background agents Navi starts for simple side tasks, each in its own window, with limits of 15 steps, 5 minutes and $0.50. They never send, post, buy or delete.</p>
+          <label for="helperMinutes">Helper time limit (minutes)</label>
+          <input id="helperMinutes" type="number" min="1" max="120" />
+          <p class="hint">Helpers are background agents Navi starts for side tasks, each in its own window, while you keep working. Navi can check on them and stop them any time, and so can you (“how are the helpers doing”, “stop helpers”). They never send, post, buy or delete: they prepare things and report back.</p>
           <label for="routerModel">When a command isn't recognized</label>
           <select id="routerModel"></select>
           <p class="hint">For speech only: the quick check fixes misheard commands and ignores background noise, before anything slower runs.</p>
@@ -132,6 +134,9 @@
             <option value="parakeet">Parakeet by NVIDIA (open model: often catches more, a 0.7–2.5 GB download)</option>
           </select>
           <p class="hint">Both run on this computer. Parakeet runs on the graphics chip when there is one; while it downloads or loads, Chrome's recognizer listens. English and 24 European languages.</p>
+          <label for="micDeviceId">Microphone</label>
+          <select id="micDeviceId"><option value="">System default</option></select>
+          <p class="hint">Listening with a Bluetooth headset's own mic switches the headset to its low-quality call mode, so music and videos sound worse while Navi is on. Choosing another mic here (like your computer's built-in one, or a desk mic) keeps the headset sounding normal.</p>
           <label for="sessionTimeoutSec">Stay awake for (seconds of silence)</label>
           <input id="sessionTimeoutSec" type="number" min="10" max="1800" />
           <label for="lang">Language</label>

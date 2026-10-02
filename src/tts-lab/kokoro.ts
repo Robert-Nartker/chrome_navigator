@@ -43,6 +43,36 @@ export async function isCached(device: KokoroDevice): Promise<boolean> {
   }
 }
 
+/** Where kokoro-js downloads a voice from, and the cache it keeps it in. */
+const voiceUrl = (voice: string) => `https://huggingface.co/${MODEL}/resolve/main/voices/${voice}.bin`;
+const VOICE_CACHE = "kokoro-voices";
+/** A voice is a table of 256-number style vectors, as 32-bit floats. */
+const isVoiceFile = (bytes: number) => bytes > 0 && bytes % (256 * 4) === 0;
+const goodVoices = new Set<string>();
+
+/**
+ * kokoro-js downloads a voice the first time it's used and caches whatever comes back, even an error
+ * page; that copy then fails every time ("byte length of Float32Array should be a multiple of 4"). So
+ * Navi downloads and checks the voice itself first, replacing a bad cached copy.
+ */
+export async function ensureVoice(voice: string): Promise<void> {
+  if (goodVoices.has(voice)) return;
+  const url = voiceUrl(voice);
+  const cache = await caches.open(VOICE_CACHE).catch(() => undefined);
+  const cached = await cache?.match(url);
+  if (cached && isVoiceFile((await cached.arrayBuffer()).byteLength)) {
+    goodVoices.add(voice);
+    return;
+  }
+  if (cached) await cache?.delete(url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Couldn't download the voice (error ${res.status})`);
+  const data = await res.arrayBuffer();
+  if (!isVoiceFile(data.byteLength)) throw new Error("The voice download was incomplete");
+  await cache?.put(url, new Response(data, { headers: { "content-type": "application/octet-stream" } }));
+  goodVoices.add(voice);
+}
+
 /**
  * Speaks `text` sentence by sentence, calling `onAudio` as each one is ready. A long first sentence
  * starts with its opening clause, so the first sound comes sooner. `speed`: 1 is Kokoro's own pace.
@@ -55,6 +85,7 @@ export async function speakKokoro(
   signal: AbortSignal,
   speed = 1,
 ): Promise<void> {
+  await ensureVoice(voice);
   const options = { voice: voice as "af_heart", speed };
   const [head, rest] = splitFirstClause(text);
   if (head) {
@@ -78,5 +109,6 @@ export async function speakKokoro(
  * the graphics chip's programs and fetching the voice.
  */
 export async function warmUpKokoro(tts: KokoroTTS, voice: string): Promise<void> {
+  await ensureVoice(voice);
   await tts.generate("Ready.", { voice: voice as "af_heart" });
 }

@@ -1,24 +1,25 @@
-// Helpers: background agents that Navi's main AI starts for side tasks. Each runs on the helper model
-// (Settings: GPT-6.1 Sol at low reasoning by default) in a browser window of its own, opened without
-// taking focus, or without a window for tasks that are only thinking and writing.
+// Helpers: background agents that Navi's main AI starts for side tasks, like subagents in Claude Code.
+// Each runs on the helper model (Settings; GPT-6.1 Sol at low reasoning by default) in a browser window
+// of its own, opened without taking focus, or without a window for tasks that are only thinking and
+// writing. The main AI checks on them and stops them when it wants; when one ends, its report goes back
+// to the main AI, which decides what to tell the user.
 //
-// A supervisor keeps them in check: a step limit, a time limit and a cost budget for each, at most
-// three at once, and stuck detection (the same action again and again with nothing changing). The
-// user can stop one or all of them any time. Helpers never do anything irreversible (their
-// instructions say so, and they have no tools to close tabs, talk, or change Navi); they report back.
+// The supervisor stays light: one time limit (Settings, 15 minutes by default), a cap on how many run
+// at once, and a nudge when a helper repeats the same action with nothing changing (stopped only if it
+// keeps at it). The user can stop one or all of them any time, by voice or from the panel. Helpers never
+// do anything irreversible (their instructions say so, and they have no tools to close tabs, talk, or
+// change Navi); they prepare things and report back.
 
 import { NaviAgent } from "./agent";
 import type { Settings } from "./settings";
 
-export const HELPER_LIMITS = {
-  /** Model calls per helper. */
-  steps: 15,
-  minutes: 5,
-  usd: 0.5,
-  /** The same actions on an unchanged page this many times in a row: stuck. */
-  repeats: 3,
-  /** Helpers running at once. */
-  running: 3,
+export const HELPER_RULES = {
+  /** Helpers running at once (each has its own window). */
+  running: 5,
+  /** The same actions on an unchanged page this many times in a row: the helper is told it's going in circles. */
+  nudgeAfter: 3,
+  /** …and this many: it's stopped as stuck. */
+  stopAfter: 8,
 };
 
 export type HelperStatus = "running" | "done" | "stopped" | "failed";
@@ -26,7 +27,7 @@ export type HelperStatus = "running" | "done" | "stopped" | "failed";
 export interface HelperInfo {
   id: number;
   task: string;
-  /** The thread it was started in. */
+  /** The thread it was started in; its report goes back there. */
   thread: string;
   window?: number;
   keepOpen: boolean;
@@ -38,6 +39,8 @@ export interface HelperInfo {
   ended?: number;
   /** What it's doing now. */
   activity: string;
+  /** The last thing it did on a page (not thinking). */
+  lastAction?: string;
   result?: string;
   /** Why it stopped or failed. */
   why?: string;
@@ -53,40 +56,47 @@ export class StuckCheck {
   private last = "";
   private count = 0;
 
-  constructor(private readonly limit = HELPER_LIMITS.repeats) {}
-
-  /** True once the same actions have left the same page `limit` times in a row. */
-  note(actions: { name: string; input: Record<string, unknown> }[], page: string): boolean {
+  /** How many times in a row these actions have left this same page. */
+  note(actions: { name: string; input: Record<string, unknown> }[], page: string): number {
     const key = `${JSON.stringify(actions.map((a) => [a.name, a.input]))}@${page}`;
     this.count = key === this.last ? this.count + 1 : 1;
     this.last = key;
-    return this.count >= this.limit;
+    return this.count;
   }
 }
 
-/** The settings a helper runs with: the helper model and reasoning, Navi's asking rules, the step limit. */
+/** The settings a helper runs with: the helper model and reasoning, Navi's asking rules, no step limit. */
 export function helperSettings(s: Settings): Settings {
   return {
     ...s,
     model: s.subagentModel,
     effort: s.subagentEffort,
     autonomy: "default",
-    maxAgentSteps: HELPER_LIMITS.steps,
+    // The time limit is the limit.
+    maxAgentSteps: Number.POSITIVE_INFINITY,
     fastMode: false,
     memory: false,
   };
 }
 
-/** One line about how a helper is doing or how it ended, for the main AI and the log. */
-export function describeHelper(h: HelperInfo): string {
+/** "45 seconds", "3 minutes": reads well aloud. */
+export function formatDuration(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s} second${s === 1 ? "" : "s"}`;
+  const m = Math.floor(s / 60);
+  return `${m} minute${m === 1 ? "" : "s"}`;
+}
+
+/** One line about how a helper is doing or how it ended, for the main AI, the user and the log. */
+export function describeHelper(h: HelperInfo, now = Date.now()): string {
   const name = `Helper ${h.id} (“${h.task.length > 80 ? `${h.task.slice(0, 80)}…` : h.task}”)`;
   switch (h.status) {
     case "running":
-      return `${name}: still working, step ${h.step}.`;
+      return `${name}: working for ${formatDuration(now - h.started)}${h.step ? `, step ${h.step}` : ""}, now: ${h.activity}`;
     case "done":
       return `${name} finished: ${h.result}`;
     case "stopped":
-      return `${name} was stopped: ${h.why}.`;
+      return `${name} was stopped: ${h.why}.${h.lastAction ? ` Its last action: ${h.lastAction}.` : ""}`;
     case "failed":
       return `${name} failed: ${h.why}.`;
   }
@@ -97,17 +107,14 @@ export interface HelperDeps {
   getSettings(): Settings;
   /** The running helpers changed. */
   onChange(running: HelperSummary[]): void;
-  /** A helper ended. `awaited`: the main AI is waiting for it and will report it. */
-  onEnd(helper: HelperInfo, awaited: boolean): void;
+  /** A helper ended (its report goes to the main AI, see report()). */
+  onEnd(helper: HelperInfo): void;
 }
 
 export class Helpers {
   private all: HelperInfo[] = [];
   private seq = 0;
   private readonly stoppers = new Map<number, (why: string) => void>();
-  /** Threads whose main AI is waiting for its helpers (check_helpers with wait). */
-  private readonly waiting = new Map<string, number>();
-  private readonly ended = new Set<() => void>();
 
   constructor(private readonly deps: HelperDeps) {}
 
@@ -123,8 +130,8 @@ export class Helpers {
   async start(req: { task: string; url: string; keepOpen: boolean }, thread: string): Promise<HelperInfo> {
     const task = req.task.trim();
     if (!task) throw new Error("A helper needs a task.");
-    if (this.running().length >= HELPER_LIMITS.running) {
-      throw new Error(`${HELPER_LIMITS.running} helpers are already running; check_helpers with wait true, then try again.`);
+    if (this.running().length >= HELPER_RULES.running) {
+      throw new Error(`${HELPER_RULES.running} helpers are already running. Start this one after one of them reports back.`);
     }
     const settings = helperSettings(this.deps.getSettings());
     const helper: HelperInfo = {
@@ -161,7 +168,8 @@ export class Helpers {
       control.abort();
     };
     this.stoppers.set(helper.id, stop);
-    const timer = setTimeout(() => stop(`it ran out of time (${HELPER_LIMITS.minutes} minutes)`), HELPER_LIMITS.minutes * 60_000);
+    const minutes = this.deps.getSettings().helperMinutes;
+    const timer = setTimeout(() => stop(`it reached its time limit (${minutes} minutes)`), minutes * 60_000);
     const stuck = new StuckCheck();
     const agent = new NaviAgent(() => helperSettings(this.deps.getSettings()), { role: "helper", window: helper.window });
     try {
@@ -169,18 +177,24 @@ export class Helpers {
         signal: control.signal,
         onStep: (text) => {
           helper.activity = text;
+          if (!/^(?:Thinking…|Step \d+…)$/.test(text)) helper.lastAction = text;
           this.changed();
         },
         onTurn: (costUsd, step) => {
           helper.costUsd = costUsd;
           helper.step = step;
-          if (costUsd >= HELPER_LIMITS.usd) stop(`it reached its $${HELPER_LIMITS.usd.toFixed(2)} budget`);
           this.changed();
         },
         onActions: (actions, page) => {
-          if (stuck.note(actions, page)) stop(`it was stuck doing the same thing (${[...new Set(actions.map((a) => a.name))].join(", ")}) with nothing changing`);
+          const repeats = stuck.note(actions, page);
+          const what = [...new Set(actions.map((a) => a.name))].join(", ");
+          if (repeats >= HELPER_RULES.stopAfter) stop(`it was stuck doing the same thing (${what}) with nothing changing`);
+          else if (repeats >= HELPER_RULES.nudgeAfter) {
+            return `Note from Navi: you've done this ${repeats} times in a row and the page hasn't changed. Try a different way, or stop and report what's in the way.`;
+          }
+          return undefined;
         },
-      });
+      }, { timeLimitMinutes: minutes });
       helper.costUsd = result.costUsd;
       helper.result = result.reply;
       helper.status = "done";
@@ -198,8 +212,7 @@ export class Helpers {
       if (helper.window !== undefined && !(helper.status === "done" && helper.keepOpen)) {
         await chrome.windows.remove(helper.window).catch(() => undefined);
       }
-      this.deps.onEnd(helper, (this.waiting.get(helper.thread) ?? 0) > 0);
-      for (const notify of this.ended) notify();
+      this.deps.onEnd(helper);
       this.changed();
     }
   }
@@ -219,44 +232,33 @@ export class Helpers {
   }
 
   /**
-   * The helpers started in `thread` that the main AI hasn't heard the end of: how each is doing, or how
-   * it ended. With `wait`, first waits (up to `maxMs`) for the running ones to end.
+   * For the main AI's check_helpers: every running helper, and how the ones started in `thread` ended
+   * if it hasn't heard yet.
    */
-  async collect(thread: string, wait: boolean, signal: AbortSignal, maxMs = 120_000): Promise<string> {
-    const mine = () => this.all.filter((h) => h.thread === thread && !h.collected);
-    if (wait && mine().some((h) => h.status === "running")) {
-      this.waiting.set(thread, (this.waiting.get(thread) ?? 0) + 1);
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const check = () => {
-            if (!mine().some((h) => h.status === "running")) done();
-          };
-          const timer = setTimeout(() => done(), maxMs);
-          const abort = () => {
-            cleanup();
-            reject(new DOMException("Aborted", "AbortError"));
-          };
-          const cleanup = () => {
-            clearTimeout(timer);
-            this.ended.delete(check);
-            signal.removeEventListener("abort", abort);
-          };
-          const done = () => {
-            cleanup();
-            resolve();
-          };
-          this.ended.add(check);
-          signal.addEventListener("abort", abort);
-          check();
-        });
-      } finally {
-        this.waiting.set(thread, (this.waiting.get(thread) ?? 1) - 1);
-      }
-    }
-    const list = mine();
-    if (!list.length) return "No helpers to report on.";
-    for (const h of list) if (h.status !== "running") h.collected = true;
-    return list.map(describeHelper).join("\n");
+  check(thread: string): string {
+    const ended = this.takeEnded(thread);
+    const running = this.running();
+    if (!ended.length && !running.length) return "No helpers are running.";
+    return [...ended, ...running].map((h) => describeHelper(h)).join("\n");
+  }
+
+  /**
+   * The report for the main AI when helpers started in `thread` have ended: how each one went (once),
+   * and which are still running. "" if the main AI already knows.
+   */
+  report(thread: string): string {
+    const ended = this.takeEnded(thread);
+    if (!ended.length) return "";
+    const lines = ended.map((h) => describeHelper(h));
+    const others = this.running().filter((h) => h.thread === thread);
+    if (others.length) lines.push(`Still running: ${others.map((h) => `Helper ${h.id}`).join(", ")}.`);
+    return lines.join("\n");
+  }
+
+  private takeEnded(thread: string): HelperInfo[] {
+    const ended = this.all.filter((h) => h.thread === thread && h.status !== "running" && !h.collected);
+    for (const h of ended) h.collected = true;
+    return ended;
   }
 
   summaries(): HelperSummary[] {

@@ -78,5 +78,11 @@
   {"heard": "Turned out more", "before": [["Turn down", "ran"]], "expect": "command", "command": "volume down"},
   {"heard": "let's talk about something else in a clean slate", "expect": "command", "command": "new thread"},
   {"heard": "take me back to where we were talking about taxes", "expect": "command", "command": "switch to the taxes thread"},
-  {"heard": "new fred", "expect": "command", "command": "new thread"}
+  {"heard": "new fred", "expect": "command", "command": "new thread"},
+  {"heard": "create a sub agent to find the news this week", "expect": "agent"},
+  {"heard": "get a helper to compare prices for the sony headphones", "expect": "agent"},
+  {"heard": "have a background agent look up flights to denver for next friday", "expect": "agent"},
+  {"heard": "pen navi to this window", "expect": "command", "command": "pin navi to this window"},
+  {"heard": "can you describe what's on my screen", "expect": "command", "command": "describe the screen"},
+  {"heard": "move this to its own window", "expect": "command", "command": "move this tab to a new window"}
 ]

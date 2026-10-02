@@ -23,7 +23,9 @@ export type Intent =
   | { type: "reopenTab" }
   | { type: "switchTab"; index?: number; query?: string }
   | { type: "listTabs" }
-  | { type: "open"; url: string; newTab: boolean; label: string }
+  | { type: "open"; url: string; newTab: boolean; label: string; newWindow?: boolean }
+  /** Moves the current tab into a new window, or into the user's other window. */
+  | { type: "moveTab"; to: "new" | "other" }
   | { type: "search"; url: string; query: string; engine: string; newTab: boolean; onSite?: boolean }
   | { type: "siteSearch"; query: string }
   | { type: "clickNumber"; n: number }
@@ -37,6 +39,11 @@ export type Intent =
   | { type: "muteTab"; muted: boolean }
   | { type: "readPage" }
   | { type: "whereAmI" }
+  /** What's on the screen, described for someone who can't see it. */
+  | { type: "describeScreen" }
+  | { type: "openSettings" }
+  /** The spoken tour of Navi. */
+  | { type: "tutorial" }
   | { type: "showGrid" }
   | { type: "hideGrid" }
   | { type: "repeat" }
@@ -65,7 +72,8 @@ export type Intent =
   /** Navi works only in this window (on), or in whichever window the user is using (off). */
   | { type: "pinWindow"; on: boolean }
   /** Helpers: background agents the AI started. "Stop everything" stops them and the command running now. */
-  | { type: "stopHelpers"; everything: boolean }
+  /** Stop helpers: one (`id`), all of them, or everything (the command running now too). */
+  | { type: "stopHelpers"; everything: boolean; id?: number }
   | { type: "listHelpers" };
 
 /**
@@ -207,11 +215,16 @@ const RULES: Rule[] = [
   // Helpers (background agents the AI starts)
   [/^(?:stop|cancel|end|kill) (?:all (?:of )?)?(?:the |my )?(?:helpers?|helper agents?|background (?:tasks?|agents?))$/, () => ({ type: "stopHelpers", everything: false })],
   [/^(?:stop|cancel) (?:everything|it all|all of it)$/, () => ({ type: "stopHelpers", everything: true })],
+  [new RegExp(`^(?:stop|cancel|end|kill) (?:the )?helper (?:number )?(${NUMBER_PATTERN})$`), (m) => {
+    const id = parseNumber(m[1]);
+    return id === null ? null : { type: "stopHelpers", everything: false, id };
+  }],
   [/^(?:how are|what are) (?:the |my )?helpers? doing$|^(?:helper|helpers) status$|^check on (?:the |my )?helpers$|^(?:are )?(?:the |my )?helpers? (?:done|finished)$/, () => ({ type: "listHelpers" })],
 
   // Navi's window ("pin navi to this window": Navi keeps working there while you use another one)
-  [/^(?:pin|keep|lock) (?:navi |yourself )?(?:to |in |on )?(?:this|the current|my current) window$|^pin (?:navi|yourself) here$|^(?:make|set) this (?:window )?(?:the |my )?navi(?:'s)? window$|^(?:work|stay) in this window$|^use this window for navi$/, () => ({ type: "pinWindow", on: true })],
-  [/^unpin (?:navi|yourself|(?:this|the|navi'?s) window)$|^(?:navi )?follow me$|^follow (?:my|the) (?:focus|window)$|^(?:stop staying|don't stay) in (?:this|that|one) window$/, () => ({ type: "pinWindow", on: false })],
+  // Recognizers often hear "pin" as "pen", "been", "ping"...; plain phrasings ("stay in this window") avoid the word.
+  [/^(?:pin|pen|pinned|ping|penn|bin|been|pim|keep|lock|stick|stay|attach) (?:navi |navy |yourself |you )?(?:to |in |on |with |at )?(?:this|the current|my current|the) window$|^(?:pin|pen|pinned|ping|been|bin) (?:navi|navy|yourself|you|it) (?:here|to this(?: one)?)$|^(?:make|set) this (?:window )?(?:the |my )?navi(?:'s)? window$|^(?:(?:navi|navy|you) )?(?:work|stay|live) (?:in |on )?(?:this window|here)(?: only)?$|^use this window(?: for navi)?$|^(?:navi|navy|you) (?:stay|work) here$|^this window only$|^window (?:pin|lock) on$/, () => ({ type: "pinWindow", on: true })],
+  [/^(?:unpin|un pin|on pin|and pin|unpinned|unpen|un pen|unlock|release) (?:navi|navy|yourself|you|(?:this|the|navi'?s) window)$|^(?:navi |navy )?follow me(?: around)?$|^follow (?:my|the) (?:focus|window)$|^(?:stop staying|don't stay|stop working only) in (?:this|that|one) window$|^(?:work|go) (?:in )?(?:any|every|whichever) window$|^any window$|^window (?:pin|lock) off$/, () => ({ type: "pinWindow", on: false })],
   [
     /^(?:go to sleep|sleep|stop listening|that's all|that is all|goodbye|good bye|bye|(?:thanks|thank you) that's all|dismiss|pause listening)$/,
     () => ({ type: "sleep" }),
@@ -282,6 +295,8 @@ const RULES: Rule[] = [
   // Tabs
   [/^(?:open )?(?:a )?new tab$/, () => ({ type: "newTab" })],
   [/^(?:open )?(?:a )?new window$/, () => ({ type: "newWindow" })],
+  [/^(?:move|put|send|pop|take|drag|open) (?:this |the |that )?(?:tab|page|site)?(?: out)? (?:in|into|to|in ?to) (?:a |its own )?(?:new|separate|own) window$|^pop (?:this |the )?(?:tab |page )?out$|^(?:open|put) (?:this|it) in (?:a )?new window$/, () => ({ type: "moveTab", to: "new" })],
+  [/^(?:move|put|send|take|drag) (?:this |the |that )?(?:tab|page|site)? ?(?:in|into|to|over to|in ?to) (?:the |my )?(?:other|second|first|main|previous|last) window$/, () => ({ type: "moveTab", to: "other" })],
   [/^close (?:all )?(?:the |of the )?other tabs$|^close everything else$/, () => ({ type: "closeOtherTabs" })],
   [/^duplicate (?:this |the )?tab$/, () => ({ type: "duplicateTab" })],
   [/^(pin|unpin) (?:this |the )?tab$/, (m) => ({ type: "pinTab", pinned: m[1] === "pin" })],
@@ -347,6 +362,9 @@ const RULES: Rule[] = [
   // Reading and orientation (no AI needed)
   [/^(?:read|read (?:this|the|it) ?(?:page|article|out loud|aloud)?|read it to me|read (?:the )?selection|read this to me)$/, () => ({ type: "readPage" })],
   [/^(?:where am i|what page (?:is this|am i on)|what(?:'s| is) this page)$/, () => ({ type: "whereAmI" })],
+  [/^(?:describe|explain) (?:the |this |my )?(?:screen|page|window)(?: (?:to|for) me)?$|^(?:tell me )?what(?:'s| is) on (?:the |my |this )?screen(?: right now)?$|^what (?:do|can) you see(?: on (?:the |my )?screen)?$|^what am i looking at$/, () => ({ type: "describeScreen" })],
+  [/^(?:open|show|go to)(?: me)? (?:navi(?:'s)? |the |your )?(?:settings|options|preferences)$|^navi settings$/, () => ({ type: "openSettings" })],
+  [/^(?:(?:start|begin|run|play|take|do|give me|show me|open)(?: me)? )?(?:the |a )?(?:navi )?(?:tutorial|tour|walkthrough|walk through)(?: again)?$|^teach me(?: how to use (?:you|navi|this))?$|^how do i use (?:you|navi|this)$/, () => ({ type: "tutorial" })],
 
   // Search
   [/^search (?:this|the) (?:site|page|website|store|shop) for (.+)$|^search for (.+?) on (?:this|the) (?:site|page|website|store|shop)$/, (m) => ({
@@ -373,9 +391,10 @@ const RULES: Rule[] = [
   // Opening sites: only when we can resolve the destination, otherwise the AI decides
   // The verb decides the tab: "open" (and "launch", "pull up") opens a new tab; "go to" (and "visit",
   // "take me to") stays in this one. "In a new tab" or "here" overrides either.
-  [/^(open|launch|pull up|bring up|go to|navigate to|take me to|visit|load)(?: up)? (.+?)( in (?:a )?new tab| (?:in )?(?:this|the same) tab| here)?$/, (m) => {
+  [/^(open|launch|pull up|bring up|go to|navigate to|take me to|visit|load)(?: up)? (.+?)( in (?:a )?new tab| in (?:a )?(?:new|separate|different) window| (?:in )?(?:this|the same) tab| here)?$/, (m) => {
     const url = resolveSite(m[2]);
     if (!url) return null;
+    if (m[3] && /window/.test(m[3])) return { type: "open", url, newTab: true, label: m[2], newWindow: true };
     const newTab = m[3] ? /new tab/.test(m[3]) : OPENS_NEW_TAB.test(m[1]);
     return { type: "open", url, newTab, label: m[2] };
   }],
@@ -511,7 +530,7 @@ const CANONICAL = [
   "go back", "go forward", "refresh", "new tab", "close tab", "next tab", "previous tab", "reopen closed tab",
   "show flags", "hide flags", "show numbers", "hide numbers", "show grid", "hide grid", "go to sleep", "help", "where am i",
   "read this page", "zoom in", "zoom out", "reset zoom", "pause", "play", "mute", "unmute",
-  "what tabs are open", "press enter", "escape",
+  "what tabs are open", "press enter", "escape", "describe the screen", "open settings", "start the tutorial",
 ];
 
 export function similarity(a: string, b: string): number {

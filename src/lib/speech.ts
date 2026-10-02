@@ -3,8 +3,11 @@
 
 export interface SpeechCallbacks {
   onInterim(text: string): void;
-  /** confidence is 0-1, or 0 when the engine doesn't report one. */
-  onFinal(text: string, confidence: number): void;
+  /**
+   * confidence is 0-1, or 0 when the engine doesn't report one. `alternatives`: the recognizer's other
+   * guesses at the same words, best first (not every engine gives them).
+   */
+  onFinal(text: string, confidence: number, alternatives?: string[]): void;
   onRunningChange(running: boolean): void;
   onError(message: string, fatal: boolean): void;
   onInfo?(message: string): void;
@@ -24,7 +27,8 @@ interface RecognitionAlternative {
 }
 interface RecognitionResult {
   isFinal: boolean;
-  0: RecognitionAlternative;
+  length: number;
+  [index: number]: RecognitionAlternative;
 }
 interface RecognitionEvent extends Event {
   resultIndex: number;
@@ -80,19 +84,38 @@ export async function installOnDevice(lang: string): Promise<boolean> {
   return Ctor.install({ langs: [lang], processLocally: true });
 }
 
+/**
+ * Opens the chosen microphone (`deviceId`, or the default one for ""). If the chosen one is gone
+ * (unplugged), the default one is used and `fellBack` is told.
+ */
+export async function openMicrophone(audio: MediaTrackConstraints, deviceId: string, fellBack?: () => void): Promise<MediaStream> {
+  if (deviceId) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio: { ...audio, deviceId: { exact: deviceId } } });
+    } catch (err) {
+      const name = (err as { name?: string }).name ?? "";
+      if (!["OverconstrainedError", "NotFoundError", "NotReadableError"].includes(name)) throw err;
+      fellBack?.();
+    }
+  }
+  return navigator.mediaDevices.getUserMedia({ audio });
+}
+
 /** Opens the mic with noise suppression and echo cancellation. */
-function openCleanMic(): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({
-    audio: { noiseSuppression: true, autoGainControl: true, channelCount: 1, echoCancellation: true },
-  });
+function openCleanMic(deviceId: string, fellBack: () => void): Promise<MediaStream> {
+  return openMicrophone({ noiseSuppression: true, autoGainControl: true, channelCount: 1, echoCancellation: true }, deviceId, fellBack);
 }
 
 export function speechSupported(): boolean {
   return !!recognitionCtor();
 }
 
+const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+
 export interface WebSpeechOptions {
   lang: string;
+  /** The microphone to listen with ("" for the default). */
+  deviceId?: string;
 }
 
 /** Why Chrome's on-device recognizer can't run, for the user. */
@@ -108,12 +131,21 @@ export function onDeviceProblem(status: OnDeviceStatus, lang: string): string {
   }
 }
 
-/** How long a partial transcript may sit unchanged before Chrome is told to finish the phrase. */
-const STALL_MS = 1400;
-/** Longest wait between restarts after errors (a broken mic isn't reopened several times a second). */
+/**
+ * How long a partial transcript may sit unchanged before Navi treats it as finished itself. Chrome can
+ * hold a phrase for seconds (or drop it) when it isn't sure the speaker is done.
+ */
+const STALL_MS = 1100;
+/** Pause between Chrome's listening sessions (it ends them every so often; nothing is heard in between). */
+const RESTART_MS = 60;
+/** Longest wait between restarts after real errors (a broken mic isn't reopened several times a second). */
 const MAX_RESTART_MS = 8000;
+/** A session that ends sooner than this with nothing heard counts as a failed start. */
+const QUICK_FAIL_MS = 1000;
 /** With no sign of life from Chrome's recognizer for this long, it's restarted (it can hang without ending). */
 const SILENT_RESTART_MS = 45_000;
+/** Someone has been talking for a while and Chrome hasn't reacted for this long: it's hung, so restart it. */
+const DEAF_MS = 2500;
 
 /**
  * Chrome's recognizer, on-device only: audio never goes to Google's servers. (Chrome's cloud mode is free
@@ -133,11 +165,24 @@ export class WebSpeechEngine implements SpeechEngine {
   private stallTimer: number | undefined;
   /** Last start, audio, or result event from the recognizer. */
   private lastSign = 0;
+  /** Last result (partial or final) from the recognizer. */
+  private lastResult = 0;
   private watchdog: number | undefined;
   private hearing = false;
-  /** When the current session started, and whether it heard anything: quick empty sessions back off. */
+  /** When the current session started, and whether it heard anything. */
   private launchedAt = 0;
   private heardSinceLaunch = false;
+  /** Sessions in a row that ended at once with nothing heard (Chrome failing to start): those back off. */
+  private quickFails = 0;
+  /** A real error (mic gone, service down) asks for a longer wait before the next start, longer each time. */
+  private errorBackoff = 0;
+  private sessionError = false;
+  /** A phrase Navi finished itself when Chrome stalled, so Chrome's late copy of it isn't run twice. */
+  private forced: { text: string; at: number } | null = null;
+  /** Mic loudness, to notice Chrome going deaf while someone talks. */
+  private level: { ctx: AudioContext; analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer>; floor: number; loudMs: number } | null = null;
+  private lastDeafRestart = 0;
+  private lastInterim = "";
 
   constructor(
     private readonly options: WebSpeechOptions,
@@ -173,18 +218,64 @@ export class WebSpeechEngine implements SpeechEngine {
     // sign of life for a while and isn't mid-phrase, restart it: a restart costs a fraction of a second.
     window.clearInterval(this.watchdog);
     this.lastSign = Date.now();
-    this.watchdog = window.setInterval(() => {
-      if (!this.wanted || this.hearing || Date.now() - this.lastSign < SILENT_RESTART_MS) return;
-      this.lastSign = Date.now();
+    this.watchdog = window.setInterval(() => this.checkAlive(), 250);
+  }
+
+  /**
+   * Restarts Chrome's recognizer when it has hung: no sign of life for a long while, or (sooner) the mic
+   * has been hearing someone talk for a second or more and Chrome hasn't produced a single word.
+   */
+  private checkAlive() {
+    if (!this.wanted) return;
+    const now = Date.now();
+    if (!this.hearing && now - this.lastSign > SILENT_RESTART_MS) {
+      this.lastSign = now;
       this.recognition?.abort();
-    }, 5000);
+      return;
+    }
+    const loudMs = this.measureLoudness(250);
+    const quietSince = Math.max(this.lastResult, this.launchedAt);
+    if (loudMs >= 1000 && now - quietSince > DEAF_MS && now - this.lastDeafRestart > 5000) {
+      this.lastDeafRestart = now;
+      if (this.level) this.level.loudMs = 0;
+      this.callbacks.onInfo?.("Chrome's recognizer stopped hearing; restarted it.");
+      this.recognition?.abort();
+    }
+  }
+
+  /** How long the mic has been louder than the room's usual noise, adding `stepMs` if it is now. */
+  private measureLoudness(stepMs: number): number {
+    const track = this.stream?.getAudioTracks()[0];
+    if (!track || track.readyState !== "live") return 0;
+    if (!this.level) {
+      try {
+        const ctx = new AudioContext();
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        ctx.createMediaStreamSource(this.stream!).connect(analyser);
+        this.level = { ctx, analyser, buffer: new Float32Array(analyser.fftSize), floor: 0.01, loudMs: 0 };
+      } catch {
+        return 0;
+      }
+    }
+    const level = this.level;
+    level.analyser.getFloatTimeDomainData(level.buffer);
+    let sum = 0;
+    for (const v of level.buffer) sum += v * v;
+    const rms = Math.sqrt(sum / level.buffer.length);
+    // The noise floor follows quiet moments quickly and loud ones slowly, so steady noise isn't "talking".
+    level.floor = rms < level.floor ? level.floor * 0.7 + rms * 0.3 : level.floor * 0.995 + rms * 0.005;
+    level.loudMs = rms > Math.max(0.015, level.floor * 3) ? level.loudMs + stepMs : 0;
+    return level.loudMs;
   }
 
   /** Opens the mic with noise suppression so keyboard clicks and fans are less likely to become "words". */
   private async openMic() {
     if (!this.trackSupported || this.stream?.getAudioTracks()[0]?.readyState === "live") return;
     try {
-      this.stream = await openCleanMic();
+      this.stream = await openCleanMic(this.options.deviceId ?? "", () =>
+        this.callbacks.onInfo?.("The microphone chosen in settings isn't connected, so Navi is using the default one."),
+      );
     } catch {
       this.stream = null;
     }
@@ -193,20 +284,32 @@ export class WebSpeechEngine implements SpeechEngine {
   private closeMic() {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
+    void this.level?.ctx.close().catch(() => undefined);
+    this.level = null;
   }
 
   stop() {
     this.wanted = false;
+    const rec = this.recognition;
+    // Its last events (an end, a late result) are ignored from here on.
+    this.recognition = null;
     window.clearInterval(this.watchdog);
     window.clearTimeout(this.restartTimer);
     window.clearTimeout(this.stallTimer);
-    this.recognition?.abort();
-    this.recognition = null;
+    rec?.abort();
     this.closeMic();
     if (this.active) {
       this.active = false;
       this.callbacks.onRunningChange(false);
     }
+  }
+
+  /** Chrome's own final copy of a phrase Navi already finished itself. */
+  private isForcedCopy(transcript: string): boolean {
+    const forced = this.forced;
+    if (!forced || Date.now() - forced.at > 4000) return false;
+    const t = normalize(transcript);
+    return t === forced.text || forced.text.startsWith(t) || t.startsWith(forced.text);
   }
 
   private launch(Ctor: RecognitionCtor) {
@@ -215,7 +318,8 @@ export class WebSpeechEngine implements SpeechEngine {
     rec.lang = this.options.lang;
     rec.continuous = true;
     rec.interimResults = true;
-    rec.maxAlternatives = 1;
+    // Its runner-up guesses: when the best one isn't a command but another is, that's what was meant.
+    rec.maxAlternatives = 4;
     rec.processLocally = true;
 
     rec.onstart = () => {
@@ -229,7 +333,8 @@ export class WebSpeechEngine implements SpeechEngine {
       this.lastSign = Date.now();
     };
     rec.onresult = (event) => {
-      this.lastSign = Date.now();
+      if (rec !== this.recognition) return;
+      this.lastSign = this.lastResult = Date.now();
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -237,22 +342,37 @@ export class WebSpeechEngine implements SpeechEngine {
         if (result.isFinal) {
           this.heardSinceLaunch = true;
           this.lastError = "";
-          if (transcript.trim()) this.callbacks.onFinal(transcript.trim(), result[0]?.confidence ?? 0);
+          const others = Array.from({ length: result.length ?? 1 }, (_, k) => result[k]?.transcript?.trim() ?? "").slice(1).filter(Boolean);
+          if (transcript.trim() && !this.isForcedCopy(transcript)) this.callbacks.onFinal(transcript.trim(), result[0]?.confidence ?? 0, others);
         } else {
           interim += transcript;
         }
       }
-      this.hearing = !!interim.trim();
-      this.callbacks.onInterim(interim.trim());
-      // Background noise can keep Chrome waiting for the end of a phrase that's already over, leaving
-      // the words on screen without running them. If they stop changing, make Chrome finish the phrase.
+      const words = interim.trim();
+      this.hearing = !!words;
+      this.lastInterim = words;
+      this.callbacks.onInterim(words);
+      // Chrome can sit on a phrase that's already over (unsure the speaker is done, or hearing noise),
+      // leaving the words on screen without running them, and sometimes drops them. If they stop changing,
+      // Navi finishes the phrase itself and starts a fresh session, so the next thing said is heard.
       window.clearTimeout(this.stallTimer);
-      if (interim.trim()) this.stallTimer = window.setTimeout(() => rec.stop(), STALL_MS);
+      if (words) {
+        this.stallTimer = window.setTimeout(() => {
+          if (rec !== this.recognition) return;
+          this.forced = { text: normalize(words), at: Date.now() };
+          this.heardSinceLaunch = true;
+          this.hearing = false;
+          this.callbacks.onInterim("");
+          this.callbacks.onFinal(words, 0);
+          rec.abort();
+        }, STALL_MS);
+      }
     };
     rec.onerror = (event) => {
       // Back off on every real error so a broken mic isn't reopened several times a second.
       if (!["no-speech", "aborted"].includes(event.error)) {
-        this.restartDelay = Math.min(this.restartDelay * 2, MAX_RESTART_MS);
+        this.sessionError = true;
+        this.errorBackoff = Math.min(Math.max(this.errorBackoff * 2, 500), MAX_RESTART_MS);
       }
       const report = (message: string) => {
         if (message !== this.lastError) this.callbacks.onError(message, false);
@@ -284,13 +404,27 @@ export class WebSpeechEngine implements SpeechEngine {
       }
     };
     rec.onend = () => {
+      if (rec !== this.recognition) return;
       window.clearTimeout(this.stallTimer);
+      // A phrase still on screen when Chrome ends the session is finished, not thrown away.
+      if (this.hearing && this.lastInterim) {
+        this.forced = { text: normalize(this.lastInterim), at: Date.now() };
+        this.callbacks.onFinal(this.lastInterim, 0);
+      }
       this.hearing = false;
-      // A session that heard something, or ran a while, means all is well: restart right away. One that
-      // ended at once with nothing heard waits longer each time, so Chrome isn't restarted in a tight loop.
-      if (this.heardSinceLaunch || Date.now() - this.launchedAt > 5000) this.restartDelay = 250;
-      else this.restartDelay = Math.min(Math.max(this.restartDelay * 2, 500), MAX_RESTART_MS);
-      // Anything still shown as "hearing" was never finished; don't leave it on screen.
+      // Chrome ends sessions every so often, and after silence: restart at once, so nothing said is missed.
+      // Only a session that failed straight away (nothing heard, under a second) or a real error waits,
+      // longer each time, so a broken recognizer isn't restarted in a tight loop.
+      const quickFail = !this.heardSinceLaunch && Date.now() - this.launchedAt < QUICK_FAIL_MS;
+      this.quickFails = quickFail ? this.quickFails + 1 : 0;
+      this.restartDelay = Math.max(
+        RESTART_MS,
+        this.sessionError ? this.errorBackoff : 0,
+        this.quickFails ? Math.min(250 * 2 ** this.quickFails, MAX_RESTART_MS) : 0,
+      );
+      // A session without errors: the next error starts the wait over.
+      if (!this.sessionError) this.errorBackoff = 0;
+      this.sessionError = false;
       this.callbacks.onInterim("");
       // Chrome ends continuous recognition periodically; restart while we still want it.
       if (this.wanted) {
@@ -307,6 +441,7 @@ export class WebSpeechEngine implements SpeechEngine {
     this.recognition = rec;
     this.launchedAt = Date.now();
     this.heardSinceLaunch = false;
+    this.lastInterim = "";
     const track = this.stream?.getAudioTracks()[0];
     try {
       if (track?.readyState === "live") rec.start(track);

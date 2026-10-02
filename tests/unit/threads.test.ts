@@ -147,7 +147,8 @@ describe("the thread book", () => {
   });
 
   it("is saved, and loads back where it was", async () => {
-    vi.useFakeTimers();
+    // Only timers: the clock stays real, so threads used later are newer.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const changes: string[] = [];
     const book = new ThreadBook((state) => changes.push(state.current));
     await book.ready;

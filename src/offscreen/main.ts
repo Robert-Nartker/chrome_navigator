@@ -10,7 +10,7 @@ import { nanoStatus, runNano } from "../lib/nano";
 const send = (event: EarsEvent) => void chrome.runtime.sendMessage(event).catch(() => undefined);
 
 const ears = new Ears({
-  command: (text, confidence) => send({ type: "ears:command", text, confidence }),
+  command: (text, confidence, alternatives) => send({ type: "ears:command", text, confidence, alternatives }),
   cancel: () => send({ type: "ears:cancel" }),
   state: (state) => send({ type: "ears:state", state }),
   interim: (text) => send({ type: "ears:interim", text }),

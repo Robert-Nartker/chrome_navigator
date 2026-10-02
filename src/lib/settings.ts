@@ -34,6 +34,11 @@ export interface Settings {
   wakeName: string;
   listenMode: ListenMode;
   recognizer: Recognizer;
+  /**
+   * The microphone Navi listens with ("" for the system's default). A Bluetooth headset's own mic switches
+   * it to its low-quality call mode for everything; another mic keeps the headset sounding right.
+   */
+  micDeviceId: string;
   /** Seconds of silence before an active session goes back to sleep. */
   sessionTimeoutSec: number;
   /** "spoken" confirms every action out loud (for screen-free use). */
@@ -60,6 +65,8 @@ export interface Settings {
   /** The model and reasoning for helper agents Navi starts for simple sub-tasks. */
   subagentModel: string;
   subagentEffort: Effort;
+  /** How long a helper may work before it's stopped. */
+  helperMinutes: number;
   /**
    * Navi Free's and Navi Pro's own values for the settings in MODE_KEYS. The top-level values are what
    * Navi runs with now (the current mode's, resolved by normalizeSettings).
@@ -105,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wakeName: "Navi",
   listenMode: "handsfree",
   recognizer: "chrome",
+  micDeviceId: "",
   sessionTimeoutSec: 120,
   feedback: "minimal",
   speechRate: 1.0,
@@ -121,6 +129,7 @@ export const DEFAULT_SETTINGS: Settings = {
   memory: false,
   subagentModel: PROVIDER_DEFAULTS.openai.model,
   subagentEffort: "low",
+  helperMinutes: 15,
   speechOutput: "navi",
   naviVoice: "af_heart",
 };
@@ -186,6 +195,8 @@ export function normalizeSettings(raw: Partial<Settings> | undefined, mode?: AiM
   if (s.autonomy !== "yolo") s.autonomy = "default";
   // The old default step limit (12) was too few for tasks that span several emails or pages.
   if (s.maxAgentSteps === 12) s.maxAgentSteps = 20;
+  const helperMinutes = Number(s.helperMinutes);
+  s.helperMinutes = helperMinutes > 0 ? Math.min(120, helperMinutes) : DEFAULT_SETTINGS.helperMinutes;
   // Older models are replaced by their current-generation successors.
   s.model = RETIRED_MODELS[s.model] ?? s.model;
   s.routerModel = RETIRED_MODELS[s.routerModel] ?? s.routerModel;

@@ -891,9 +891,49 @@ body {
   height: 24px;
 }
 
-.icon-button.pin[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
+.tutorial[hidden] {
+  display: none;
+}
+
+.tutorial {
+  flex: none;
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--elevated);
+}
+
+.tutorial p {
+  margin: 0;
+}
+
+.tutorial-head {
+  font-size: 12px;
+}
+
+#tutorial-progress {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tutorial-text {
+  margin-top: 4px !important;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tutorial-actions .link-button {
+  margin-left: auto;
+  align-self: center;
 }
 
 .helpers[hidden] {
@@ -960,12 +1000,8 @@ body {
   height: 22px;
 }
 
-.link-button {
+.helpers .link-button {
   align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
   font-size: 11.5px;
 }
 

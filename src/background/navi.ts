@@ -3,7 +3,7 @@
 // panel and the floating pill on pages are views of this, so Navi works with the panel closed.
 
 import { routeUtterance } from "../lib/router";
-import { setFocusedWindowForTests, sleep } from "../lib/browser";
+import { naviWindowId, setFocusedWindowForTests, setPinnedWindow, sleep } from "../lib/browser";
 import { curateMemory, loadInbox, loadMemory, noteExchange } from "../lib/memory";
 import { recordMetric } from "../lib/metrics";
 import { formatCost } from "../lib/models";
@@ -38,6 +38,7 @@ const threads = new ThreadBook((state) => {
 });
 const logBook = new LogBook(threads.ready.then(() => threads.current));
 const pin = new WindowPin((id, closed) => {
+  setPinnedWindow(id);
   worker = { ...worker, pinnedWindow: id };
   broadcastWorker();
   if (closed) {
@@ -47,6 +48,7 @@ const pin = new WindowPin((id, closed) => {
   }
 });
 void pin.ready.then(() => {
+  setPinnedWindow(pin.window);
   worker = { ...worker, pinnedWindow: pin.window };
   broadcastWorker();
 });
@@ -89,6 +91,26 @@ function ensureEars(): Promise<void> {
   return earsReady;
 }
 
+/**
+ * Closes Navi's background page while Navi is off: the mic, the recognizers and every model in it
+ * (Navi's voice, Parakeet, Gemini Nano sessions) are freed, so Navi off uses no memory to speak of.
+ * Anything that needs it later (a typed reply spoken, Navi Free's chat) opens it again.
+ */
+async function closeEars() {
+  clearTimeout(closeTimer);
+  if (worker.listening || !(await earsExist())) return;
+  earsReady = null;
+  await chrome.offscreen.closeDocument().catch(() => undefined);
+  ears = EARS_OFF;
+  pushPill();
+}
+let closeTimer: ReturnType<typeof setTimeout> | undefined;
+/** Used while Navi is off (e.g. a typed command's sound): closed again once it has been idle a while. */
+function closeEarsWhenIdle(ms = 5 * 60_000) {
+  clearTimeout(closeTimer);
+  if (!worker.listening) closeTimer = setTimeout(() => void closeEars(), ms);
+}
+
 async function sendEars<T = unknown>(request: EarsRequest): Promise<T | undefined> {
   try {
     return (await chrome.runtime.sendMessage(request)) as T;
@@ -118,6 +140,10 @@ async function setListening(on: boolean, byUser = false) {
     return;
   }
   if (on || (await earsExist())) await sendEars({ type: "ears:listen", on });
+  if (on) clearTimeout(closeTimer);
+  // Turned off: nothing stays loaded. (A moment's grace: turning it straight back on, as a restart does,
+  // keeps what's loaded.)
+  else if (byUser) closeEarsWhenIdle(2000);
 }
 
 async function turnedOff(): Promise<boolean> {
@@ -168,16 +194,22 @@ function earsProblem(err: unknown): string {
 
 // ---------- The controller ----------
 
+/** The last thing Navi said (tests ask after Navi's background page has closed). */
+let lastSpoken = "";
+
 const voice: Voice = {
   async say(text) {
+    lastSpoken = text.replace(/[*_`#>]/g, "").trim() || lastSpoken;
     // Without a voice the reply is still in the log; the problem is reported once.
     if (await earsOrProblem()) await sendEars({ type: "ears:say", text });
+    closeEarsWhenIdle();
   },
   stop() {
     void sendEars({ type: "ears:stop-speaking" });
   },
   sound(name) {
     void earsOrProblem().then((ok) => ok && sendEars({ type: "ears:sound", name }));
+    closeEarsWhenIdle();
   },
 };
 
@@ -206,7 +238,7 @@ const helpers = new Helpers({
     worker = { ...worker, helpers: running };
     broadcastWorker();
   },
-  onEnd(helper, awaited) {
+  onEnd(helper) {
     const ms = (helper.ended ?? Date.now()) - helper.started;
     log("info", describeHelper(helper), `Helper · ${helper.step} steps · ${(ms / 1000).toFixed(1)}s · ${formatCost(helper.costUsd)}`, false, {
       thread: helper.thread,
@@ -218,8 +250,8 @@ const helpers = new Helpers({
     };
     addMetric(metric);
     void recordMetric(metric).catch(() => undefined);
-    // The main AI reports the helpers it waits for; otherwise Navi says how it went at a quiet moment.
-    if (!awaited) controller.announce(helper.status === "done" ? `A helper finished. ${helper.result}` : `A helper stopped: ${helper.why}.`);
+    // Its report goes to the main AI, which tells the user.
+    controller.helperEnded(helper);
   },
 });
 
@@ -241,6 +273,10 @@ const controller = new Controller(
       worker = { ...worker, grid: shown };
       broadcastWorker();
     },
+    tutorial(view) {
+      worker = { ...worker, tutorial: view };
+      broadcastWorker();
+    },
   },
   voice,
   {
@@ -254,6 +290,12 @@ const controller = new Controller(
     },
     onActivity() {
       void sendEars({ type: "ears:session", action: "touch" });
+    },
+    onWake() {
+      if (settings.listenMode !== "open") void sendEars({ type: "ears:session", action: "wake" });
+    },
+    onTutorialEnd() {
+      void chrome.storage.local.set({ tutorialOffered: true });
     },
     onMetric(metric) {
       addMetric(metric);
@@ -322,8 +364,20 @@ function broadcastWorker() {
 }
 
 let pillQueued = false;
+/** The tab showing the pill. */
+let pillTab: number | undefined;
 
-/** Updates the pill in the active tab and the toolbar badge (at most every 100 ms). */
+/** The active tab in Navi's window: the one that shows the pill. */
+async function naviTab(): Promise<chrome.tabs.Tab | undefined> {
+  const win = await naviWindowId();
+  const [tab] = await chrome.tabs.query(win !== undefined ? { active: true, windowId: win } : { active: true, lastFocusedWindow: true });
+  return tab;
+}
+
+/**
+ * Updates the pill and the toolbar badge (at most every 100 ms). The pill shows in the active tab of
+ * Navi's window (where the command runs, or the pinned window), and leaves the tab that showed it before.
+ */
 function pushPill() {
   if (pillQueued) return;
   pillQueued = true;
@@ -331,9 +385,12 @@ function pushPill() {
     pillQueued = false;
     void updateBadge();
     const update = pillState();
-    void chrome.tabs
-      .query({ active: true, lastFocusedWindow: true })
-      .then(([tab]) => (tab?.id === undefined ? undefined : chrome.tabs.sendMessage(tab.id, update)))
+    void naviTab()
+      .then((tab) => {
+        if (pillTab !== undefined && pillTab !== tab?.id) chrome.tabs.sendMessage(pillTab, { ...update, away: true }).catch(() => undefined);
+        pillTab = tab?.id;
+        return tab?.id === undefined ? undefined : chrome.tabs.sendMessage(tab.id, update);
+      })
       .catch(() => undefined);
   }, 100);
 }
@@ -358,9 +415,26 @@ async function updateBadge() {
 
 // ---------- Messages ----------
 
+/** Set when setup allows the mic: the first time Navi is listening, it offers the spoken tour. */
+let offerTutorial = false;
+
+function maybeOfferTutorial() {
+  if (!offerTutorial || !ears.listening || ears.micError) return;
+  offerTutorial = false;
+  void offerTutorialOnce();
+}
+
+async function offerTutorialOnce() {
+  if ((await chrome.storage.local.get("tutorialOffered")).tutorialOffered) return;
+  await chrome.storage.local.set({ tutorialOffered: true });
+  const name = settings.wakeName || "Navi";
+  const how = settings.listenMode === "open" ? "say: start the tutorial" : `say: Hey ${name}, start the tutorial`;
+  controller.announce(`Hi, I'm ${name}, and I'm listening. For a two-minute tour of what I can do, ${how}.`);
+}
+
 type Message = EarsEvent | WorkerRequest | { type: "navi:mic-granted" } | { type: "pill:hello" } | { type?: undefined };
 
-function onMessage(msg: Message, sendResponse: (response?: unknown) => void): boolean {
+function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sender?: chrome.runtime.MessageSender): boolean {
   switch (msg.type) {
     case "ears:ready":
       markReady?.();
@@ -371,7 +445,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       })();
       return false;
     case "ears:command":
-      void controller.run(msg.text, { source: "voice" });
+      void controller.run(msg.text, { source: "voice", alternatives: msg.alternatives });
       return false;
     case "ears:cancel":
       controller.cancel();
@@ -379,6 +453,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
     case "ears:state":
       ears = msg.state;
       pushPill();
+      maybeOfferTutorial();
       return false;
     case "ears:interim":
       interim = msg.text;
@@ -445,13 +520,20 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       sendResponse(true);
       return false;
     case "pill:hello":
-      // A page just loaded: show the pill as it is now.
-      sendResponse(pillState());
-      return false;
+      // A page just loaded: show the pill as it is now, if it's the page Navi is using.
+      void naviTab().then(
+        (tab) => sendResponse({ ...pillState(), away: !sender?.tab || sender.tab.id !== tab?.id }),
+        () => sendResponse({ ...pillState(), away: true }),
+      );
+      return true;
     case "navi:mic-granted":
-      // Setup just allowed the mic: start listening for the name.
-      void resume();
+      // Setup just allowed the mic: start listening for the name, and once Navi hears, offer the tour.
+      offerTutorial = true;
+      void resume().then(maybeOfferTutorial);
       return false;
+    case "navi:tutorial":
+      void controller.tutorialAction(msg.action).finally(() => sendResponse(true));
+      return true;
     case "navi:resume":
       // A view opened: listen if Navi is on but isn't yet (e.g. the mic was allowed in Chrome's settings).
       void resume().finally(() => sendResponse(true));
@@ -515,6 +597,8 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       return { ...result, ms: Math.round(performance.now() - t0) };
     }
     case "ears":
+      // Navi was turned off since (its background page closed): what it said last is still known.
+      if (msg.ears?.action === "lastSaid" && !(await earsExist())) return lastSpoken;
       if (!(await earsOrProblem())) return undefined;
       return sendEars(msg.ears!);
   }
@@ -525,11 +609,13 @@ setNanoTransport({
   async prompt(req) {
     if (!(await earsOrProblem())) throw new Error(worker.problem ?? "Navi's background page didn't start.");
     const res = await sendEars<{ text?: string; error?: string }>({ type: "nano:prompt", req });
+    closeEarsWhenIdle();
     if (!res || res.error !== undefined || res.text === undefined) throw new Error(res?.error ?? "The on-device model didn't answer.");
     return res.text;
   },
   async status() {
     if (!(await earsOrProblem())) return "unsupported";
+    closeEarsWhenIdle();
     return (await sendEars<NanoStatus>({ type: "nano:status" })) ?? "unsupported";
   },
 });
@@ -538,7 +624,7 @@ export function startNavi() {
   // Having a startup listener makes Chrome start this worker with the browser, so Navi resumes
   // listening (below) without anyone opening its panel.
   chrome.runtime.onStartup.addListener(() => undefined);
-  chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => onMessage(msg, sendResponse));
+  chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => onMessage(msg, sendResponse, sender));
   chrome.tabs.onActivated.addListener(() => pushPill());
   chrome.windows.onFocusChanged.addListener(() => pushPill());
   settingsLoaded = loadSettings().then((loaded) => {

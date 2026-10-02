@@ -82,6 +82,17 @@ button:hover {
   background: var(--surface);
 }
 
+/* A button that reads like a link. */
+button.link-button,
+button.link-button:hover {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* Primary actions are ink-colored, not bright. */
 button.primary {
   background: var(--text);

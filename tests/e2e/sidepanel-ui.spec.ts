@@ -104,11 +104,16 @@ async function earsPage(panel: Page): Promise<Page> {
   return panel.context().pages().find(isEars) ?? (await panel.context().waitForEvent("page", { predicate: isEars }));
 }
 
-/** Speech from the fake recognizer: interim words, or a final phrase. */
-async function hear(panel: Page, transcript: string, isFinal = false) {
+/** Whether the fake recognizer is started (Navi ignores one it has stopped). */
+async function recognizerLive(panel: Page): Promise<boolean> {
+  return (await earsPage(panel)).evaluate(() => !!(window as unknown as { __recognition?: { live: boolean } }).__recognition?.live);
+}
+
+/** Speech from the fake recognizer: interim words, or a final phrase (with its other guesses). */
+async function hear(panel: Page, transcript: string, isFinal = false, others: string[] = []) {
   await (await earsPage(panel)).evaluate(
-    ([text, final]) => (window as unknown as { __hear(t: string, f: boolean): void }).__hear(text, final),
-    [transcript, isFinal] as const,
+    ([text, final, alts]) => (window as unknown as { __hear(t: string, f: boolean, o: string[]): void }).__hear(text, final, alts),
+    [transcript, isFinal, others] as const,
   );
 }
 
@@ -580,6 +585,38 @@ test.describe("live caption", () => {
     await expect(panel.locator("#mic")).toHaveAttribute("aria-pressed", "false");
   });
 
+  test("the name wakes Navi before the phrase ends; a phrase the recognizer holds on to still runs; “wake up” works", async ({ panel }) => {
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    const voice = panel.locator("#voice");
+    await expect(voice).toHaveAttribute("data-state", "sleeping");
+    // Words still being spoken: Navi is awake as soon as it hears its name.
+    await hear(panel, "hey navi what time");
+    await expect(voice).toHaveAttribute("data-state", "awake");
+    await hear(panel, "hey navi what time is it");
+    await expect(panel.locator("#interim")).toHaveText("hey navi what time is it");
+    // The recognizer never finishes the phrase: after a short pause Navi does, and runs it.
+    const card = panel.locator("#log > li.turn").last();
+    await expect(card.locator("li.user")).toHaveText(/what time is it/, { timeout: 4000 });
+    await expect(card.locator("li.navi .text")).toHaveText(/^It's \d/);
+    await expect(panel.locator("#interim")).toHaveText("");
+
+    await hear(panel, "go to sleep", true);
+    await expect(voice).toHaveAttribute("data-state", "sleeping");
+    await hear(panel, "wake up", true);
+    await expect(voice).toHaveAttribute("data-state", "awake");
+
+    // The recognizer's best guess isn't a command, but its runner-up is: that runs.
+    await hear(panel, "what time isn't", true, ["what time is it"]);
+    const last = panel.locator("#log > li.turn").last();
+    await expect(last.locator("li.user")).toHaveText(/what time is it/);
+    await expect(last.locator("li.step").filter({ hasText: "Heard “what time isn't”, which sounds like “what time is it”" })).toHaveCount(1);
+    // Never one that closes something.
+    const tabs = await panel.evaluate(async () => (await chrome.tabs.query({})).length);
+    await hear(panel, "close the door", true, ["close tab"]);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toHaveText(/close the door/);
+    expect(await panel.evaluate(async () => (await chrome.tabs.query({})).length)).toBe(tabs);
+  });
+
   test("“stop” on its own ends a task any time, even asleep and without the name", async ({ panel, context }) => {
     let release = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
@@ -683,6 +720,7 @@ test.describe("live caption", () => {
     await input.fill("");
     await dictate.click();
     await expect(dictate).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => recognizerLive(panel)).toBe(true);
     await hear(panel, "what is on this page", true);
     await expect(input).toHaveValue("what is on this page");
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "off");

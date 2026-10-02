@@ -84,10 +84,10 @@ describe("WakeSession", () => {
     const { session, advance } = make();
     expect(session.handle("hey navi open youtube")).toEqual({ command: "open youtube", woke: true });
     advance(30_000);
-    expect(session.handle("scroll down")).toEqual({ command: "scroll down", woke: false });
+    expect(session.handle("scroll down")).toMatchObject({ command: "scroll down", woke: false });
     advance(59_000);
     // Each command resets the idle timer.
-    expect(session.handle("click 3")).toEqual({ command: "click 3", woke: false });
+    expect(session.handle("click 3")).toMatchObject({ command: "click 3", woke: false });
   });
 
   it("falls asleep after the timeout", () => {
@@ -105,10 +105,47 @@ describe("WakeSession", () => {
     expect(session.handle("go back").command).toBeNull();
   });
 
-  it("treats everything as a command in click-to-talk mode", () => {
+  it("treats everything as a command in open mic mode, and notices the name", () => {
     const { session } = make("open");
-    expect(session.handle("go back")).toEqual({ command: "go back", woke: false });
-    expect(session.handle("navi go back")).toEqual({ command: "go back", woke: false });
+    expect(session.handle("go back")).toEqual({ command: "go back", woke: false, named: false });
+    expect(session.handle("navi go back")).toEqual({ command: "go back", woke: false, named: true });
+    // "Hey Navi" alone: nothing to run, but Navi says it heard (a sound).
+    expect(session.handle("hey navi")).toEqual({ command: null, woke: false, named: true });
+    expect(session.handle("wake up")).toEqual({ command: null, woke: false, named: true });
+  });
+
+  it("wakes on “wake up” or “wake”, with or without the name, and runs what follows", () => {
+    for (const said of ["wake up", "wake", "Wake up.", "hey wake up", "wake up navi", "okay wake up navigator", "wakey wakey"]) {
+      const { session } = make();
+      expect(session.handle(said), said).toEqual({ command: null, woke: true });
+    }
+    const { session } = make();
+    expect(session.handle("wake up, open youtube")).toEqual({ command: "open youtube", woke: true });
+    // Awake, "wake" can start an ordinary command; only "wake up" on its own is a greeting.
+    expect(session.handle("wake me up at seven")).toMatchObject({ command: "wake me up at seven" });
+    expect(session.handle("wake up")).toMatchObject({ command: null, named: true });
+  });
+
+  it("wakes as soon as the name is heard, before the recognizer finishes the phrase", () => {
+    const { session, advance } = make();
+    expect(session.hearsWakePhrase("hey navi")).toBe(true);
+    expect(session.hearsWakePhrase("wake up")).toBe(true);
+    expect(session.hearsWakePhrase("scroll down")).toBe(false);
+    expect(session.wakeMidPhrase()).toBe(true);
+    expect(session.current).toBe("awake");
+    expect(session.wakeMidPhrase()).toBe(false);
+    // The finished phrase is the one that woke it: the name (and words before it) come off, with no second sound.
+    advance(1500);
+    expect(session.handle("um hey navi scroll down")).toEqual({ command: "scroll down", woke: false, named: false });
+    // Later phrases only lose a leading name.
+    expect(session.handle("open the navy page")).toMatchObject({ command: "open the navy page" });
+  });
+
+  it("still takes the command when the recognizer drops the phrase that woke it", () => {
+    const { session, advance } = make();
+    session.wakeMidPhrase();
+    advance(20_000);
+    expect(session.handle("close tab")).toMatchObject({ command: "close tab", woke: false });
   });
 });
 

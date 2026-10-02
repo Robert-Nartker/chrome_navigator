@@ -1225,6 +1225,150 @@ test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is 
   await expect(panel.locator("#log li.navi").last()).toContainText("<$0.01");
 });
 
+test.describe("tutorial", () => {
+  const card = (panel: Page) => panel.locator("#tutorial");
+  const lastNavi = (panel: Page) => panel.locator("#log li.navi .text").last();
+  const said = (panel: Page) => panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid);
+  async function expectStep(panel: Page, n: number, total: number, title: string) {
+    await expect(panel.locator("#tutorial-progress")).toHaveText(`Tutorial ${n} of ${total} ·`);
+    await expect(panel.locator("#tutorial-title")).toHaveText(title);
+  }
+
+  test("a spoken tour: each step moves on when the user has done it by voice, start to finish", async ({ panel, context, site }) => {
+    await run(panel, "start the tutorial");
+    await expect(card(panel)).toBeVisible();
+    await expectStep(panel, 1, 8, "Welcome");
+    await expect(lastNavi(panel)).toContainText("Hi, I'm Navi. This tour takes about two minutes.");
+    await expect(panel.locator("#tutorial-yes")).toBeVisible();
+
+    // The answer sets how much Navi says.
+    await run(panel, "no");
+    await expectStep(panel, 2, 8, "Wake me up");
+    await expect(lastNavi(panel)).toHaveText(
+      "Okay. I'll play a short sound when something works, and talk when there's something to tell you. I'm going to sleep now. To wake me, say my name and the command together. Try: Hey Navi, open Wikipedia.",
+    );
+    expect((await settingsOf(panel)).feedback).toBe("minimal");
+    await expect(panel.locator("#tutorial-yes")).toBeHidden();
+
+    // Something else doesn't count.
+    await run(panel, "scroll down");
+    await expectStep(panel, 2, 8, "Wake me up");
+    await run(panel, "open wikipedia");
+    await expectStep(panel, 3, 8, "Scroll");
+    // Tests can't serve tabs the extension opens, so Wikipedia shows an error page; the tour goes on with the test page.
+    await expect.poll(() => context.pages().some((p) => /wikipedia|chrome-error/.test(p.url()))).toBe(true);
+    for (const p of context.pages()) if (/wikipedia|chrome-error/.test(p.url())) await p.close();
+    await site.bringToFront();
+    await expect(lastNavi(panel)).toHaveText(/^That's how you wake me\. “Hey Navigator” works too\..* Now say: scroll down\.$/);
+    await run(panel, "scroll down");
+    await expectStep(panel, 4, 8, "Click");
+    await run(panel, "show numbers");
+    await expectStep(panel, 4, 8, "Click");
+    await run(panel, "hide numbers");
+    await expectStep(panel, 5, 8, "Search");
+    await run(panel, "search for octopus");
+    await expectStep(panel, 6, 8, "Go back");
+    await run(panel, "go back");
+    await expectStep(panel, 7, 8, "Interrupt me");
+    await run(panel, "read this page");
+    await expectStep(panel, 7, 8, "Interrupt me");
+    await run(panel, "stop");
+    await expectStep(panel, 8, 8, "Sleep and settings");
+    await expect(lastNavi(panel)).toHaveText(/^Good\. Last thing\./);
+    // "Repeat" says the step again.
+    await run(panel, "repeat");
+    await expect(panel.locator("#log li.navi .text").filter({ hasText: "Last thing." })).toHaveCount(2);
+    await run(panel, "go to sleep");
+    await expect(card(panel)).toBeHidden();
+    await expect(lastNavi(panel)).toHaveText("That's the tour. Have fun.");
+    await expect.poll(() => said(panel)).toBe("That's the tour. Have fun.");
+    expect((await panel.evaluate(() => chrome.storage.local.get("tutorialOffered"))).tutorialOffered).toBe(true);
+  });
+
+  test("for someone who can't see the screen: spoken feedback, describing the screen, and the panel's buttons", async ({ panel }) => {
+    await run(panel, "start the tutorial");
+    await panel.locator("#tutorial-yes").click();
+    await expectStep(panel, 2, 8, "Wake me up");
+    await expect(lastNavi(panel)).toContainText("Okay, I'll say out loud what I do.");
+    await expect.poll(async () => (await settingsOf(panel)).feedback).toBe("spoken");
+    await run(panel, "next");
+    await expectStep(panel, 3, 8, "Scroll");
+    await panel.locator("#tutorial-next").click();
+    await expectStep(panel, 4, 8, "Hear what's on screen");
+    // Without an AI, Navi says what it can tell from the page.
+    await run(panel, "describe the screen");
+    await expectStep(panel, 5, 8, "Search");
+    await expect(panel.locator("#log li.navi .text").filter({ hasText: "You're on Navi Test Page, at localhost. On screen there are" })).toHaveCount(1);
+    await run(panel, "end tutorial");
+    await expect(card(panel)).toBeHidden();
+    await expect(lastNavi(panel)).toHaveText("Okay, the tutorial is over. Say “start the tutorial” any time to take it again.");
+    // It can be taken again, and ended from the panel.
+    await run(panel, "take the tour");
+    await expectStep(panel, 1, 8, "Welcome");
+    await panel.locator("#tutorial-end").click();
+    await expect(card(panel)).toBeHidden();
+  });
+
+  test("with an AI, the tour includes asking it something", async ({ panel, context }) => {
+    await context.route("https://api.openai.com/v1/responses", (route) =>
+      route.fulfill(openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "It's a test page." }] }])),
+    );
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }));
+    await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+    await run(panel, "start the tutorial");
+    await expectStep(panel, 1, 9, "Welcome");
+    for (const say of ["no", "next", "next", "next", "next", "next", "next"]) await run(panel, say);
+    await expectStep(panel, 8, 9, "Ask anything");
+    await run(panel, "what is this page about");
+    await expectStep(panel, 9, 9, "Sleep and settings");
+    // The answer comes first, then the next step.
+    await expect.poll(() => said(panel), { timeout: 20_000 }).toMatch(/^Last thing\./);
+    const texts = await panel.locator("#log li.navi .text").allTextContents();
+    expect(texts.indexOf("It's a test page.")).toBeLessThan(texts.findIndex((t) => t.startsWith("Last thing.")));
+  });
+});
+
+test("describe the screen: the AI looks and describes it for someone who can't see it", async ({ panel, context }) => {
+  const bodies: { input: { role?: string; content?: unknown }[] }[] = [];
+  await context.route("https://api.openai.com/v1/responses", (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill(
+      openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "A test page with a Subscribe button and a few links." }] }]),
+    );
+  });
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await run(panel, "what's on the screen");
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("A test page with a Subscribe button and a few links.");
+  expect(String(bodies[0].input[0].content)).toContain(`Command: "Describe what's on my screen for someone who can't see it.`);
+  await expect.poll(() => panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid)).toBe(
+    "A test page with a Subscribe button and a few links.",
+  );
+});
+
+test("open settings, by voice", async ({ panel, context }) => {
+  const opened = context.waitForEvent("page");
+  await run(panel, "open settings");
+  expect((await opened).url()).toContain("/options.html");
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("Opened Navi's settings");
+});
+
+test.describe("after setup", () => {
+  test.use({ fakeMic: true, fakeSpeech: "available" });
+  test("once Navi hears for the first time, it offers the spoken tour, once", async ({ panel }) => {
+    const offer = panel.locator("#log li.navi .text").filter({ hasText: "For a two-minute tour" });
+    await panel.evaluate(() => (window as unknown as { navi: { startListening(): Promise<void> } }).navi.startListening());
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    // Not before setup has allowed the mic.
+    await expect(offer).toHaveCount(0);
+    await panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:mic-granted" }));
+    await expect(offer).toHaveText("Hi, I'm Navi, and I'm listening. For a two-minute tour of what I can do, say: Hey Navi, start the tutorial.");
+    await panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:mic-granted" }));
+    await panel.waitForTimeout(1500);
+    await expect(offer).toHaveCount(1);
+  });
+});
+
 test.describe("helpers", () => {
   type Body = { model: string; instructions: string; input: { role?: string; content?: unknown; type?: string; output?: string }[]; tools?: { name: string }[]; reasoning?: { effort: string } };
   const call = (name: string, args: object, id = name) => ({ type: "function_call", id: `fc_${id}`, call_id: `call_${id}`, name, arguments: JSON.stringify(args) });
@@ -1240,7 +1384,10 @@ test.describe("helpers", () => {
     await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
   }
 
-  test("the AI hands a side task to a helper: its own window, the helper model, the user's page untouched, the result comes back", async ({
+  const lastUser = (b: Body) => String(b.input.filter((i) => i.role === "user").at(-1)?.content ?? "");
+  const isReport = (b: Body) => b.input.at(-1)?.role === "user" && lastUser(b).startsWith("Helper report");
+
+  test("the AI hands a side task to a helper: its own window, the helper model, the user's page untouched, the report comes back to the AI", async ({
     panel,
     site,
     context,
@@ -1259,78 +1406,105 @@ test.describe("helpers", () => {
         return route.fulfill(openaiReply([message("Subscribed on the helper's copy of the page.")]));
       }
       main.push(body);
-      if (main.length === 1) {
-        return route.fulfill(
-          openaiReply([call("start_helper", { task: "Click Subscribe on the test page.", url: `${baseUrl}/index.html?helper`, keep_open: true })]),
-        );
-      }
-      if (main.length === 2) return route.fulfill(openaiReply([call("check_helpers", { wait: true })]));
-      return route.fulfill(openaiReply([message(`Done. ${outputs(body).at(-1)}`)]));
+      if (isReport(body)) return route.fulfill(openaiReply([message("Your helper subscribed on the test page.")]));
+      if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("A helper is on it.")]));
+      return route.fulfill(
+        openaiReply([call("start_helper", { task: "Click Subscribe on the test page.", url: `${baseUrl}/index.html?helper`, keep_open: true })]),
+      );
     });
     await usePro(panel);
     await type(panel, "get a helper to subscribe on the test page");
 
     // The helper ran on the helper model (GPT-6.1 Sol, low), with page tools only, in its own window.
-    expect(helper).toHaveLength(2);
+    await expect.poll(() => helper.length).toBe(2);
     expect(helper[0]).toMatchObject({ model: "gpt-6.1-sol", reasoning: { effort: "low" } });
     const tools = helper[0].tools!.map((t) => t.name);
     expect(tools).toContain("click");
-    for (const missing of ["start_helper", "close_tabs", "say", "save_command"]) expect(tools).not.toContain(missing);
-    expect(String(helper[0].input[0].content)).toContain('Task from Navi: "Click Subscribe on the test page."');
-    expect(String(helper[0].input[0].content)).toContain("index.html?helper");
-    expect(main[0].tools!.map((t) => t.name)).toEqual(expect.arrayContaining(["start_helper", "check_helpers"]));
-    expect(outputs(main[1])[0]).toMatch(/^Helper 1 started in its own window/);
+    for (const missing of ["start_helper", "check_helpers", "stop_helper", "close_tabs", "say", "save_command"]) expect(tools).not.toContain(missing);
+    const first = String(helper[0].input[0].content);
+    expect(first).toContain('Task from Navi: "Click Subscribe on the test page."');
+    expect(first).toContain("Time limit: 15 minutes.");
+    expect(first).toContain("index.html?helper");
+    expect(main[0].tools!.map((t) => t.name)).toEqual(expect.arrayContaining(["start_helper", "check_helpers", "stop_helper"]));
+    expect(outputs(main[1])[0]).toBe("Helper 1 started in its own window. Its report comes to you when it's done.");
 
     const helperPage = context.pages().find((p) => p.url().endsWith("?helper"))!;
     await expect(helperPage.locator("#subs")).toHaveText("1");
     await expect(site.locator("#subs")).toHaveText("0");
-    await expect(panel.locator("#log li.navi .text").last()).toHaveText(
-      "Done. Helper 1 (“Click Subscribe on the test page.”) finished: Subscribed on the helper's copy of the page.",
+
+    // When it finished, the main AI got its report (in the same conversation) and told the user.
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Your helper subscribed on the test page.");
+    const report = main.find(isReport)!;
+    expect(lastUser(report)).toContain(
+      "Helper report (from your helpers, not the user):\nHelper 1 (“Click Subscribe on the test page.”) finished: Subscribed on the helper's copy of the page.\n\nOpen tabs:",
     );
+    expect(report.input.some((i) => i.type === "function_call" || String(i.content).includes("get a helper to subscribe"))).toBe(true);
+    await expect.poll(() => said(panel)).toBe("Your helper subscribed on the test page.");
     await expect(notes(panel).filter({ hasText: "Helper 1" })).toContainText("finished: Subscribed on the helper's copy");
-    // The AI reported it, so Navi didn't announce it too; its cost is logged as background work.
-    expect(await said(panel)).not.toContain("A helper finished");
     const log = await panel.evaluate(async () => (await chrome.storage.local.get("metrics")).metrics as { command: string; path: string; model: string }[]);
     expect(log.find((m) => m.command.startsWith("(helper)"))).toMatchObject({ path: "background", model: "gpt-6.1-sol" });
     await expect(panel.locator("#helpers")).toBeHidden();
   });
 
-  test("the supervisor stops a stuck helper and one over its budget, closes their windows, and says so", async ({ panel, context, baseUrl }) => {
-    const helperCalls: Record<string, number> = {};
+  test("the supervisor nudges a helper going in circles, stops it if it keeps on, and stops one at its time limit", async ({ panel, context, baseUrl }) => {
+    const helperBodies: Record<string, Body[]> = {};
+    const reports: string[] = [];
     await context.route("https://api.openai.com/v1/responses", async (route) => {
       const body = route.request().postDataJSON() as Body;
       if (isHelper(body)) {
         const task = /Task from Navi: "(.*)"/.exec(String(body.input[0].content))?.[1] ?? "";
-        helperCalls[task] = (helperCalls[task] ?? 0) + 1;
+        (helperBodies[task] ??= []).push(body);
+        const n = helperBodies[task].length;
         // Scrolling up at the top of the page changes nothing.
-        if (task === "Stuck task") return route.fulfill(openaiReply([call("scroll", { direction: "up", amount: "page" }, `s${helperCalls[task]}`)]));
-        // A million tokens in one call is over any helper's budget.
-        return route.fulfill(openaiReply([call("look_at_page", {}, "l")], { input_tokens: 1_000_000, output_tokens: 10, input_tokens_details: { cached_tokens: 0 } }));
+        if (task === "Stuck task") return route.fulfill(openaiReply([call("scroll", { direction: "up", amount: "page" }, `s${n}`)]));
+        // The slow one never hears back: its time limit ends it.
+        return new Promise<void>(() => {});
       }
-      const asked = /Typed message: "(.*)"/.exec(String(body.input.filter((i) => i.role === "user").at(-1)?.content))?.[1] ?? "";
+      if (isReport(body)) {
+        reports.push(lastUser(body));
+        return route.fulfill(openaiReply([message("A helper stopped.")]));
+      }
       if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("Started.")]));
-      const task = asked.includes("stuck") ? "Stuck task" : "Costly task";
+      const asked = /Typed message: "(.*)"/.exec(lastUser(body))?.[1] ?? "";
+      const task = asked.includes("stuck") ? "Stuck task" : "Slow task";
       return route.fulfill(openaiReply([call("start_helper", { task, url: `${baseUrl}/index.html?${task.split(" ")[0]}`, keep_open: false })]));
     });
-    await usePro(panel);
+    await panel.evaluate(() =>
+      chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }),
+    );
+    await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+
     await type(panel, "start the stuck helper");
     await expect(notes(panel).filter({ hasText: "Stuck task" })).toHaveText(
-      "Helper 1 (“Stuck task”) was stopped: it was stuck doing the same thing (scroll) with nothing changing.",
+      "Helper 1 (“Stuck task”) was stopped: it was stuck doing the same thing (scroll) with nothing changing. Its last action: Scrolling up.",
+      { timeout: 15_000 },
     );
-    expect(helperCalls["Stuck task"]).toBe(3);
-    await expect.poll(() => said(panel)).toContain("A helper stopped: it was stuck");
+    const stuck = helperBodies["Stuck task"];
+    expect(stuck).toHaveLength(8);
+    // From the third time on, it was told it's going in circles.
+    expect(outputs(stuck[2]).at(-1)).not.toContain("Note from Navi");
+    expect(outputs(stuck[3]).at(-1)).toContain("Note from Navi: you've done this 3 times in a row and the page hasn't changed.");
+    await expect.poll(() => reports[0]).toContain("Helper 1 (“Stuck task”) was stopped: it was stuck");
     await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Stuck"))).toBe(false);
 
-    await type(panel, "start the costly helper");
-    await expect(notes(panel).filter({ hasText: "Costly task" })).toHaveText("Helper 2 (“Costly task”) was stopped: it reached its $0.50 budget.");
-    expect(helperCalls["Costly task"]).toBe(1);
-    await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Costly"))).toBe(false);
+    // A 3-second limit for the slow one.
+    await panel.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get("settings");
+      await chrome.storage.local.set({ settings: { ...(settings as object), helperMinutes: 0.05 } });
+    });
+    await expect.poll(async () => (await settingsOf(panel)).helperMinutes).toBe(0.05);
+    await type(panel, "start the slow helper");
+    await expect(notes(panel).filter({ hasText: "Slow task" })).toHaveText("Helper 2 (“Slow task”) was stopped: it reached its time limit (0.05 minutes).");
+    await expect.poll(() => reports[1]).toContain("Helper 2 (“Slow task”) was stopped: it reached its time limit");
+    // Each report has only what the AI hasn't heard yet.
+    expect(reports[1]).not.toContain("Stuck task");
+    expect(reports).toHaveLength(2);
+    await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Slow"))).toBe(false);
   });
 
-  test("at most 3 at once; the panel lists them with stop buttons; stopping by voice and from the panel", async ({ panel, context, baseUrl }) => {
+  test("several at once; the AI and the user check on them and stop them; the panel lists them with stop buttons", async ({ panel, context, baseUrl }) => {
     let release = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
-    let main = 0;
     const mainBodies: Body[] = [];
     await context.route("https://api.openai.com/v1/responses", async (route) => {
       const body = route.request().postDataJSON() as Body;
@@ -1339,35 +1513,54 @@ test.describe("helpers", () => {
         return route.fulfill(openaiReply([message("Done.")])).catch(() => undefined);
       }
       mainBodies.push(body);
-      if (++main === 1) {
-        return route.fulfill(
-          openaiReply([1, 2, 3, 4].map((n) => call("start_helper", { task: `Task ${n}`, url: `${baseUrl}/about.html?${n}`, keep_open: false }, `h${n}`))),
-        );
-      }
-      return route.fulfill(openaiReply([message("Started three helpers.")]));
+      // Helpers stopped along the way report in; the AI waits for the rest.
+      if (isReport(body)) return route.fulfill(openaiReply([message("[quiet]")]));
+      const last = body.input.at(-1);
+      if (last?.type === "function_call_output") return route.fulfill(openaiReply([message(`OK: ${String(last.output).split("\n")[0]}`)]));
+      const asked = /Typed message: "(.*)"/.exec(lastUser(body))?.[1] ?? "";
+      if (asked === "what are my helpers up to") return route.fulfill(openaiReply([call("check_helpers", {})]));
+      if (asked === "the fourth helper isn't needed anymore") return route.fulfill(openaiReply([call("stop_helper", { helper_id: 4 })]));
+      return route.fulfill(
+        openaiReply([1, 2, 3, 4, 5, 6].map((n) => call("start_helper", { task: `Task ${n}`, url: `${baseUrl}/about.html?${n}`, keep_open: false }, `h${n}`))),
+      );
     });
     await usePro(panel);
-    await type(panel, "start four helpers");
-    const out = outputs(mainBodies[1]);
-    expect(out.slice(0, 3).every((o) => o.startsWith("Helper"))).toBe(true);
-    expect(out[3]).toContain("3 helpers are already running");
+    await type(panel, "start six helpers");
+    const started = outputs(mainBodies[1]);
+    expect(started.slice(0, 5).every((o) => o.startsWith("Helper"))).toBe(true);
+    expect(started[5]).toContain("5 helpers are already running");
 
     const rows = panel.locator("#helper-list li");
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(5);
     await expect(rows.first().locator(".helper-task")).toHaveText("Task 1");
+    await expect(rows.first().locator(".helper-meta")).toHaveText("0 min · $0");
     await expect(panel.locator("#helpers-stop-all")).toBeVisible();
-    await run(panel, "how are the helpers doing");
-    await expect(panel.locator("#log > li.solo.navi .text").last()).toContainText("Helper 1 (“Task 1”): still working");
 
-    // One from the panel, one by voice, then the rest.
+    // The user asks by voice; the AI checks with its tool.
+    await run(panel, "how are the helpers doing");
+    await expect(panel.locator("#log > li.solo.navi .text").last()).toContainText("Helper 1 (“Task 1”): working for");
+    await type(panel, "what are my helpers up to");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^OK: Helper 1 \(“Task 1”\): working for \d+ seconds?, now: Thinking…$/);
+
+    // One from the panel, one by voice, one by the AI, then the rest.
     await panel.getByRole("button", { name: "Stop helper: Task 2" }).click();
+    await expect(rows).toHaveCount(4);
+    await expect(notes(panel).filter({ hasText: "Task 2" })).toContainText("Helper 2 (“Task 2”) was stopped: you stopped it.");
+    await run(panel, "stop helper 3");
+    await expect(rows).toHaveCount(3);
+    await expect(panel.locator("#log > li.solo.navi .text").last()).toHaveText("Stopped helper 3.");
+    await type(panel, "the fourth helper isn't needed anymore");
     await expect(rows).toHaveCount(2);
-    await expect(notes(panel).filter({ hasText: "Task 2" })).toHaveText("Helper 2 (“Task 2”) was stopped: you stopped it.");
+    await expect(notes(panel).filter({ hasText: "Task 4" })).toContainText("Helper 4 (“Task 4”) was stopped: Navi stopped it.");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("OK: Stopped helper 4.");
     await run(panel, "stop helpers");
     await expect(rows).toHaveCount(0);
     await expect(panel.locator("#helpers")).toBeHidden();
     await expect(panel.locator("#log > li.solo.navi .text").last()).toHaveText("Stopped 2 helpers.");
     await expect.poll(() => context.pages().filter((p) => p.url().includes("about.html?")).length).toBe(0);
+    // Stopped helpers were reported to the AI, which kept quiet.
+    await expect.poll(() => mainBodies.filter(isReport).length).toBeGreaterThan(0);
+    await expect(panel.locator("#log li.step").filter({ hasText: "Noted the helpers' report" }).first()).toBeAttached();
     release();
   });
 
@@ -1379,11 +1572,17 @@ test.describe("helpers", () => {
     await options.locator("#aiMode").selectOption("pro");
     await options.locator("#subagentModel").selectOption("claude-sonnet-5-5");
     await options.locator("#subagentEffort").selectOption("medium");
+    await expect(options.locator("#helperMinutes")).toHaveValue("15");
+    await options.locator("#helperMinutes").fill("30");
     await options.locator("button[type=submit]").click();
     // Saved for Pro (Navi runs Free until a key is added).
-    const pro = async () => normalizeSettings(await panel.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Partial<Settings>), "pro");
+    const stored = () => panel.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Partial<Settings>);
+    const pro = async () => normalizeSettings(await stored(), "pro");
     await expect.poll(async () => (await pro()).subagentModel).toBe("claude-sonnet-5-5");
     expect((await pro()).subagentEffort).toBe("medium");
+    // The time limit is shared by both modes.
+    expect((await pro()).helperMinutes).toBe(30);
+    expect(normalizeSettings(await stored(), "free").helperMinutes).toBe(30);
     // Free keeps its own.
     await options.locator("#aiMode").selectOption("free");
     await expect(options.locator("#subagentModel")).toHaveValue("gpt-6.1-sol");
@@ -1501,6 +1700,79 @@ test.describe("Navi's window", () => {
       "Navi's window was closed, so Navi works in whichever window you're using again.",
     );
     await expect(panel.locator("#pin-elsewhere")).toBeHidden();
+  });
+
+  const pillShown = (page: Page) => page.evaluate(() => document.querySelector("navi-pill")?.shadowRoot?.querySelector(".pill")?.getAttribute("data-shown") === "true");
+  const tabsIn = (panel: Page, window: number) => panel.evaluate(async (w) => (await chrome.tabs.query({ windowId: w })).length, window);
+
+  test("pinned: the pill, new tabs and reopened tabs are in Navi's window, not the one the user is in", async ({ panel, site, context, baseUrl }) => {
+    const { a, b, bPage } = await twoWindows(panel, context, baseUrl);
+    // The tests' panel is a tab in window A; the page is what's showing there (a real side panel isn't a tab).
+    await site.bringToFront();
+    await focus(panel, a);
+    await run(panel, "stay in this window");
+    await focus(panel, b);
+    await run(panel, "what time is it");
+    // The reply shows on the page Navi uses (window A), not in the window the user is in.
+    await expect.poll(() => pillShown(site)).toBe(true);
+    expect(await pillShown(bPage)).toBe(false);
+    // A page loading in the other window doesn't show it either.
+    await bPage.reload();
+    await bPage.waitForTimeout(500);
+    expect(await pillShown(bPage)).toBe(false);
+
+    const [inA, inB] = [await tabsIn(panel, a), await tabsIn(panel, b)];
+    await run(panel, "new tab");
+    await expect.poll(() => tabsIn(panel, a)).toBe(inA + 1);
+    expect(await tabsIn(panel, b)).toBe(inB);
+    // Chrome doesn't keep closed New Tab pages for "reopen", so close a real page.
+    await panel.evaluate(async ({ w, url }) => {
+      const tab = await chrome.tabs.create({ windowId: w, url, active: true });
+      await new Promise((r) => setTimeout(r, 800));
+      return tab.id;
+    }, { w: a, url: `${baseUrl}/about.html` });
+    await expect.poll(() => tabsIn(panel, a)).toBe(inA + 2);
+    await run(panel, "close tab");
+    await expect.poll(() => tabsIn(panel, a)).toBe(inA + 1);
+    await run(panel, "reopen closed tab");
+    await expect.poll(() => tabsIn(panel, a)).toBe(inA + 2);
+    expect(await tabsIn(panel, b)).toBe(inB);
+
+    // Following the user again: the pill moves to the window they're in, and leaves the other.
+    await run(panel, "follow me");
+    await site.bringToFront();
+    await bPage.bringToFront();
+    await run(panel, "what time is it");
+    await expect.poll(() => pillShown(bPage)).toBe(true);
+    await expect.poll(() => pillShown(site)).toBe(false);
+    await run(panel, "new tab");
+    await expect.poll(() => tabsIn(panel, b)).toBe(inB + 1);
+    expect(await tabsIn(panel, a)).toBe(inA + 2);
+  });
+
+  test("moving a tab to a new window or the other window, and opening a site in a new window", async ({ panel, site, context, baseUrl }) => {
+    const { a, b } = await twoWindows(panel, context, baseUrl);
+    await focus(panel, a);
+    const windows = () => panel.evaluate(async () => (await chrome.windows.getAll({ windowTypes: ["normal"] })).length);
+    const siteWindow = () => panel.evaluate(async () => (await chrome.tabs.query({})).find((t) => t.url?.endsWith("/index.html"))!.windowId);
+    const before = await windows();
+    await run(panel, "move this tab to a new window");
+    await expect.poll(windows).toBe(before + 1);
+    const moved = await siteWindow();
+    expect([a, b]).not.toContain(moved);
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Moved the tab to a new window");
+
+    await focus(panel, moved);
+    await panel.evaluate((w) => chrome.windows.update(w, { focused: true }), b);
+    await run(panel, "move this tab to the other window");
+    await expect.poll(siteWindow).not.toBe(moved);
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Moved the tab to your other window");
+
+    await context.route("https://www.youtube.com/**", (route) => route.fulfill({ contentType: "text/html", body: "<title>YouTube</title>" }));
+    const count = await windows();
+    await run(panel, "open youtube in a new window");
+    await expect.poll(windows).toBe(count + 1);
+    void site;
   });
 });
 
@@ -1881,6 +2153,82 @@ test.describe("Navi's on-device voice", () => {
     });
     return requested;
   }
+
+  test("turning Navi off frees everything it loaded (its voice, the recognizer, the mic); typing still works", async ({ context, extensionId, site }) => {
+    await huggingFace(context, true);
+    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi" });
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    const label = panel.locator("#engine-label");
+    await expect
+      .poll(
+        async () => {
+          await run(panel, "what time is it");
+          return label.textContent();
+        },
+        { timeout: 30_000 },
+      )
+      .toContain("Speaks: Kokoro (on-device)");
+    const backgroundPages = () =>
+      panel.evaluate(async () => (await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType] })).length);
+    expect(await backgroundPages()).toBe(1);
+    // Off: Navi's background page (and the voice model, recognizer and mic in it) is closed.
+    await panel.getByRole("button", { name: "Turn Navi off" }).click();
+    await expect.poll(backgroundPages).toBe(0);
+    // Typed commands still work while off.
+    await panel.evaluate(() => (window as unknown as { navi: { run(t: string, s: string): Promise<void> } }).navi.run("what time is it", "typed"));
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^It's \d/);
+  });
+
+  test("Settings: the microphone Navi listens with (so a Bluetooth headset can stay in its good-sound mode)", async ({ context, extensionId, site }) => {
+    const panel = await openPanel(context, extensionId, site, {});
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/options.html`);
+    const select = options.locator("#micDeviceId");
+    await expect.poll(() => select.locator("option").count()).toBeGreaterThan(1);
+    await expect(select).toHaveValue("");
+    const second = await select.locator("option").nth(2).getAttribute("value");
+    const label = await select.locator("option").nth(2).textContent();
+    await select.selectOption(second!);
+    await options.locator("button[type=submit]").click();
+    await expect.poll(async () => (await settingsOf(panel)).micDeviceId).toBe(second);
+    // Navi listens with that mic.
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    const ears = context.pages().find((p) => p.url().endsWith("/offscreen.html")) ?? (await context.waitForEvent("page", { predicate: (p) => p.url().endsWith("/offscreen.html") }));
+    const heardWith = () => ears.evaluate(() => (window as unknown as { __recognition?: { live: boolean; trackLabel: string } }).__recognition?.trackLabel ?? "");
+    await expect.poll(heardWith).toBe(label);
+    // Unplugged: the default mic, and a note saying so.
+    await panel.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get("settings");
+      await chrome.storage.local.set({ settings: { ...(settings as object), micDeviceId: "unplugged-mic" } });
+    });
+    await expect(panel.locator("#log li.info .text").filter({ hasText: "isn't connected, so Navi is using the default one" })).toHaveCount(1);
+    await expect.poll(heardWith).not.toBe(label);
+  });
+
+  test("a bad copy of the voice left in the cache (an error page) is replaced, so Kokoro still speaks", async ({ context, extensionId, site }) => {
+    const requested = await huggingFace(context, true);
+    const panel = await openPanel(context, extensionId, site, { speechOutput: "navi" });
+    // What an earlier failed download leaves behind: kokoro-js cached the error page as the voice.
+    await panel.evaluate(async (url) => {
+      const cache = await caches.open("kokoro-voices");
+      await cache.put(url, new Response("Entry not found", { status: 200 }));
+    }, `${KOKORO}voices/af_heart.bin`);
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    const label = panel.locator("#engine-label");
+    await expect
+      .poll(
+        async () => {
+          await run(panel, "what time is it");
+          return label.textContent();
+        },
+        { timeout: 30_000 },
+      )
+      .toContain("Speaks: Kokoro (on-device)");
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
+    expect(requested).toContain(`${KOKORO}voices/af_heart.bin`);
+    const size = await panel.evaluate(async (url) => (await (await caches.open("kokoro-voices")).match(url))?.arrayBuffer().then((b) => b.byteLength), `${KOKORO}voices/af_heart.bin`);
+    expect(size).toBe(510 * 256 * 4);
+  });
 
   test("replies use Kokoro once it's downloaded; the system voice speaks meanwhile", async ({ context, extensionId, site }) => {
     const requested = await huggingFace(context, true);

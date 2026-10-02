@@ -103,7 +103,7 @@ function ensurePill(): HTMLDivElement {
 let showFrame = 0;
 
 function render() {
-  const look = last && document.visibilityState === "visible" ? pillLook(last) : null;
+  const look = last && !last.away && document.visibilityState === "visible" ? pillLook(last) : null;
   if (!look) {
     cancelAnimationFrame(showFrame);
     if (pill) pill.dataset.shown = "false";

@@ -4,7 +4,7 @@
 // it ends. Built as its own ES module (voice/parakeet.js) that Navi's background page imports only when
 // Parakeet is chosen, so its libraries load nowhere else. The model runs in the recognizer tester's worker.
 
-import type { SpeechCallbacks, SpeechEngine } from "../lib/speech";
+import { type SpeechCallbacks, type SpeechEngine, openMicrophone } from "../lib/speech";
 import type { AsrReply, AsrRequest } from "../asr-lab/worker";
 import { PhraseDetector, RATE, loudness } from "./phrases";
 import { type Vad, loadVad } from "./vad";
@@ -42,6 +42,8 @@ export type FakeModel = (pcm: Float32Array, final: boolean) => Promise<string>;
 export interface ParakeetOptions {
   /** Whether a live caption is wanted now (Navi awake or dictating): asleep, only finished phrases matter. */
   live: () => boolean;
+  /** The microphone to listen with ("" for the default). */
+  deviceId?: () => string;
   /** Tests: stands in for the model. */
   fake?: FakeModel;
 }
@@ -186,9 +188,11 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
         await engine.load(() => undefined);
         // Echo cancellation keeps Navi's own voice out; noise suppression stays off (it smears quiet
         // speech, and Parakeet is trained on raw audio).
-        const mic = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 },
-        });
+        const mic = await openMicrophone(
+          { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 },
+          options.deviceId?.() ?? "",
+          () => callbacks.onInfo?.("The microphone chosen in settings isn't connected, so Navi is using the default one."),
+        );
         stream = mic;
         const audio = new AudioContext({ sampleRate: RATE });
         ctx = audio;

@@ -22,6 +22,10 @@ const form = document.getElementById("settings") as HTMLFormElement;
 const saved = document.getElementById("saved") as HTMLElement;
 const field = <T extends HTMLElement>(id: keyof Settings) => document.getElementById(id) as T;
 
+document.getElementById("start-tutorial")?.addEventListener("click", () => {
+  void chrome.runtime.sendMessage({ type: "navi:tutorial", action: "start" }).catch(() => undefined);
+});
+
 const modelSelect = field<HTMLSelectElement>("model");
 const helperSelect = field<HTMLSelectElement>("subagentModel");
 const routerSelect = field<HTMLSelectElement>("routerModel");
@@ -81,6 +85,18 @@ for (const id of ["apiKey", "openaiKey", "model", "routerModel"] as const) {
 }
 
 /** Keeps a stored model that isn't in the menus (e.g. an older default) selectable. */
+/** The microphones on this computer (named once the mic has been allowed, which setup does). */
+async function listMicrophones(chosen: string) {
+  const select = field<HTMLSelectElement>("micDeviceId");
+  const devices = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(
+    (d) => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications",
+  );
+  select.replaceChildren(new Option("System default", ""), ...devices.map((d, i) => new Option(d.label || `Microphone ${i + 1}`, d.deviceId)));
+  // A chosen mic that isn't connected now stays chosen (Navi uses the default until it's back).
+  if (chosen && !devices.some((d) => d.deviceId === chosen)) select.add(new Option("Chosen microphone (not connected)", chosen));
+  select.value = chosen;
+}
+
 function selectValue(select: HTMLSelectElement, value: string) {
   if (![...select.options].some((o) => o.value === value)) select.add(new Option(value, value));
   select.value = value;
@@ -106,6 +122,7 @@ function fillModeFields(s: Settings) {
   field<HTMLInputElement>("memory").checked = s.memory;
   selectValue(helperSelect, s.subagentModel);
   field<HTMLSelectElement>("subagentEffort").value = s.subagentEffort;
+  field<HTMLInputElement>("helperMinutes").value = String(s.helperMinutes);
   selectValue(routerSelect, s.routerModel);
   updateModelNote();
 }
@@ -124,6 +141,7 @@ async function fill() {
   field<HTMLInputElement>("wakeName").value = s.wakeName;
   field<HTMLSelectElement>("listenMode").value = s.listenMode;
   field<HTMLSelectElement>("recognizer").value = s.recognizer;
+  void listMicrophones(s.micDeviceId);
   field<HTMLInputElement>("sessionTimeoutSec").value = String(s.sessionTimeoutSec);
   field<HTMLInputElement>("lang").value = s.lang;
   field<HTMLSelectElement>("feedback").value = s.feedback;
@@ -159,10 +177,12 @@ form.addEventListener("submit", async (e) => {
     wakeName: field<HTMLInputElement>("wakeName").value.trim() || DEFAULT_SETTINGS.wakeName,
     listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],
     recognizer: field<HTMLSelectElement>("recognizer").value as Settings["recognizer"],
+    micDeviceId: field<HTMLSelectElement>("micDeviceId").value,
     autonomy: field<HTMLSelectElement>("autonomy").value as Settings["autonomy"],
     memory: field<HTMLInputElement>("memory").checked,
     subagentModel: helperSelect.value,
     subagentEffort: field<HTMLSelectElement>("subagentEffort").value as Settings["subagentEffort"],
+    helperMinutes: clamp(field<HTMLInputElement>("helperMinutes").value, 1, 120, DEFAULT_SETTINGS.helperMinutes),
     sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, DEFAULT_SETTINGS.sessionTimeoutSec),
     lang: field<HTMLInputElement>("lang").value.trim() || DEFAULT_SETTINGS.lang,
     feedback: field<HTMLSelectElement>("feedback").value as Settings["feedback"],

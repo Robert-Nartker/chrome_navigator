@@ -10,6 +10,7 @@ import type { RecentCommand } from "./router";
 import type { Settings } from "./settings";
 import type { ThreadsState } from "./threads";
 import type { HelperSummary } from "./helpers";
+import type { TutorialView } from "./tutorial";
 import type { EarconName } from "./voice-output";
 
 export type LogKind = "user" | "navi" | "step" | "info" | "error";
@@ -74,12 +75,14 @@ export interface WorkerState {
   pinnedWindow?: number;
   /** Helpers running in the background. */
   helpers?: HelperSummary[];
+  /** The tutorial's current step, while it runs. */
+  tutorial?: TutorialView;
 }
 
 /** Ears -> worker (views may listen in on state and interim). */
 export type EarsEvent =
   | { type: "ears:ready" }
-  | { type: "ears:command"; text: string; confidence: number }
+  | { type: "ears:command"; text: string; confidence: number; alternatives?: string[] }
   | { type: "ears:cancel" }
   | { type: "ears:state"; state: EarsState }
   | { type: "ears:interim"; text: string }
@@ -124,6 +127,8 @@ export type WorkerRequest =
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }
+  /** The tutorial: start it (setup page, panel), or the panel's buttons for its steps. */
+  | { type: "navi:tutorial"; action: "start" | "next" | "repeat" | "end" | "yes" | "no" }
   /** The panel's helper list: stop one helper, or all of them (no id). */
   | { type: "navi:helper"; action: "stop"; id?: number }
   /** The panel's pin button: Navi works only in this window (null: in whichever window the user is using). */
@@ -159,4 +164,6 @@ export interface PillUpdate {
   reply?: { kind: "navi" | "error"; text: string };
   wakeName: string;
   mode: Settings["listenMode"];
+  /** This tab isn't the one Navi is using (another tab, or another window): no pill. */
+  away?: boolean;
 }

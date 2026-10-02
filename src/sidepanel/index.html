@@ -113,11 +113,8 @@
       </button>
       <button id="thread-running" class="thread-running" type="button" hidden></button>
       <span class="spacer"></span>
-      <!-- Navi's window: pinned, Navi works only in this window, even while you use another. -->
+      <!-- Navi is kept in another window (the "This window" toggle there): this shows it. -->
       <button id="pin-elsewhere" class="thread-running" type="button" hidden title="Show the window Navi works in">Navi works in another window</button>
-      <button id="pin-window" class="icon-button pin" type="button" aria-pressed="false">
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 2.5h4M7 2.5v3.75L4.75 9h6.5L9 6.25V2.5M8 9v4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
       <button id="thread-new" class="icon-button" type="button" aria-label="New thread" title="New thread (“new thread”)">
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -126,7 +123,20 @@
       </div>
     </nav>
 
-    <!-- Helpers: background agents the AI started, each with its own window and limits. -->
+    <!-- The spoken tour: the step Navi is on, with buttons for those who'd rather click than speak. -->
+    <section id="tutorial" class="tutorial" aria-label="Tutorial" hidden>
+      <p class="tutorial-head"><span id="tutorial-progress"></span> <strong id="tutorial-title"></strong></p>
+      <p id="tutorial-text" class="tutorial-text"></p>
+      <div class="tutorial-actions">
+        <button id="tutorial-yes" type="button" hidden>Yes</button>
+        <button id="tutorial-no" type="button" hidden>No</button>
+        <button id="tutorial-repeat" type="button">Repeat</button>
+        <button id="tutorial-next" type="button">Next</button>
+        <button id="tutorial-end" class="link-button" type="button">End tutorial</button>
+      </div>
+    </section>
+
+    <!-- Helpers: background agents the AI started, each with its own window. -->
     <section id="helpers" class="helpers" aria-label="Helpers" hidden>
       <ul id="helper-list" class="helper-list"></ul>
       <button id="helpers-stop-all" class="link-button" type="button" hidden>Stop all helpers</button>
@@ -151,6 +161,13 @@
             <path d="M2.5 2.5h11v11h-11zM6.17 2.5v11M9.83 2.5v11M2.5 6.17h11M2.5 9.83h11" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
           </svg>
           <span class="label">Grid</span>
+        </button>
+        <!-- Navi's window: on, Navi works only in this window, even while you use another. -->
+        <button type="button" id="pin-window" class="chip" aria-pressed="false">
+          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+            <path d="M2.5 3.5h11v9h-11zM2.5 6h11" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          </svg>
+          <span class="label">This window</span>
         </button>
         <span class="spacer"></span>
         <button type="button" id="dictate" class="dictate" aria-pressed="false" aria-label="Dictate a message" title="Dictate a message">

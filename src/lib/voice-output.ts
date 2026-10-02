@@ -77,6 +77,11 @@ interface NeuralEntry {
 const NEURAL_RETRY_MS = 10 * 60_000;
 /** How long a reply waits for Navi's voice to finish loading before the fallback voice speaks. */
 const NEURAL_WAIT_MS = 4000;
+/**
+ * Navi's voice is unloaded after this long without speaking, freeing its memory (on the graphics chip when
+ * there is one). It loads again from the browser's cache in a few seconds, starting when Navi wakes.
+ */
+const NEURAL_IDLE_MS = 10 * 60_000;
 /** Kokoro's own pace is unhurried for an assistant: Navi's normal speed (1) is this much faster. */
 const KOKORO_PACE = 1.15;
 
@@ -92,6 +97,7 @@ export class Speaker implements Voice {
   private abort: AbortController | null = null;
 
   private neural: NeuralEntry | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly getVoice: () => VoiceSettings,
@@ -161,6 +167,7 @@ export class Speaker implements Voice {
     if (entry.state !== "ready" || !entry.voice) return false;
     const abort = new AbortController();
     this.abort = abort;
+    this.unloadWhenIdle();
     return entry.voice.speak({ text, voice: neural.voice, volume: voice.volume, speed: kokoroSpeed(voice.rate), signal: abort.signal });
   }
 
@@ -174,6 +181,20 @@ export class Speaker implements Voice {
     this.neural = entry;
     void this.loadNeural(entry).finally(settle);
     return entry;
+  }
+
+  /** Frees Navi's voice (it loads again when next needed). */
+  unloadVoice() {
+    clearTimeout(this.idleTimer);
+    if (this.neural?.state === "loading") return;
+    this.neural?.voice?.dispose();
+    this.neural = null;
+  }
+
+  /** Unloads Navi's voice once it has gone unused for a while. */
+  private unloadWhenIdle() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => (this.speaking ? this.unloadWhenIdle() : this.unloadVoice()), NEURAL_IDLE_MS);
   }
 
   /** Downloads (the first time) and loads Navi's voice now, e.g. from a "Download" button. */
@@ -205,6 +226,7 @@ export class Speaker implements Voice {
       await entry.voice.load(() => undefined, this.getVoice().neural?.voice);
       entry.state = "ready";
       if (noted) this.onNote?.("Navi's voice is ready.");
+      this.unloadWhenIdle();
     } catch (err) {
       entry.state = "failed";
       entry.retryAt = Date.now() + NEURAL_RETRY_MS;

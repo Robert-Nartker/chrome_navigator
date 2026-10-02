@@ -105,8 +105,12 @@ export function threadTranscript(thread: Thread, max = 6): string {
 
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+/** Now, as a stamp that's always later than the last one, so "most recently used" never ties. */
+let lastStamp = 0;
+const stamp = () => (lastStamp = Math.max(Date.now(), lastStamp + 1));
+
 function blank(title = ""): Thread {
-  const now = Date.now();
+  const now = stamp();
   return { id: newId(), title, named: !!title, created: now, updated: now, turns: 0, exchanges: [] };
 }
 
@@ -190,7 +194,7 @@ export class ThreadBook {
     const thread = this.get(id);
     if (!thread) return undefined;
     this.currentId = id;
-    thread.updated = Math.max(thread.updated, Date.now());
+    thread.updated = Math.max(thread.updated, stamp());
     this.changed();
     return thread;
   }
@@ -217,7 +221,7 @@ export class ThreadBook {
     const thread = this.get(id);
     if (!thread) return;
     thread.turns++;
-    thread.updated = Date.now();
+    thread.updated = stamp();
     if (!thread.title) thread.title = titleFrom(said);
     this.changed();
   }
@@ -228,7 +232,7 @@ export class ThreadBook {
     if (!thread) return;
     if (!thread.named && !thread.exchanges.length) thread.title = titleFrom(said);
     thread.exchanges = [...thread.exchanges, { said: said.slice(0, 1000), reply: reply.slice(0, 1000), t: Date.now() }].slice(-MAX_EXCHANGES);
-    thread.updated = Date.now();
+    thread.updated = stamp();
     this.changed();
   }
 

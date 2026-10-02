@@ -13,6 +13,8 @@ import {
   isWebUrl,
   listTabs,
   goBack,
+  moveTab,
+  naviWindowId,
   tabsWithUnsavedTyping,
   navigate,
   pageRequest,
@@ -47,8 +49,9 @@ import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../l
 import { searchUrl, siteEngine } from "../lib/sites";
 import { type ThreadBook, findThread, threadTitle, threadTranscript } from "../lib/threads";
 import type { WindowPin } from "../lib/window-pin";
-import { type Helpers, describeHelper } from "../lib/helpers";
+import { type HelperInfo, type Helpers, describeHelper } from "../lib/helpers";
 import type { HelperApi } from "../lib/agent";
+import { Tutorial, type TutorialControl, type TutorialEvent, type TutorialView, parseTutorialControl } from "../lib/tutorial";
 import type { Voice } from "../lib/voice-output";
 
 import type { LogKind } from "../lib/messages";
@@ -65,10 +68,16 @@ export interface ControllerUi {
   setWorking(working: boolean, detail?: string): void;
   numbersShown(shown: boolean): void;
   gridShown?(shown: boolean): void;
+  /** The tutorial's current step (undefined: not running). */
+  tutorial?(view: TutorialView | undefined): void;
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, describe the screen, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely. For a spoken tour, say start the tutorial.";
+
+/** What the AI is asked for "describe the screen". */
+const DESCRIBE_SCREEN =
+  "Describe what's on my screen for someone who can't see it. Look at the screen first. Say what page this is, what its main content is, and the main things I can do here, in under 80 words. Don't click or change anything.";
 
 /** The fast path couldn't do it; the AI gets a try. `message` is used if there's no AI. */
 class Unhandled extends Error {}
@@ -82,8 +91,8 @@ function isDestructive(intent: Intent): boolean {
 const SCREEN_WORDS = /\b(screen|see|look|looks|picture|image|photo|describe|showing|shown|visible)\b/i;
 
 export interface RunOptions {
-  /** Spoken, typed in the chat box, or a step of a personal command. */
-  source: "voice" | "typed" | "step";
+  /** Spoken, typed in the chat box, a step of a personal command, or helpers reporting back to the AI. */
+  source: "voice" | "typed" | "step" | "helper";
   /** Skip the router (already interpreted, or a step of a personal command). */
   routed?: boolean;
   /** Only run built-in or personal commands; never fall through to the AI. */
@@ -92,6 +101,8 @@ export interface RunOptions {
   thread?: string;
   /** The window it acts in: Navi's pinned window, else the one it was given in. */
   window?: number;
+  /** The recognizer's other guesses at what was said, best first. */
+  alternatives?: string[];
 }
 
 /** Commands about threads and Navi's window: they run right away, even while another command runs. */
@@ -134,6 +145,7 @@ export class Controller {
   private speech: Promise<void> = Promise.resolve();
   /** Bumped by "stop", so queued speech is dropped. */
   private speechGen = 0;
+  private readonly tutorial = new Tutorial();
 
   constructor(
     private readonly getSettings: () => Settings,
@@ -146,6 +158,10 @@ export class Controller {
       onMetric?(metric: CommandMetric): void;
       /** Something said to the AI and its reply (for memory). */
       onExchange?(said: string, reply: string): void;
+      /** Wake the hands-free session, so the next thing said needs no wake name. */
+      onWake?(): void;
+      /** The tutorial ended (`finished`: the user got to the end). */
+      onTutorialEnd?(finished: boolean): void;
     },
     private readonly threads: ThreadBook,
     private readonly pin: WindowPin,
@@ -167,6 +183,14 @@ export class Controller {
   /** Forgets the AI conversation (e.g. between benchmark tasks). */
   resetConversation() {
     this.agent.reset();
+  }
+
+  /**
+   * A helper ended: its report goes to the AI in the thread it was started from, once Navi is free
+   * (several that end close together are reported in one go).
+   */
+  helperEnded(helper: HelperInfo) {
+    void this.run(`Helper ${helper.id} ${helper.status === "done" ? "finished" : helper.status}`, { source: "helper", thread: helper.thread });
   }
 
   /** Stops whatever Navi is doing or saying. */
@@ -215,12 +239,25 @@ export class Controller {
   }
 
   async run(text: string, options: RunOptions = { source: "typed" }): Promise<void> {
-    const command = text.trim();
+    const heard = text.trim();
+    const command = this.bestGuess(heard, options.alternatives);
     if (!command) return;
-    const intent = parseCommand(command);
+    const fromHelper = options.source === "helper";
+    const intent = fromHelper ? null : parseCommand(command);
     if (intent?.type === "stop") {
       this.ui.log("user", command);
       this.cancel();
+      this.tutorialSaw({ command, intent: "stop" });
+      return;
+    }
+    // The tutorial's own words: "next", "repeat", "end tutorial", and yes or no to its question.
+    const control =
+      this.tutorial.active && (options.source === "voice" || options.source === "typed")
+        ? parseTutorialControl(command, !this.tutorial.step?.done)
+        : null;
+    if (control) {
+      this.ui.log("user", command);
+      await this.tutorialAction(control);
       return;
     }
     await Promise.all([this.threads.ready, this.pin.ready]);
@@ -234,16 +271,20 @@ export class Controller {
     if (this.busy) {
       // Commands spoken while Navi is working run in order afterwards, in the thread and window they were given in.
       const thread = options.thread ?? this.threads.current;
-      if (this.queue.length < 5) this.queue.push({ text: command, options: { ...options, thread, window: windowId } });
-      this.ui.log("info", `Next: “${command}”`, undefined, { thread, solo: thread !== this.threads.running });
+      if (fromHelper) this.queue.push({ text: command, options: { ...options, thread, window: windowId } });
+      else if (this.queue.length < 5) {
+        this.queue.push({ text: command, options: { ...options, thread, window: windowId } });
+        this.ui.log("info", `Next: “${command}”`, undefined, { thread, solo: thread !== this.threads.running });
+      }
       return;
     }
     const thread = this.threads.get(options.thread) ? options.thread! : this.threads.current;
     this.threads.running = thread;
-    this.threads.noteTurn(thread, command);
+    if (!fromHelper) this.threads.noteTurn(thread, command);
     this.agent.useThread(thread);
     setWorkWindow(windowId);
-    this.ui.log("user", command);
+    if (!fromHelper) this.ui.log("user", command);
+    if (command !== heard) this.ui.log("step", `Heard “${heard}”, which sounds like “${command}”`);
     this.busy = true;
     this.turnMessage = "";
     this.ui.setWorking(true);
@@ -255,7 +296,7 @@ export class Controller {
     let reply: string | null = null;
     let confirmation = false;
     try {
-      const outcome = await this.dispatch(command, controller.signal, 0, options);
+      const outcome = fromHelper ? await this.helperReport(thread, controller.signal) : await this.dispatch(command, controller.signal, 0, options);
       const routerCost = outcome.routerCostUsd ?? 0;
       if (outcome.agent) {
         const { agent } = outcome;
@@ -286,13 +327,15 @@ export class Controller {
       }
     } finally {
       if (metric) {
+        if (options.source === "voice" || options.source === "typed") this.tutorialSaw({ command, intent: metric.intent, path: metric.path });
         const row: CommandMetric = { t: new Date().toISOString(), command, ...metric };
         this.hooks.onMetric?.(row);
         void recordMetric(row).catch(() => undefined);
         this.remember(command, options, metric);
         if (metric.path === "ai" && reply) {
-          this.hooks.onExchange?.(command, reply);
-          this.threads.noteExchange(thread, command, reply);
+          // Helper reports are web content, so they never go into Navi's memory of the user.
+          if (!fromHelper) this.hooks.onExchange?.(command, reply);
+          this.threads.noteExchange(thread, fromHelper ? `(helpers reported) ${command}` : command, reply);
         }
       }
       // Speak after timing, so latency numbers measure the action, not the voice. A typed chat reply
@@ -313,11 +356,26 @@ export class Controller {
       const next = this.queue.shift();
       if (next) {
         // Said while Navi was working: the user has moved on, so the last reply is cut short.
-        this.speechGen++;
-        this.speaker.stop();
+        if (next.options.source !== "helper") {
+          this.speechGen++;
+          this.speaker.stop();
+        }
         void this.run(next.text, next.options);
       }
     }
+  }
+
+  /**
+   * What was said: the recognizer's best guess, unless that isn't a command and one of its other guesses
+   * is ("scroll dune" / "scroll down"). Never a guess that closes or clears something.
+   */
+  private bestGuess(heard: string, alternatives: string[] = []): string {
+    if (!alternatives.length || parseCommand(heard) || matchCommand(heard, this.commands)) return heard;
+    const better = alternatives.find((a) => {
+      const intent = parseCommand(a);
+      return (intent && !isDestructive(intent) && !/^close/.test(intent.type)) || matchCommand(a, this.commands);
+    });
+    return better ?? heard;
   }
 
   /** The last few commands in the thread of the command running now. */
@@ -326,7 +384,7 @@ export class Controller {
   }
 
   private remember(command: string, options: RunOptions, metric: Omit<CommandMetric, "t" | "command">) {
-    const how = options.source === "typed" ? "typed" : "said";
+    const how = options.source === "typed" ? "typed" : options.source === "helper" ? "helpers reported" : "said";
     const result =
       metric.path === "error"
         ? `failed: ${metric.error}`
@@ -338,7 +396,9 @@ export class Controller {
     const thread = this.threads.running ?? this.threads.current;
     this.recentByThread.set(thread, [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6));
     const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled", background: "background" }[metric.path];
-    this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-3);
+    if (options.source !== "helper") {
+      this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-3);
+    }
   }
 
   /** Personal commands first, then built-in commands, then the AI. */
@@ -402,6 +462,7 @@ export class Controller {
       await this.say(text);
       return { intent: "confirm" };
     }
+    if (intent?.type === "describeScreen") return this.describeScreen(signal, options);
     if (intent) {
       try {
         await this.execute(intent);
@@ -505,7 +566,7 @@ export class Controller {
     return { intent: "custom", agent };
   }
 
-  private async runAgent(command: string, signal: AbortSignal, typed = false): Promise<AgentResult> {
+  private async runAgent(command: string, signal: AbortSignal, typed = false, helperReport = false): Promise<AgentResult> {
     const result = await this.agent.run(
       command,
       {
@@ -521,13 +582,13 @@ export class Controller {
           if (!typed || this.getSettings().feedback === "spoken") void this.say(text);
         },
       },
-      { typed, recent: this.recent, earlier: this.earlier(), helpers: this.helperApi(this.threads.running ?? this.threads.current) },
+      { typed, helperReport, recent: this.recent, earlier: this.earlier(), helpers: this.helperApi(this.threads.running ?? this.threads.current) },
     );
     const seconds = (result.totalMs / 1000).toFixed(1);
-    this.navi(
-      result.reply,
-      `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s · ${formatCost(result.costUsd)}`,
-    );
+    const meta = `AI · ${result.steps} step${result.steps === 1 ? "" : "s"} · ${seconds}s · ${formatCost(result.costUsd)}`;
+    // Nothing to tell the user yet (the AI waits for the rest of its helpers).
+    if (!result.reply) this.ui.log("step", `Noted the helpers' report · ${meta}`);
+    else this.navi(result.reply, meta);
     return result;
   }
 
@@ -609,15 +670,158 @@ export class Controller {
       start: async (req) => {
         const helper = await this.helpers.start(req, thread);
         const where = helper.window !== undefined ? "in its own window" : "without a browser";
-        return `Helper ${helper.id} started ${where}. It reports back when it's done; check_helpers gets its result.`;
+        return `Helper ${helper.id} started ${where}. Its report comes to you when it's done.`;
       },
-      check: (wait, signal) => this.helpers.collect(thread, wait, signal),
+      check: () => this.helpers.check(thread),
+      stop: (id) => (this.helpers.stop(id, "Navi stopped it") ? `Stopped helper ${id}.` : `Helper ${id} isn't running.`),
     };
   }
 
-  /** Says something at the next quiet moment, after anything Navi is already saying. */
+  /**
+   * Helpers started in `thread` ended: the AI gets their report and decides what to tell the user. If it
+   * already heard (it checked on them), there's nothing to do. Without the AI, Navi reads the report.
+   */
+  private async helperReport(thread: string, signal: AbortSignal): Promise<Outcome> {
+    const report = this.helpers.report(thread);
+    if (!report) return { intent: "helperReport" };
+    const settings = this.getSettings();
+    const tab = await targetTab().catch(() => undefined);
+    if (settings.model === FREE_MODEL || !keyFor(settings, settings.model) || isBlocked(tab?.url, settings)) {
+      this.navi(report);
+      await this.say(report);
+      return { intent: "helperReport" };
+    }
+    return { intent: "helperReport", agent: await this.runAgent(report, signal, false, true) };
+  }
+
+  /** Shows and says something at the next quiet moment, after anything Navi is already saying. */
   announce(text: string) {
+    this.ui.log("navi", text);
     void this.say(text).catch(() => undefined);
+  }
+
+  // ---------- Tutorial ----------
+
+  /** Starts the spoken tour, or acts on the panel's buttons and the tutorial's spoken words. */
+  async tutorialAction(action: TutorialControl | "start") {
+    if (action === "start") {
+      await this.startTutorial();
+      return;
+    }
+    if (!this.tutorial.active) return;
+    // The user has moved on: the rest of what Navi was saying is dropped.
+    this.speechGen++;
+    this.speaker.stop();
+    switch (action) {
+      case "end":
+        this.tutorialEnded("Okay, the tutorial is over. Say “start the tutorial” any time to take it again.", false);
+        return;
+      case "repeat":
+        this.tutorialSay();
+        return;
+      case "next":
+        this.tutorialNext("");
+        return;
+      case "yes":
+      case "no": {
+        if (this.tutorial.step?.done) return;
+        const screenFree = action === "yes";
+        await saveSettings({ feedback: screenFree ? "spoken" : "minimal" });
+        this.tutorial.answer(screenFree);
+        this.tutorialNext(
+          screenFree
+            ? "Okay, I'll say out loud what I do."
+            : "Okay. I'll play a short sound when something works, and talk when there's something to tell you.",
+        );
+      }
+    }
+  }
+
+  private async startTutorial() {
+    const settings = this.getSettings();
+    const ai =
+      settings.model === FREE_MODEL
+        ? (await nanoStatusRemote().catch(() => "unavailable")) === "available"
+        : !!keyFor(settings, settings.model);
+    this.tutorial.start({ name: settings.wakeName || "Navi", openMic: settings.listenMode === "open", ai, screenFree: settings.feedback === "spoken" });
+    // The answer to its first question shouldn't need the wake name.
+    this.hooks.onWake?.();
+    this.tutorialSay();
+  }
+
+  /** A command ran: if it's what the current step asked for, on to the next one. */
+  private tutorialSaw(event: TutorialEvent) {
+    const step = this.tutorial.step;
+    if (step?.done?.(event)) this.tutorialNext(step.praise ?? "");
+  }
+
+  private tutorialNext(prefix: string) {
+    if (this.tutorial.advance()) this.tutorialSay(prefix);
+    else this.tutorialEnded(prefix || "That's the tour.", true);
+  }
+
+  /** Says the current step (after `prefix`, e.g. praise for the last one) and shows it in the panel. */
+  private tutorialSay(prefix = "") {
+    const step = this.tutorial.step;
+    const view = this.tutorial.view();
+    if (!step || !view) return;
+    this.ui.tutorial?.(view);
+    const text = [prefix, step.say].filter(Boolean).join(" ");
+    this.navi(text, `Tutorial · ${view.step} of ${view.total}`);
+    const spoken = this.say(text).catch(() => undefined);
+    // To practice waking Navi, it falls asleep once it has said how.
+    if (step.sleepAfter) void spoken.then(() => this.tutorial.step === step && this.hooks.onSleep());
+  }
+
+  private tutorialEnded(text: string, finished: boolean) {
+    this.tutorial.end();
+    this.ui.tutorial?.(undefined);
+    this.navi(text);
+    void this.say(text).catch(() => undefined);
+    this.hooks.onTutorialEnd?.(finished);
+  }
+
+  // ---------- Describe the screen ----------
+
+  /**
+   * What's on the screen, for someone who can't see it: the AI looks at it (Pro, or Free's on-device
+   * model) and describes it. Without an AI, Navi says what it can tell from the page itself.
+   */
+  private async describeScreen(signal: AbortSignal, options: RunOptions): Promise<Outcome> {
+    const settings = this.getSettings();
+    const tab = await targetTab();
+    let ai = !!keyFor(settings, settings.model) && isWebUrl(tab.url) && !isBlocked(tab.url, settings);
+    if (ai && settings.model === FREE_MODEL) ai = (await nanoStatusRemote().catch(() => "unavailable")) === "available";
+    if (ai) {
+      this.speaker.sound("thinking");
+      const typed = options.source === "typed";
+      const agent =
+        settings.model === FREE_MODEL ? await this.runFree(DESCRIBE_SCREEN, signal, typed) : await this.runAgent(DESCRIBE_SCREEN, signal, typed);
+      return { intent: "describeScreen", agent };
+    }
+    const text = await this.pageSummary(tab);
+    this.navi(text);
+    await this.say(text);
+    return { intent: "describeScreen" };
+  }
+
+  /** What Navi can tell about a page without an AI: its name and what can be used on screen. */
+  private async pageSummary(tab: chrome.tabs.Tab): Promise<string> {
+    const where = `You're on ${tab.title || "a page"}${isWebUrl(tab.url) ? `, at ${hostOf(tab.url)}` : ""}.`;
+    const snap = isWebUrl(tab.url) ? await snapshot(tab).catch(() => null) : null;
+    if (!snap) return `${where} I can't read this page.`;
+    const visible = snap.elements.filter((e) => e.inViewport);
+    const count = (roles: string[], one: string, many: string) => {
+      const n = visible.filter((e) => roles.includes(e.role)).length;
+      return n ? `${n} ${n === 1 ? one : many}` : "";
+    };
+    const parts = [
+      count(["link"], "link", "links"),
+      count(["button", "clickable"], "button", "buttons"),
+      count(["textbox", "searchbox", "combobox"], "text field", "text fields"),
+    ].filter(Boolean);
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "nothing to click");
+    return `${where} On screen there ${parts.length && !/^1 /.test(parts[0]) ? "are" : "is"} ${list}. Say “read this page” to hear its text. With an AI set up in settings, I can describe it fully.`;
   }
 
   /** What was said earlier in the thread of the command running now. */
@@ -651,6 +855,10 @@ export class Controller {
     const threads = this.threads;
     switch (intent.type) {
       case "stopHelpers": {
+        if (intent.id !== undefined) {
+          const stopped = this.helpers.stop(intent.id);
+          return { text: stopped ? `Stopped helper ${intent.id}.` : `Helper ${intent.id} isn't running.`, speak: true, ok: stopped };
+        }
         if (intent.everything) this.cancel();
         const stopped = this.helpers.stopAll();
         const what = stopped ? `Stopped ${stopped === 1 ? "the helper" : `${stopped} helpers`}` : "No helpers were running";
@@ -659,7 +867,7 @@ export class Controller {
       case "listHelpers": {
         const running = this.helpers.running();
         if (!running.length) return { text: "No helpers are running.", speak: true, ok: true };
-        return { text: running.map(describeHelper).join(" "), speak: true, ok: true };
+        return { text: running.map((h) => describeHelper(h)).join(" "), speak: true, ok: true };
       }
       case "pinWindow": {
         if (!intent.on) {
@@ -743,7 +951,8 @@ export class Controller {
   /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
   private async confirm(text: string) {
     this.navi(text);
-    if (this.getSettings().feedback === "spoken") void this.speaker.say(text);
+    // In the speech queue, so it never talks over what Navi is saying (e.g. the tutorial).
+    if (this.getSettings().feedback === "spoken") void this.say(text).catch(() => undefined);
     else this.speaker.sound("done");
   }
 
@@ -809,6 +1018,16 @@ export class Controller {
         this.navi(HELP_TEXT);
         await this.say(HELP_TEXT);
         return;
+      case "tutorial":
+        await this.startTutorial();
+        return;
+      case "openSettings":
+        await chrome.runtime.openOptionsPage();
+        await this.confirm("Opened Navi's settings");
+        return;
+      case "describeScreen":
+        // Handled in dispatch (it may use the AI).
+        return;
       case "scroll":
         await pageRequest(tab, { kind: "scroll", direction: intent.direction, amount: intent.amount });
         await this.confirm(
@@ -831,7 +1050,8 @@ export class Controller {
         await this.confirm("Reloading");
         return;
       case "newTab":
-        await chrome.tabs.create({ active: true });
+        // In Navi's window, not whichever window Chrome last focused.
+        await chrome.tabs.create({ active: true, windowId: await naviWindowId() });
         await this.confirm("New tab");
         return;
       case "closeTab":
@@ -866,10 +1086,23 @@ export class Controller {
         if (next) await this.announcePage(next, "");
         return;
       }
-      case "reopenTab":
-        await chrome.sessions.restore();
+      case "reopenTab": {
+        const restored = await chrome.sessions.restore();
+        // Chrome restores into the window it last focused; the tab belongs in Navi's window.
+        const win = await naviWindowId();
+        const reopened = restored?.tab ?? restored?.window?.tabs?.[0];
+        if (restored?.tab?.id !== undefined && win !== undefined && reopened?.windowId !== win) {
+          await chrome.tabs.move(restored.tab.id, { windowId: win, index: -1 });
+          await chrome.tabs.update(restored.tab.id, { active: true });
+        }
         await this.confirm("Reopened the last closed tab");
         return;
+      }
+      case "moveTab": {
+        await moveTab(tab, intent.to);
+        await this.confirm(intent.to === "new" ? "Moved the tab to a new window" : "Moved the tab to your other window");
+        return;
+      }
       case "switchTab": {
         const tabs = await listTabs();
         const found =
@@ -898,6 +1131,12 @@ export class Controller {
         return;
       }
       case "open": {
+        if (intent.newWindow) {
+          const win = await chrome.windows.create({ url: intent.url, focused: true });
+          const opened = win?.tabs?.[0]?.id !== undefined ? await waitForLoad(win.tabs[0].id) : undefined;
+          await this.announcePage(opened ?? { title: intent.label } as chrome.tabs.Tab, "Opened in a new window:");
+          return;
+        }
         const opened = await navigate(intent.url, intent.newTab);
         await this.announcePage(opened, "Opened");
         return;
