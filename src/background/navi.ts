@@ -4,6 +4,8 @@
 
 import { routeUtterance } from "../lib/router";
 import { sleep } from "../lib/browser";
+import { curateMemory, loadInbox, loadMemory, noteExchange } from "../lib/memory";
+import { recordMetric } from "../lib/metrics";
 import { type NanoStatus, setNanoTransport } from "../lib/nano";
 import { LogBook } from "../lib/logbook";
 import {
@@ -207,12 +209,56 @@ const controller = new Controller(
       void sendEars({ type: "ears:session", action: "touch" });
     },
     onMetric(metric) {
-      metrics.push(metric);
-      if (metrics.length > 500) metrics.shift();
-      broadcast({ type: "view:metric", metric });
+      addMetric(metric);
+    },
+    onExchange(said, reply) {
+      if (!activeSettings(settings).memory) return;
+      void noteExchange(said, reply).then((waiting) => scheduleMemoryUpdate(waiting >= MEMORY_BATCH ? 5000 : MEMORY_IDLE_MS));
     },
   },
 );
+
+function addMetric(metric: CommandMetric) {
+  metrics.push(metric);
+  if (metrics.length > 500) metrics.shift();
+  broadcast({ type: "view:metric", metric });
+}
+
+// ---------- Memory: updated in the background once Navi has been idle a while ----------
+
+/** Navi idle this long after an AI conversation: time to update the memory. */
+const MEMORY_IDLE_MS = 60_000;
+/** This many new exchanges: update soon, idle or not. */
+const MEMORY_BATCH = 10;
+let memoryTimer: ReturnType<typeof setTimeout> | undefined;
+let memoryUpdating: Promise<unknown> | null = null;
+
+function scheduleMemoryUpdate(delayMs: number) {
+  clearTimeout(memoryTimer);
+  memoryTimer = setTimeout(() => void updateMemory(), delayMs);
+}
+
+/** Folds what was said into Navi's memory (never while a command runs, never two at once). */
+async function updateMemory(): Promise<void> {
+  if (memoryUpdating) return;
+  if (worker.working) return scheduleMemoryUpdate(MEMORY_IDLE_MS);
+  const active = activeSettings(settings);
+  if (!active.memory) return;
+  const started = performance.now();
+  memoryUpdating = curateMemory(active, AbortSignal.timeout(60_000))
+    .then((done) => {
+      if (!done) return;
+      const metric: CommandMetric = {
+        t: new Date().toISOString(), command: "(memory update)", path: "background", intent: "memory",
+        ms: Math.round(performance.now() - started), model: done.model, costUsd: done.costUsd,
+      };
+      addMetric(metric);
+      void recordMetric(metric).catch(() => undefined);
+    })
+    .catch(() => scheduleMemoryUpdate(10 * MEMORY_IDLE_MS))
+    .finally(() => (memoryUpdating = null));
+  await memoryUpdating;
+}
 
 // ---------- Views: side panel, floating pill, toolbar badge ----------
 
@@ -380,6 +426,9 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
     case "reset":
       controller.resetConversation();
       return true;
+    case "memory":
+      await updateMemory();
+      return loadMemory();
     case "wake":
       await toggleWake();
       return true;
@@ -445,5 +494,7 @@ export function startNavi() {
     await resume();
     if (!worker.listening && (await earsExist())) await earsOrProblem();
     void updateBadge();
+    // Chrome may have stopped this worker before a memory update ran: it runs once Navi is idle again.
+    if ((await loadInbox()).length) scheduleMemoryUpdate(MEMORY_IDLE_MS);
   })();
 }

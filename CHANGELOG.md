@@ -2,6 +2,14 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-10-02
+
+- **Memory.** Navi keeps one short note about you (up to 3,000 characters: who you are, your preferences, your projects) and reads it at the start of each conversation. A background job on the quick model (GPT-6 Luna, or Sonnet 5.5 with only a Claude key) updates it a minute after Navi goes quiet, or sooner after 10 exchanges. On by default in Pro, off in Free; see, edit or clear it in Settings, or just tell Navi to remember or forget something.
+  - **Poisoning-safe:** the job only sees what you said and what Navi replied, never page text; it stores facts you gave, never instructions, and never passwords, payment, ID or health details. The AI reads the note as background facts, not commands.
+  - Its cost shows in today's total and the usage log, but doesn't count as a command.
+- **Free and Pro presets.** Each mode keeps its own model, reasoning, asking (YOLO), step limit, quick check, memory and helper-agent settings; switching modes restores them. Wake name, voice and privacy settings stay shared.
+- NaviBench has a memory suite: 11 conversations, including page injections, card numbers, passwords, small talk and "forget that".
+
 ## 2026-10-01
 
 - **On from the moment Chrome starts.** Once the mic is allowed, Navi listens for "Hey Navi" as soon as Chrome opens, with nothing to click. Each Chrome session starts in Hey Navi mode; Open mic is only on when chosen.

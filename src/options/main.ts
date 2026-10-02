@@ -1,4 +1,5 @@
 import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChanged, saveCommand } from "../lib/custom-commands";
+import { MEMORY_CAP, clearMemory, loadMemory, onMemoryChanged, saveMemory } from "../lib/memory";
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { MODEL_CATALOG, PROVIDER_DEFAULTS, type ApiProvider, formatCost, modelInfo } from "../lib/models";
 import { NANO_STATUS_TEXT, nanoStatus } from "../lib/nano";
@@ -100,6 +101,7 @@ function fillModeFields(s: Settings) {
   field<HTMLInputElement>("fastMode").checked = s.fastMode;
   field<HTMLInputElement>("maxAgentSteps").value = String(s.maxAgentSteps);
   field<HTMLSelectElement>("autonomy").value = s.autonomy;
+  field<HTMLInputElement>("memory").checked = s.memory;
   selectValue(routerSelect, s.routerModel);
   updateModelNote();
 }
@@ -154,6 +156,7 @@ form.addEventListener("submit", async (e) => {
     listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],
     recognizer: field<HTMLSelectElement>("recognizer").value as Settings["recognizer"],
     autonomy: field<HTMLSelectElement>("autonomy").value as Settings["autonomy"],
+    memory: field<HTMLInputElement>("memory").checked,
     sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, DEFAULT_SETTINGS.sessionTimeoutSec),
     lang: field<HTMLInputElement>("lang").value.trim() || DEFAULT_SETTINGS.lang,
     feedback: field<HTMLSelectElement>("feedback").value as Settings["feedback"],
@@ -202,6 +205,46 @@ document.getElementById("clear-metrics")?.addEventListener("click", async () => 
 });
 
 void showMetrics();
+
+const memoryNote = document.getElementById("memory-note") as HTMLTextAreaElement;
+const memoryResult = document.getElementById("memory-result") as HTMLElement;
+let memoryEdited = false;
+
+function countMemory() {
+  document.getElementById("memory-count")!.textContent = `${memoryNote.value.length.toLocaleString()} / ${MEMORY_CAP.toLocaleString()} characters`;
+}
+
+async function showMemory() {
+  memoryNote.value = await loadMemory();
+  memoryEdited = false;
+  countMemory();
+}
+
+memoryNote.addEventListener("input", () => {
+  memoryEdited = true;
+  countMemory();
+});
+
+document.getElementById("memory-save")!.addEventListener("click", async () => {
+  await saveMemory(memoryNote.value);
+  await showMemory();
+  memoryResult.textContent = "Saved";
+  window.setTimeout(() => (memoryResult.textContent = ""), 2000);
+});
+
+document.getElementById("memory-clear")!.addEventListener("click", async () => {
+  if (!confirm("Forget everything Navi remembers about you?")) return;
+  await clearMemory();
+  await showMemory();
+  memoryResult.textContent = "Forgotten";
+  window.setTimeout(() => (memoryResult.textContent = ""), 2000);
+});
+
+// A background update shows up here, unless it would overwrite an edit in progress.
+onMemoryChanged(() => {
+  if (!memoryEdited) void showMemory();
+});
+void showMemory();
 
 const commandList = document.getElementById("commands") as HTMLUListElement;
 const cmdResult = document.getElementById("cmd-result") as HTMLElement;

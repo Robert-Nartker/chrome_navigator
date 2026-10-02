@@ -113,7 +113,7 @@ export type WorkerRequest =
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }
-  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears" | "wake"; text?: string; recent?: RecentCommand[]; ears?: Extract<EarsRequest, { type: "ears:test" }> };
+  | { type: "navi:test"; action: "reset" | "route" | "busy" | "ears" | "wake" | "memory"; text?: string; recent?: RecentCommand[]; ears?: Extract<EarsRequest, { type: "ears:test" }> };
 
 /** What a view gets when it opens. */
 export interface WorkerHello {

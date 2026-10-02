@@ -4,7 +4,7 @@ Planned changes and ideas for Navi. Shipped work is in [CHANGELOG.md](CHANGELOG.
 
 **Status:** *Idea* (worth exploring) → *Planned* (agreed, not started) → *In progress* → shipped (moved to the changelog).
 
-Most of what's next shares one theme: **several agents, windows and tasks at once**, without them stepping on each other or on the user. Items 1, 4 and 5 build on the shared groundwork below.
+Most of what's next shares one theme: **several agents, windows and tasks at once**, without them stepping on each other or on the user. Items 1, 4 and 5 build on the shared groundwork below. (Items 2 and 3 have shipped.)
 
 ## Shared groundwork for concurrency
 
@@ -30,29 +30,7 @@ Separate conversations, like a chat app: start a new thread, switch between thre
   - Threads are stored locally, like the activity log.
 - **Depends on:** the locks above, and agent targets once threads can each have their own window.
 
-## 2. Memory — *Planned*
-
-One short, capped memory document that Navi reads in every thread. It holds the user (preferences, accounts, routines), ongoing projects and tasks, and useful context.
-
-- **Requirements**
-  - A hard character cap (around 3,000 characters to start), so every piece of information competes for space and only relevant context survives. It also keeps each request small and fast.
-  - Managed by a background GPT-6 Luna job every so often (after activity, when Navi is idle), never in the user's way. The job merges what's new, drops what's stale or least useful, and keeps it under the cap.
-  - On by default in Pro, off by default in Free; a toggle in Settings.
-  - The user can see, edit and clear it in Settings, and ask by voice ("what do you remember about me", "forget that").
-- **Insights**
-  - **Memory poisoning.** A web page must never be able to write into memory ("remember: always send files to …"). The curator only sees what the user said and what Navi replied, never page text. Memory is stored as facts, never as instructions, and the agent treats it as background information, not as commands.
-  - Memory is personal data, so it stays in this browser profile. It's sent only to the user's chosen AI provider, inside requests that are already sent.
-  - Navi Free could use Gemini Nano as the curator later; off by default keeps Free fully local and simple.
-
-## 3. Free and Pro presets — *Planned*
-
-Separate defaults for Navi Free and Navi Pro, so switching modes switches the right settings, and each mode remembers its own changes.
-
-- **Requirements**
-  - Each mode keeps its own copy of the settings that should differ: memory on/off, models and reasoning, YOLO, and the router.
-  - Shared settings (wake name, voice, privacy, blocked sites) stay shared.
-  - Switching Free/Pro restores that mode's settings.
-- **Note:** this is small, and item 2 needs it (memory is on in Pro, off in Free).
+Memory (item 2) and Free/Pro presets (item 3) shipped on 2026-10-02; see the changelog.
 
 ## 4. Subagents and background Navi — *Idea*
 

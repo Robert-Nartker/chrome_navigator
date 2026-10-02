@@ -4,8 +4,11 @@
 export interface CommandMetric {
   t: string;
   command: string;
-  /** "fast" = handled without AI, "ai" = the AI (GPT, Claude, or Navi Free's Gemini Nano). */
-  path: "fast" | "ai" | "error" | "cancelled" | "ignored";
+  /**
+   * "fast" = handled without AI, "ai" = the AI (GPT, Claude, or Navi Free's Gemini Nano), "background" =
+   * AI work Navi did on its own, like updating its memory (not a command; its cost still counts).
+   */
+  path: "fast" | "ai" | "error" | "cancelled" | "ignored" | "background";
   intent?: string;
   ms: number;
   modelMs?: number;
@@ -55,10 +58,11 @@ export function summarize(rows: CommandMetric[]) {
     const s = [...xs].sort((a, b) => a - b);
     return s[Math.floor(s.length / 2)];
   };
+  const commands = rows.filter((r) => r.path !== "background");
   const fast = rows.filter((r) => r.path === "fast");
   const ai = rows.filter((r) => r.path === "ai");
   return {
-    total: rows.length,
+    total: commands.length,
     fast: fast.length,
     ai: ai.length,
     errors: rows.filter((r) => r.path === "error").length,

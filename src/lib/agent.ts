@@ -22,6 +22,7 @@ import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./cus
 import { NO_USAGE, type Usage, addUsage, claudeReasoning, claudeUsage, costOf, effortFor, modelInfo } from "./models";
 import { type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
 import { type Autonomy, isBlocked, keyFor, type Settings } from "./settings";
+import { loadMemory, memoryBlock } from "./memory";
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
 type ToolUse = Anthropic.Beta.BetaToolUseBlock;
@@ -500,7 +501,7 @@ export class NaviAgent {
     if (isBlocked(tab.url, settings)) {
       throw new Error("You've turned off Navi's AI on this site.");
     }
-    brain.begin(await this.firstMessage(command, context));
+    brain.begin(await this.firstMessage(command, context, brain.length === 0));
 
     const result = (text: string, steps: number): AgentResult => {
       const done = /^\s*\[done\]\s*/i.exec(text);
@@ -547,8 +548,9 @@ export class NaviAgent {
   /**
    * What the model gets with a message. Spoken commands come with the page's element list; typed
    * messages (often questions or chat) only with the tabs, unless the user chose to include the page.
+   * Navi's memory comes once, at the start of a conversation.
    */
-  private async firstMessage(command: string, context: AgentContext): Promise<string> {
+  private async firstMessage(command: string, context: AgentContext, fresh: boolean): Promise<string> {
     const parts: string[] = [];
     if (context.typed) {
       parts.push(`Typed message: "${command}"`);
@@ -556,6 +558,7 @@ export class NaviAgent {
     } else {
       parts.push(`Command: "${command}"`, await this.observe());
     }
+    if (fresh && this.getSettings().memory) parts.push(memoryBlock(await loadMemory()));
     parts.push(`Open tabs:\n${await formatTabs()}`);
     if (context.recent?.length) parts.push(`Recent activity (oldest first):\n${context.recent.map((r) => `- ${r}`).join("\n")}`);
     return parts.join("\n\n");

@@ -3,11 +3,9 @@
 // command in other words ("Havi go to sleep", "scroll down a smidge more"),
 // (b) a real task for the main AI, or (c) noise to ignore silently.
 
-import Anthropic from "@anthropic-ai/sdk";
-import { NO_USAGE, type Usage, claudeReasoning, claudeUsage, costOf, effortFor, modelInfo } from "./models";
-import { askNano } from "./nano";
-import { createResponse, outputText, usageOf } from "./openai";
-import { keyFor, type Settings } from "./settings";
+import type { Usage } from "./models";
+import { askQuick } from "./quick-model";
+import type { Settings } from "./settings";
 
 export type RouteDecision =
   | { route: "command"; command: string }
@@ -103,58 +101,20 @@ export async function routeUtterance(
   signal: AbortSignal,
 ): Promise<RouteResult> {
   const model = settings.routerModel;
-  const message = routerMessage(utterance, context);
-  const { provider } = modelInfo(model);
-  const { text, usage } =
-    provider === "chrome"
-      ? { text: await askNano({ system: SYSTEM_PROMPT, text: message, schema: SCHEMA }), usage: NO_USAGE }
-      : provider === "openai"
-        ? await askOpenAI(model, message, settings, signal)
-        : await askClaude(model, message, settings, signal);
-  return { decision: parseDecision(text), usage, costUsd: costOf(model, usage) };
-}
-
-async function askClaude(model: string, message: string, settings: Settings, signal: AbortSignal) {
-  const client = new Anthropic({ apiKey: keyFor(settings, model), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: TIMEOUT_MS });
-  // Routing is a quick classification: no thinking where the model allows it (Sonnet 5.5 does).
-  const { thinking, effort } = claudeReasoning(model, "none");
-  const response = await client.messages.create(
-    {
-      model,
-      max_tokens: 256,
-      // The SDK's types don't list Sonnet 5.5's thinking-off mode yet.
-      ...(thinking ? { thinking: thinking as unknown as Anthropic.ThinkingConfigParam } : {}),
-      system: SYSTEM_PROMPT,
-      // The instructions are the same on every call: cache them.
-      cache_control: { type: "ephemeral" },
-      output_config: { effort, format: { type: "json_schema", schema: SCHEMA } },
-      messages: [{ role: "user", content: message }],
-    },
-    { signal },
-  );
-  return {
-    text: response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "",
-    usage: claudeUsage(response.usage),
-  };
-}
-
-async function askOpenAI(model: string, message: string, settings: Settings, signal: AbortSignal) {
-  const response = await createResponse(
-    keyFor(settings, model),
-    {
-      model,
-      instructions: SYSTEM_PROMPT,
-      input: message,
-      // The lowest reasoning the model allows: routing must answer in well under a second.
-      reasoning: { effort: effortFor(model, "none") },
-      text: { format: { type: "json_schema", name: "route", schema: SCHEMA, strict: true } },
-      max_output_tokens: 256,
-      prompt_cache_key: "navi-router",
-    },
+  const reply = await askQuick({
+    model,
+    system: SYSTEM_PROMPT,
+    text: routerMessage(utterance, context),
+    schema: SCHEMA,
+    schemaName: "route",
+    // Routing must answer in well under a second.
+    maxTokens: 256,
+    timeoutMs: TIMEOUT_MS,
+    cacheKey: "navi-router",
+    settings,
     signal,
-    TIMEOUT_MS,
-  );
-  return { text: outputText(response).text, usage: usageOf(response) };
+  });
+  return { decision: parseDecision(reply.text), usage: reply.usage, costUsd: reply.costUsd };
 }
 
 /** Anything unreadable goes to the main AI. */

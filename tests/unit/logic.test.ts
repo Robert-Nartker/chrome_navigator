@@ -121,6 +121,12 @@ describe("metrics", async () => {
   it("summarizes fast vs AI", () => {
     expect(summarize(rows)).toMatchObject({ total: 2, fast: 1, ai: 1, fastMedianMs: 40, aiMedianMs: 2400, aiMedianSteps: 2 });
   });
+  it("counts background work's cost, but not as a command", () => {
+    const memory = { t: "2026-09-24T00:01:00Z", command: "(memory update)", path: "background" as const, ms: 900, costUsd: 0.0004 };
+    const paid = [...rows.slice(0, 1), { ...rows[1], costUsd: 0.02 }, memory];
+    expect(summarize(paid)).toMatchObject({ total: 2, ai: 1, aiMedianMs: 2400 });
+    expect(summarize(paid).costUsd).toBeCloseTo(0.0204);
+  });
   it("escapes CSV cells", () => {
     expect(toCsv(rows).split("\n")[2]).toContain('"open ""the"" video, please"');
   });

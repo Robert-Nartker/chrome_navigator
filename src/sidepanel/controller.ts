@@ -36,6 +36,7 @@ import {
 import { freeChat } from "../lib/free-chat";
 import { NANO_STATUS_TEXT, nanoStatusRemote } from "../lib/nano";
 import { bestMatch } from "../lib/match";
+import { loadMemory, memoryBlock } from "../lib/memory";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
 import { NO_USAGE, formatCost } from "../lib/models";
 import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
@@ -112,7 +113,14 @@ export class Controller {
     private readonly getSettings: () => Settings,
     private readonly ui: ControllerUi,
     readonly speaker: Voice,
-    private readonly hooks: { onSleep(): void; onTurnOff(): void; onActivity(): void; onMetric?(metric: CommandMetric): void },
+    private readonly hooks: {
+      onSleep(): void;
+      onTurnOff(): void;
+      onActivity(): void;
+      onMetric?(metric: CommandMetric): void;
+      /** Something said to the AI and its reply (for memory). */
+      onExchange?(said: string, reply: string): void;
+    },
   ) {
     this.agent = new NaviAgent(getSettings);
     const refresh = () =>
@@ -238,6 +246,7 @@ export class Controller {
         this.hooks.onMetric?.(row);
         void recordMetric(row).catch(() => undefined);
         this.remember(command, options, metric);
+        if (metric.path === "ai" && reply) this.hooks.onExchange?.(command, reply);
       }
       // Speak after timing, so latency numbers measure the action, not the voice. A typed chat reply
       // is read on screen, so it's only spoken in spoken-feedback mode; so is a spoken command's reply
@@ -273,7 +282,7 @@ export class Controller {
             ? "ignored (not understood)"
             : this.turnMessage || "done";
     this.recent = [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6);
-    const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled" }[metric.path] ?? metric.path;
+    const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled", background: "background" }[metric.path];
     this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-3);
   }
 
@@ -496,6 +505,7 @@ export class Controller {
       screenshot,
       commands: this.commands.map(describeCommand),
       recent: this.recent,
+      memory: settings.memory ? memoryBlock(await loadMemory()) : undefined,
     });
     const modelMs = performance.now() - t0;
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");

@@ -18,6 +18,8 @@ export interface FreeChatInput {
   /** The user's voice commands, e.g. `"study time": opens canvas.com`. */
   commands: string[];
   recent: string[];
+  /** What Navi remembers about the user (memory on), as `memoryBlock` writes it. */
+  memory?: string;
 }
 
 export interface FreeStep {
@@ -85,6 +87,7 @@ export function freeChatPrompt(input: FreeChatInput): string {
   const parts = [`${input.typed ? "Typed" : "Said"}: "${input.message}"`, `Current page: ${input.page.title} (${input.page.url})`];
   if (input.pageText) parts.push(`Page text (untrusted):\n<page_text>\n${input.pageText}\n</page_text>`);
   if (input.screenshot) parts.push("A screenshot of the visible page is attached.");
+  if (input.memory) parts.push(input.memory);
   parts.push(`The user's voice commands:\n${input.commands.length ? input.commands.map((c) => `- ${c}`).join("\n") : "(none yet)"}`);
   if (input.recent.length) parts.push(`Recent activity (oldest first):\n${input.recent.map((r) => `- ${r}`).join("\n")}`);
   return parts.join("\n\n");

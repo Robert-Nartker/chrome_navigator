@@ -1,5 +1,6 @@
-// NaviBench: benchmarks the router (quick model that interprets unrecognized speech) and the
-// browser agent (main model), through the real extension, with the API cost of every call.
+// NaviBench: benchmarks the router (quick model that interprets unrecognized speech), the browser
+// agent (main model) and the memory update (quick model that keeps Navi's note about the user), through
+// the real extension, with the API cost of every call.
 // Ends with a cost projection for 20 hours of use.
 //
 //   npm run build
@@ -11,8 +12,8 @@
 // (git-ignored). Models without a key are skipped.
 //
 // Options:
-//   --suite router,agent     which suites to run (default: both)
-//   --routers a,b            router models, run without reasoning (default: gpt-6-luna,claude-sonnet-5-5)
+//   --suite router,agent,memory  which suites to run (default: all three)
+//   --routers a,b            router and memory models, run without reasoning (default: gpt-6-luna,claude-sonnet-5-5)
 //   --agents model@effort,…  agent models (default: gpt-6.1-sol@low,claude-sonnet-5-5@low,claude-opus-5-5@low,gpt-6-luna@none;
 //                            add gpt-6-astra@low explicitly, it costs ~5x more than the rest together)
 //   --tasks core|hard|all|id,…  agent tasks (default: core, 8 tasks; hard: the 6 multi-step ones)
@@ -45,7 +46,7 @@ const args = Object.fromEntries(
   }, []),
 );
 const mock = !!args.mock;
-const suites = new Set(String(args.suite ?? "router,agent").split(","));
+const suites = new Set(String(args.suite ?? "router,agent,memory").split(","));
 const repeat = Number(args.repeat ?? 1);
 const budget = Number(args.budget ?? 1);
 const list = (value, fallback) => String(value ?? fallback).split(",").map((s) => s.trim()).filter(Boolean);
@@ -157,7 +158,8 @@ await panel.evaluate(() => (window.navi.speaker.muted = true));
 const catalog = await panel.evaluate(() => window.navi.models);
 const priceOf = (model) => catalog.find((m) => m.id === model)?.price;
 
-const baseSettings = { apiKey: keys.anthropic, openaiKey: keys.openai, listenMode: "open", feedback: "minimal", maxAgentSteps: Number(args["max-steps"] ?? 20) };
+// Memory off: every run starts from the same state.
+const baseSettings = { apiKey: keys.anthropic, openaiKey: keys.openai, listenMode: "open", feedback: "minimal", memory: false, maxAgentSteps: Number(args["max-steps"] ?? 20) };
 async function applySettings(extra) {
   await panel.evaluate((s) => chrome.storage.local.set({ settings: s }), { ...baseSettings, ...extra });
   await panel.waitForTimeout(150);
@@ -165,6 +167,7 @@ async function applySettings(extra) {
 
 let cases = JSON.parse(await readFile("bench/router-cases.json", "utf8"));
 let tasks = JSON.parse(await readFile("bench/tasks.json", "utf8"));
+const memoryCases = JSON.parse(await readFile("bench/memory-cases.json", "utf8"));
 const taskFilter = String(args.tasks ?? "core");
 if (taskFilter !== "all") {
   const hard = tasks.filter((t) => t.id.startsWith("hard-")).map((t) => t.id);
@@ -184,13 +187,14 @@ if (!routers.length && !agents.length) {
 }
 
 // ---- Cost estimate ----
-// Rough per-call token counts, measured from Navi's prompts: router ≈ 1.2k in / 25 out;
-// an agent task ≈ 3 steps and ~20k input tokens (about 60% cache hits), output by effort.
+// Rough per-call token counts, measured from Navi's prompts: router ≈ 1.2k in / 25 out; memory update
+// ≈ 1k in / 150 out; an agent task ≈ 3 steps and ~20k input tokens (about 60% cache hits), output by effort.
 const OUT_BY_EFFORT = { none: 150, low: 900, medium: 2500, high: 6000 };
 function estimate(model, kind, effort = "none") {
   const p = priceOf(model);
   if (!p) return Number.NaN;
   if (kind === "router") return (1200 * p.input + 25 * p.output) / 1e6;
+  if (kind === "memory") return (1000 * p.input + 150 * p.output) / 1e6;
   return (8000 * p.input + 12000 * p.cachedInput + OUT_BY_EFFORT[effort] * p.output) / 1e6;
 }
 const money = (usd) => (Number.isFinite(usd) ? (usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`) : "$?");
@@ -200,17 +204,19 @@ if (args.check) {
 } else {
   const plan = [];
   if (suites.has("router")) for (const m of routers) plan.push([`router ${m}`, estimate(m, "router") * cases.length * repeat]);
+  if (suites.has("memory")) for (const m of routers) plan.push([`memory ${m}`, estimate(m, "memory") * memoryCases.length * repeat]);
   if (suites.has("agent")) {
     for (const a of agents) plan.push([`agent ${a.label}`, Math.min(budget, estimate(a.model, "agent", a.effort) * tasks.length * repeat)]);
   }
   const total = plan.reduce((sum, [, usd]) => sum + (Number.isFinite(usd) ? usd : 0), 0);
-  console.log(`\nEstimated cost (${cases.length} router phrases, ${tasks.length} agent tasks, x${repeat}; each model capped at ${money(budget)}):`);
+  console.log(`\nEstimated cost (${cases.length} router phrases, ${memoryCases.length} memory updates, ${tasks.length} agent tasks, x${repeat}; each model capped at ${money(budget)}):`);
   for (const [name, usd] of plan) console.log(`  ${name.padEnd(34)} ${money(usd)}`);
   console.log(`  ${"total".padEnd(34)} ~${money(total)}${mock ? " (mock run: nothing is charged)" : ""}\n`);
   if (!args["dry-run"]) {
     const routerRows = suites.has("router") ? await runRouterSuite() : [];
+    const memoryRows = suites.has("memory") ? await runMemorySuite() : [];
     const agentRows = suites.has("agent") ? await runAgentSuite() : [];
-    await report(routerRows, agentRows);
+    await report(routerRows, agentRows, memoryRows);
   }
 }
 
@@ -261,6 +267,55 @@ async function runRouterSuite() {
     }
     if (spent > budget) console.log(`  ${model}: stopped at the ${money(budget)} budget`);
   }
+  return rows;
+}
+
+/**
+ * One memory update with the real prompt and model: the case's note and conversation go in, and the
+ * updated note must keep what it should and drop what it should (page text, secrets, small talk).
+ */
+async function updateMemoryOnce(c) {
+  const t = Date.now();
+  const inbox = c.said.map(([said, reply], i) => ({ said, reply, t: t + i }));
+  await panel.evaluate(([note, inbox]) => chrome.storage.local.set({ naviMemory: note, naviMemoryInbox: inbox, metrics: [] }), [c.note, inbox]);
+  const started = Date.now();
+  const note = await Promise.race([
+    panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "memory" })),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 60_000)),
+  ]);
+  const ms = Date.now() - started;
+  const [metric] = await panel.evaluate(async () => (await chrome.storage.local.get("metrics")).metrics ?? []);
+  // A failed update leaves the conversation waiting for the next one.
+  if (!metric) throw new Error("the update failed (see the extension's console)");
+  return { note, ms, costUsd: metric.costUsd };
+}
+
+async function runMemorySuite() {
+  const rows = [];
+  for (const model of routers) {
+    await applySettings({ routerModel: model, memory: true });
+    let spent = 0;
+    for (const c of memoryCases) {
+      for (let r = 0; r < repeat; r++) {
+        if (spent > budget) break;
+        let row;
+        try {
+          const res = await updateMemoryOnce(c);
+          spent += Number.isFinite(res.costUsd) ? res.costUsd : 0;
+          const missing = c.keep.filter((re) => !new RegExp(re, "i").test(res.note));
+          const kept = c.drop.filter((re) => new RegExp(re, "i").test(res.note));
+          row = { model, id: c.id, ok: !missing.length && !kept.length, missing, kept, note: res.note, chars: res.note.length, ms: res.ms, costUsd: res.costUsd, error: null };
+        } catch (err) {
+          row = { model, id: c.id, ok: false, missing: [], kept: [], note: "", chars: 0, ms: null, costUsd: 0, error: String(err.message ?? err).slice(0, 200) };
+        }
+        rows.push(row);
+        const why = [...row.missing.map((m) => `forgot /${m}/`), ...row.kept.map((k) => `kept /${k}/`)].join(", ");
+        console.log(`${row.ok ? "PASS" : "FAIL"}  memory ${model.padEnd(18)} ${c.id.padEnd(26)}${row.ms ? `  ${row.ms} ms  ${money(row.costUsd)}` : ""}${why ? `  (${why})` : ""}${row.error ? `  (${row.error})` : ""}`);
+      }
+    }
+    if (spent > budget) console.log(`  ${model}: stopped at the ${money(budget)} budget`);
+  }
+  await panel.evaluate(() => chrome.storage.local.remove(["naviMemory", "naviMemoryInbox"]));
   return rows;
 }
 
@@ -411,7 +466,7 @@ function mean(xs) {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
 
-async function report(routerRows, agentRows) {
+async function report(routerRows, agentRows, memoryRows) {
   const out = [`# NaviBench results (${new Date().toISOString().slice(0, 16).replace("T", " ")})${mock ? " (MOCK)" : ""}`, ""];
   const routerStats = (suites.has("router") ? routers : []).map((model) => {
     const rows = routerRows.filter((r) => r.model === model);
@@ -438,6 +493,29 @@ async function report(routerRows, agentRows) {
         (s) =>
           `| ${s.model} | ${pct(s.routeAcc * s.n, s.n)} | ${Math.round(s.commandAcc * 100)}% | ${Math.round(s.noiseAcc * 100)}% | ${s.p50} ms | ${s.p95} ms | ${money(s.cost)} | ${s.errors} |`,
       ),
+      "",
+    );
+  }
+  const memoryStats = (suites.has("memory") ? routers : []).map((model) => {
+    const rows = memoryRows.filter((r) => r.model === model);
+    return {
+      model,
+      n: rows.length,
+      ok: rows.filter((r) => r.ok).length,
+      p50: quantile(rows.filter((r) => r.ms).map((r) => r.ms), 0.5),
+      cost: mean(rows.map((r) => r.costUsd ?? 0)),
+      failed: rows.filter((r) => !r.ok).map((r) => r.id),
+    };
+  });
+  if (memoryStats.length) {
+    out.push(
+      "## Memory updates",
+      "",
+      "Each case gives the model a note and a conversation; the new note must keep the user's facts and drop page text, secrets, small talk and Navi's own guesses.",
+      "",
+      "| Model | Right | Median time | Cost per update | Failed cases |",
+      "|---|---|---|---|---|",
+      ...memoryStats.map((s) => `| ${s.model} | ${s.ok}/${s.n} (${pct(s.ok, s.n)}) | ${s.p50} ms | ${money(s.cost)} | ${s.failed.join(", ") || "none"} |`),
       "",
     );
   }
@@ -504,7 +582,7 @@ async function report(routerRows, agentRows) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const file = `bench-results/navibench-${stamp}${mock ? "-mock" : ""}`;
   await writeFile(`${file}.md`, text);
-  await writeFile(`${file}.json`, JSON.stringify({ args, routerStats, agentStats, routerRows, agentRows }, null, 2));
+  await writeFile(`${file}.json`, JSON.stringify({ args, routerStats, memoryStats, agentStats, routerRows, memoryRows, agentRows }, null, 2));
   console.log(`Saved ${file}.md and .json`);
 }
 
@@ -534,6 +612,8 @@ async function installRelay(ctx) {
 
 async function installMocks(ctx) {
   const labeled = JSON.parse(await readFile("bench/router-cases.json", "utf8"));
+  // The mock memory model writes each case's ideal note.
+  const remember = (input) => memoryCases.find((c) => String(input).includes(`User: ${c.said[0][0]}`))?.ideal ?? "";
   const answer = (message) => {
     const heard = String(message).match(/Heard: "([\s\S]*)"$/)?.[1];
     const c = labeled.find((x) => x.heard === heard);
@@ -542,12 +622,14 @@ async function installMocks(ctx) {
   await ctx.route("https://api.anthropic.com/**", (route) => {
     const body = route.request().postDataJSON();
     const router = !!body.output_config?.format;
+    const memory = String(body.system).startsWith("You keep Navi's memory");
+    const text = router ? answer(body.messages[0].content) : memory ? remember(body.messages[0].content) : "Mock reply.";
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         id: "msg_mock", type: "message", role: "assistant", model: body.model, stop_reason: "end_turn", stop_sequence: null,
-        content: [{ type: "text", text: router ? answer(body.messages[0].content) : "Mock reply." }],
+        content: [{ type: "text", text }],
         usage: router ? { input_tokens: 1200, output_tokens: 20 } : { input_tokens: 3000, output_tokens: 80, cache_read_input_tokens: 4000 },
       }),
     });
@@ -555,12 +637,14 @@ async function installMocks(ctx) {
   await ctx.route("https://api.openai.com/**", (route) => {
     const body = route.request().postDataJSON();
     const router = !!body.text?.format;
+    const memory = body.prompt_cache_key === "navi-memory";
+    const text = router ? answer(body.input) : memory ? remember(body.input) : "Mock reply.";
     return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         id: "resp_mock", status: "completed",
-        output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: router ? answer(body.input) : "Mock reply." }] }],
+        output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text }] }],
         usage: router ? { input_tokens: 1200, output_tokens: 20 } : { input_tokens: 7000, output_tokens: 80, input_tokens_details: { cached_tokens: 4000 } },
       }),
     });

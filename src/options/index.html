@@ -13,6 +13,8 @@
       #saved { color: var(--good); font-size: 12.5px; }
       #cmd-result { font-size: 12.5px; }
       #blockedSites { font-family: var(--mono); font-size: 12px; }
+      #memory-note { font-size: 12.5px; line-height: 1.45; }
+      #memory-result { font-size: 12.5px; }
       .presets { margin-top: 14px; flex-wrap: wrap; }
       .presets .hint { margin: 0; }
       .presets button { font-size: 12px; padding: 4px 9px; }
@@ -81,6 +83,21 @@
           <select id="routerModel"></select>
           <p class="hint">For speech only: the quick check fixes misheard commands and ignores background noise, before anything slower runs.</p>
           <p class="hint" id="model-note" role="status" hidden></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Memory</legend>
+          <label class="check"><input id="memory" type="checkbox" /> Remember things about me between conversations</label>
+          <p class="hint">Navi keeps one short note about you, your preferences and your projects, and reads it before each request. It's updated in the background, when Navi is idle, from what you tell Navi (never from web pages), and only sent to your AI provider with requests. On by default in Pro; Free and Pro each have their own switch.</p>
+          <label for="memory-note">What Navi remembers</label>
+          <textarea id="memory-note" rows="8" maxlength="3000" placeholder="Nothing yet."></textarea>
+          <div class="actions">
+            <button type="button" id="memory-save">Save note</button>
+            <button type="button" id="memory-clear">Forget everything</button>
+            <span class="hint" id="memory-count"></span>
+            <span id="memory-result" role="status" aria-live="polite"></span>
+          </div>
+          <p class="hint">Edit it like any text, or just tell Navi (“remember I'm vegetarian”, “forget my old address”).</p>
         </fieldset>
 
         <fieldset>

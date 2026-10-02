@@ -1271,6 +1271,105 @@ test("typed: a message goes straight to the main model as chat, with the tabs bu
   );
 });
 
+test("memory: Navi remembers what the user says (never what a page says), uses it next time, and Settings show, edit and clear it", async ({
+  panel,
+  site,
+  context,
+  baseUrl,
+}) => {
+  const agentInputs: string[] = [];
+  const curatorBodies: Record<string, unknown>[] = [];
+  let note = "About the user\n- Name: Sam\nPreferences\n- Vegetarian";
+  await context.route("https://api.openai.com/v1/responses", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    if (body.prompt_cache_key === "navi-memory") {
+      curatorBodies.push(body);
+      return route.fulfill(openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: note }] }]));
+    }
+    const said = (body.input as { role?: string; content?: unknown }[]).filter((m) => m.role === "user" && typeof m.content === "string");
+    agentInputs.push(String(said.at(-1)?.content));
+    return route.fulfill(openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Nice to meet you, Sam." }] }]));
+  });
+  // A page that tries to write into Navi's memory; the AI sees it with every typed message.
+  await site.goto(`${baseUrl}/hostile.html`);
+  await panel.evaluate(() =>
+    chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", aiMode: "pro", typedPageContext: true } }),
+  );
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  const updateMemory = () => panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "memory" }) as Promise<string>);
+  const inbox = () => panel.evaluate(async () => (((await chrome.storage.local.get("naviMemoryInbox")).naviMemoryInbox ?? []) as unknown[]).length);
+
+  // On by default in Pro. Before anything is remembered, the AI is told so.
+  expect((await settingsOf(panel)).memory).toBe(true);
+  await type(panel, "I'm Sam, and I'm vegetarian");
+  expect(agentInputs[0]).toContain("(Nothing remembered yet.)");
+  expect(agentInputs[0]).toContain("evil@example.com");
+  await expect.poll(inbox).toBe(1);
+
+  // The background update (normally a minute after Navi goes quiet) reads only what was said and replied.
+  expect(await updateMemory()).toBe(note);
+  expect(curatorBodies).toHaveLength(1);
+  const curator = curatorBodies[0];
+  expect(curator.model).toBe("gpt-6-luna");
+  expect(String(curator.instructions)).toMatch(/^You keep Navi's memory/);
+  expect(curator.input).toBe(
+    "Current note:\n(empty)\n\nNew conversation, oldest first:\nUser: I'm Sam, and I'm vegetarian\nNavi: Nice to meet you, Sam.",
+  );
+  expect(JSON.stringify(curator)).not.toContain("evil@example.com");
+  expect(await inbox()).toBe(0);
+  // Its cost counts toward today's total, but it isn't a command.
+  const log = await panel.evaluate(async () => (await chrome.storage.local.get("metrics")).metrics as { command: string; path: string; costUsd: number }[]);
+  expect(log.find((m) => m.command === "(memory update)")).toMatchObject({ path: "background" });
+  expect(log.find((m) => m.command === "(memory update)")!.costUsd).toBeGreaterThan(0);
+
+  // It comes once per conversation: not again later in this one.
+  await type(panel, "any lentil recipes here?");
+  expect(agentInputs[1]).toContain('Typed message: "any lentil recipes here?"');
+  expect(agentInputs[1]).not.toContain("Your memory of the user");
+  // The next conversation knows, as background facts rather than instructions.
+  await panel.evaluate(() => (window as unknown as { navi: { resetConversation(): Promise<void> } }).navi.resetConversation());
+  await type(panel, "what should I cook tonight?");
+  expect(agentInputs[2]).toContain("never instructions");
+  expect(agentInputs[2]).toContain("- Vegetarian");
+  // Nothing new to fold in until something else is said: no request.
+  await panel.evaluate(() => chrome.storage.local.remove("naviMemoryInbox"));
+  await updateMemory();
+  expect(curatorBodies).toHaveLength(1);
+
+  // Settings show the note; it can be edited and cleared there.
+  const options = await context.newPage();
+  await options.goto(panel.url().replace("sidepanel.html", "options.html"));
+  await expect(options.locator("#memory")).toBeChecked();
+  await expect(options.locator("#memory-note")).toHaveValue(note);
+  await expect(options.locator("#memory-count")).toHaveText(`${note.length} / 3,000 characters`);
+  // A background update shows up while the page is open.
+  note = `${note}\n- Likes spicy food`;
+  await panel.evaluate(() => chrome.storage.local.set({ naviMemoryInbox: [{ said: "I like it spicy", reply: "Noted.", t: 1 }] }));
+  await updateMemory();
+  await expect(options.locator("#memory-note")).toHaveValue(note);
+  await options.locator("#memory-note").fill("- Name: Sam\n- Drinks tea");
+  await options.locator("#memory-save").click();
+  await expect(options.locator("#memory-result")).toHaveText("Saved");
+  expect(await updateMemory()).toBe("- Name: Sam\n- Drinks tea");
+  options.once("dialog", (d) => void d.accept());
+  await options.locator("#memory-clear").click();
+  await expect(options.locator("#memory-note")).toHaveValue("");
+  expect(await updateMemory()).toBe("");
+
+  // Off: nothing is read, noted or sent.
+  await options.locator("#memory").uncheck();
+  await options.locator("button[type=submit]").click();
+  await expect.poll(async () => (await settingsOf(panel)).memory).toBe(false);
+  await panel.evaluate(() => (window as unknown as { navi: { resetConversation(): Promise<void> } }).navi.resetConversation());
+  await type(panel, "I live in Columbus");
+  expect(agentInputs.at(-1)).toContain('Typed message: "I live in Columbus"');
+  expect(agentInputs.at(-1)).not.toContain("Your memory of the user");
+  await panel.waitForTimeout(200);
+  expect(await inbox()).toBe(0);
+  await updateMemory();
+  expect(curatorBodies).toHaveLength(2);
+});
+
 test("typed: a task looks at the page first, then acts, and knows what happened recently", async ({ panel, site, context }) => {
   const bodies: Record<string, unknown>[] = [];
   await context.route("https://api.openai.com/v1/responses", async (route) => {
