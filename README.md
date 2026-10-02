@@ -79,20 +79,22 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 
 | Kind | Examples |
 |---|---|
-| Wake / sleep | "Hey Navi" … "go to sleep", "that's all" |
+| Wake / sleep | "Hey Navi" (or "wake up") … "go to sleep", "that's all"; or press Ctrl+Space (push to talk) |
+| Listening | "push to talk mode", "open mic mode", "wake word mode", "change the shortcut" |
 | Scroll | "scroll down", "scroll up a little", "go to the top", "page down" |
-| Pages | "go back", "forward", "refresh" |
+| Pages | "go back" (the browser's back button), "forward", "refresh" |
 | Sites | "open YouTube", "go to github dot com", "open gmail in a new tab" |
-| Search | "search for pizza near me", "search YouTube for lofi", "look up AirPods on Amazon" |
+| Search | "search for a used civic" (searches the site you're on, with its own search box), "search YouTube for lofi", "google pizza near me" |
 | Tabs | "new tab", "close tab", "next tab", "tab 3", "switch to YouTube", "reopen closed tab", "what tabs are open" |
+| Windows | "stay in this window", "follow me", "move this tab to a new window", "open YouTube in a new window" |
 | Click | "flags", then "12" (or "click 12"); or "click sign in" |
 | Mouse grid | "grid", then a block number (1–9, laid out like a phone keypad) to zoom in, or several at once ("5 3"). "click", "click 7", "click 5 3", "double click", "right click". "back" zooms out, "grid off" closes it |
 | Type | "type hello world", "type cats into 5 and press enter", "press enter", "escape" |
 | Media | "pause", "play", "skip ahead 30 seconds", "mute" |
-| Reading | "read this page", "where am I", "zoom in" |
+| Reading | "read this page", "describe the screen", "where am I", "zoom in" |
 | Anything else (AI) | "open the first video", "reply to this email saying thanks", "what's this article about?", "add this to my cart" |
 | Your own commands | "add a command open wordle", "make study mode open Canvas and play lofi on YouTube", "what are my commands", "delete the wordle command" |
-| Control | "stop" (interrupts speech or a running task), "what can I say" |
+| Control | "stop" (interrupts speech or a running task), "what can I say", "open the panel", "close the panel", "open settings", "start the tutorial" |
 
 You can also type in the side panel's chat box, or dictate into it with its mic button:
 - **Built-in and personal commands** run instantly, just like when you say them.

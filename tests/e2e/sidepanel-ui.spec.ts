@@ -111,6 +111,8 @@ async function recognizerLive(panel: Page): Promise<boolean> {
 
 /** Speech from the fake recognizer: interim words, or a final phrase (with its other guesses). */
 async function hear(panel: Page, transcript: string, isFinal = false, others: string[] = []) {
+  // Navi ignores a recognizer it has stopped: speak once its current one has started.
+  await expect.poll(() => recognizerLive(panel)).toBe(true);
   await (await earsPage(panel)).evaluate(
     ([text, final, alts]) => (window as unknown as { __hear(t: string, f: boolean, o: string[]): void }).__hear(text, final, alts),
     [transcript, isFinal, others] as const,
@@ -593,7 +595,8 @@ test.describe("live caption", () => {
     await hear(panel, "hey navi what time");
     await expect(voice).toHaveAttribute("data-state", "awake");
     await hear(panel, "hey navi what time is it");
-    await expect(panel.locator("#interim")).toHaveText("hey navi what time is it");
+    // The caption shows the command, without the name.
+    await expect(panel.locator("#interim")).toHaveText("what time is it");
     // The recognizer never finishes the phrase: after a short pause Navi does, and runs it.
     const card = panel.locator("#log > li.turn").last();
     await expect(card.locator("li.user")).toHaveText(/what time is it/, { timeout: 4000 });
@@ -604,6 +607,11 @@ test.describe("live caption", () => {
     await expect(voice).toHaveAttribute("data-state", "sleeping");
     await hear(panel, "wake up", true);
     await expect(voice).toHaveAttribute("data-state", "awake");
+
+    // Chrome splits a phrase at a short pause: the pieces run as one ("8 thousand", not "8").
+    await hear(panel, "type 8", true);
+    await hear(panel, "thousand", true);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toHaveText(/type 8 thousand/);
 
     // The recognizer's best guess isn't a command, but its runner-up is: that runs.
     await hear(panel, "what time isn't", true, ["what time is it"]);
@@ -685,6 +693,7 @@ test.describe("live caption", () => {
     await expect(voice).toHaveAttribute("data-state", "sleeping");
     await shortcut();
     await expect(voice).toHaveAttribute("data-state", "awake");
+    await expect.poll(() => recognizerLive(panel)).toBe(true);
     await hear(panel, "scroll down a little", true);
     await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("scroll down a little");
     await shortcut();
@@ -694,6 +703,40 @@ test.describe("live caption", () => {
     await expect(voice).toHaveAttribute("data-state", "off");
     await shortcut();
     await expect(voice).toHaveAttribute("data-state", "awake");
+  });
+
+  test("push to talk: the mic stays closed until the shortcut, listens for a command, then closes again", async ({ panel }) => {
+    const voice = panel.locator("#voice");
+    const shortcut = () => panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "wake" }));
+    await expect(voice).toHaveAttribute("data-state", "sleeping");
+    // Short quiet time, so the test doesn't wait 8 seconds for the mic to close.
+    await panel.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get("settings");
+      await chrome.storage.local.set({ settings: { ...(settings as object), sessionTimeoutSec: 2 } });
+    });
+    await run(panel, "switch to push to talk mode");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Push to talk. The mic is closed until you press Ctrl+Space.");
+    await expect(panel.locator("input[name=mode][value=push]")).toBeChecked();
+    // Navi is on, but nothing is listening.
+    await expect(panel.locator("#caption-hint")).toHaveText("Press Ctrl+Space to talk");
+    await expect.poll(() => recognizerLive(panel)).toBe(false);
+    // The shortcut opens the mic for a command (and follow-ups)...
+    await shortcut();
+    await expect(voice).toHaveAttribute("data-state", "awake");
+    await hear(panel, "what time is it", true);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("what time is it");
+    // ...and it closes by itself once things go quiet.
+    await expect(voice).toHaveAttribute("data-state", "sleeping", { timeout: 10_000 });
+    await expect.poll(() => recognizerLive(panel)).toBe(false);
+    // Pressed again while listening, it closes right away.
+    await shortcut();
+    await expect.poll(() => recognizerLive(panel)).toBe(true);
+    await shortcut();
+    await expect.poll(() => recognizerLive(panel)).toBe(false);
+    // Back to the wake word by voice (typed here, as the mic is closed): Navi listens for its name again.
+    await panel.evaluate(() => (window as unknown as { navi: { run(t: string, s: string): Promise<void> } }).navi.run("wake word mode", "typed"));
+    await expect(voice).toHaveAttribute("data-state", "sleeping");
+    await expect.poll(() => recognizerLive(panel)).toBe(true);
   });
 
   test("dictation: the chat box's mic types what you say instead of running it", async ({ panel }) => {

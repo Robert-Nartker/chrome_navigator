@@ -11,6 +11,7 @@ import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-
 import type * as ParakeetModule from "../voice/parakeet";
 import { parakeetModelFor } from "../voice/parakeet-langs";
 import { loadModule } from "../lib/load-module";
+import { parseCommand } from "../lib/parser";
 
 export interface EarsOutput {
   /** A command to run (the wake word is already handled), and the recognizer's other guesses at it. */
@@ -161,20 +162,23 @@ export class Ears {
     this.emit();
   }
 
-  /** Awake without the name (the keyboard shortcut): listening for a command now. */
-  wake() {
+  /** Awake without the name (the keyboard shortcut): listening for a command now. Push to talk opens the mic. */
+  async wake() {
+    if (this.settings.listenMode === "push" && !this.listening) await this.start();
     if (this.session.current === "awake") return this.touch();
     this.session.wake();
     this.wasAwake = true;
     earcons.wake();
+    this.warmVoice();
     this.emit();
   }
 
-  /** "Go to sleep" (hands-free): back to waiting for the name. */
+  /** "Go to sleep" (hands-free): back to waiting for the name. Push to talk closes the mic. */
   sleep() {
     this.session.sleep();
     this.wasAwake = false;
     earcons.sleep();
+    if (this.settings.listenMode === "push" && this.listening && !this.dictating) this.stop();
     this.emit();
   }
 
@@ -258,6 +262,16 @@ export class Ears {
 
   private tick() {
     if (this.heardAsleep && Date.now() - this.heardAt > HEARD_MS) this.heardAsleep = "";
+    // Push to talk: the mic stays open while Navi answers and for a few quiet seconds after, then closes.
+    if (this.settings.listenMode === "push" && this.listening && !this.dictating) {
+      if (this.speaker.busy) this.session.touch();
+      else if (this.session.current !== "awake") {
+        this.wasAwake = false;
+        earcons.sleep();
+        this.stop();
+        return;
+      }
+    }
     // Detect the session timing out on its own.
     const awake = this.session.current === "awake";
     if (this.wasAwake && !awake && this.settings.listenMode === "handsfree" && this.listening) {
@@ -290,7 +304,8 @@ export class Ears {
       this.heardAsleep = "";
       this.emit();
     }
-    this.out.interim(this.asleep ? "" : text);
+    // The caption shows the command, not the name in front of it.
+    this.out.interim(this.asleep ? "" : this.session.withoutName(text) || text);
   }
 
   /** What either recognizer reports to. */
@@ -366,7 +381,20 @@ export class Ears {
 
   private chromeEngine(): SpeechEngine {
     // No word boosting: it made Chrome "hear" boosted words in background noise.
-    return new WebSpeechEngine({ lang: this.settings.lang, deviceId: this.settings.micDeviceId }, this.callbacks);
+    return new WebSpeechEngine(
+      { lang: this.settings.lang, deviceId: this.settings.micDeviceId, endOfPhraseMs: (text) => this.phraseEndMs(text) },
+      this.callbacks,
+    );
+  }
+
+  /**
+   * How long to wait for more words after Chrome finishes a piece of a phrase: a moment if it's already
+   * a whole command ("close tab"), longer if not ("search for", "8"), longest while dictating a message.
+   */
+  private phraseEndMs(text: string): number {
+    if (this.dictating) return 900;
+    const command = this.session.withoutName(text);
+    return command && parseCommand(command) ? 200 : 600;
   }
 
   private async onEngineError(message: string, fatal: boolean) {
@@ -425,7 +453,8 @@ export class Ears {
       next.stop();
       return;
     }
-    if (this.settings.listenMode === "open") this.session.wake();
+    // Open mic, and push to talk (the key was just pressed): listening for a command right away.
+    if (this.settings.listenMode !== "handsfree") this.session.wake();
     // Load Navi's voice now, so the first reply isn't in the fallback voice while it loads.
     if (naviVoiceOf(this.settings)) void this.speaker.prepareVoice().catch(() => undefined);
     this.emit();

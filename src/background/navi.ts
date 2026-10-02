@@ -4,6 +4,7 @@
 
 import { routeUtterance } from "../lib/router";
 import { naviWindowId, setFocusedWindowForTests, setPinnedWindow, sleep } from "../lib/browser";
+import { closePanel, openPanel } from "./panels";
 import { curateMemory, loadInbox, loadMemory, noteExchange } from "../lib/memory";
 import { recordMetric } from "../lib/metrics";
 import { formatCost } from "../lib/models";
@@ -99,9 +100,13 @@ function ensureEars(): Promise<void> {
 async function closeEars() {
   clearTimeout(closeTimer);
   if (worker.listening || !(await earsExist())) return;
+  // In use (dictating into the chat box, or talking): later.
+  if (ears.listening || ears.speaking || ears.dictating) return closeEarsWhenIdle(30_000);
   earsReady = null;
   await chrome.offscreen.closeDocument().catch(() => undefined);
   ears = EARS_OFF;
+  // Views hear it as the background page's last word.
+  void chrome.runtime.sendMessage({ type: "ears:state", state: EARS_OFF } satisfies EarsEvent).catch(() => undefined);
   pushPill();
 }
 let closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -134,6 +139,12 @@ async function setListening(on: boolean, byUser = false) {
   if (byUser) await chrome.storage.local.set({ [OFF_KEY]: !on });
   worker = { ...worker, listening: on };
   broadcastWorker();
+  // Push to talk: Navi is on, but the mic opens only when the shortcut is pressed.
+  if (on && settings.listenMode === "push") {
+    clearTimeout(closeTimer);
+    if (await earsExist()) await sendEars({ type: "ears:listen", on: false });
+    return;
+  }
   if (on && !(await earsOrProblem())) {
     worker = { ...worker, listening: false };
     broadcastWorker();
@@ -297,6 +308,16 @@ const controller = new Controller(
     onTutorialEnd() {
       void chrome.storage.local.set({ tutorialOffered: true });
     },
+    async onPanel(open, windowId) {
+      if (windowId === undefined) return "There's no window to open Navi's panel in.";
+      if (!open) return (await closePanel(windowId)) ? "Closed Navi's panel" : "Navi's panel isn't open.";
+      const how = await openPanel(windowId);
+      return how === "already"
+        ? "Navi's panel is already open."
+        : how === "side"
+          ? "Opened Navi's panel"
+          : "Opened Navi's panel as a window (Chrome opens the side panel only from a click or a shortcut)";
+    },
     onMetric(metric) {
       addMetric(metric);
     },
@@ -428,7 +449,12 @@ async function offerTutorialOnce() {
   if ((await chrome.storage.local.get("tutorialOffered")).tutorialOffered) return;
   await chrome.storage.local.set({ tutorialOffered: true });
   const name = settings.wakeName || "Navi";
-  const how = settings.listenMode === "open" ? "say: start the tutorial" : `say: Hey ${name}, start the tutorial`;
+  const how =
+    settings.listenMode === "open"
+      ? "say: start the tutorial"
+      : settings.listenMode === "push"
+        ? "press the push-to-talk shortcut and say: start the tutorial"
+        : `say: Hey ${name}, start the tutorial`;
   controller.announce(`Hi, I'm ${name}, and I'm listening. For a two-minute tour of what I can do, ${how}.`);
 }
 
@@ -481,6 +507,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
     case "navi:dictate":
       void (async () => {
         if (await earsOrProblem()) await sendEars({ type: "ears:dictate", on: msg.on });
+        closeEarsWhenIdle();
       })().finally(() => sendResponse(true));
       return true;
     case "ears:dictation":
@@ -552,6 +579,13 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
  */
 export async function toggleWake() {
   if (settings.listenMode === "open") return setListening(!worker.listening, true);
+  if (settings.listenMode === "push") {
+    // Push to talk: open the mic and listen for a command now; pressed again while listening, close it.
+    if (!worker.listening) await setListening(true, true);
+    if (!(await earsOrProblem())) return;
+    await sendEars({ type: "ears:session", action: ears.listening ? "sleep" : "wake" });
+    return;
+  }
   if (!worker.listening) await setListening(true, true);
   if (!worker.listening) return; // the mic couldn't start (the reason is logged)
   await sendEars({ type: "ears:session", action: ears.awake ? "sleep" : "wake" });
@@ -565,7 +599,11 @@ export function runTyped(text: string) {
 /** The first note in a fresh log. */
 function greeting(): string {
   const start =
-    settings.listenMode === "handsfree" ? `Say “Hey ${settings.wakeName}”, then a command.` : "Click the mic and say a command.";
+    settings.listenMode === "handsfree"
+      ? `Say “Hey ${settings.wakeName}”, then a command.`
+      : settings.listenMode === "push"
+        ? "Press the push-to-talk shortcut (Ctrl+Space unless you changed it), then say a command."
+        : "Click the mic and say a command.";
   return `${start} Or type below to ask Navi anything. Navi keeps listening when this panel is closed.`;
 }
 
@@ -634,7 +672,10 @@ export function startNavi() {
     await settingsLoaded;
     onSettingsChanged((next) => {
       const toHandsFree = next.listenMode === "handsfree" && settings.listenMode !== "handsfree";
+      const pushChanged = (next.listenMode === "push") !== (settings.listenMode === "push");
       settings = next;
+      // Into push to talk the mic closes until the shortcut; out of it, Navi (if on) listens again.
+      if (pushChanged && worker.listening) void setListening(true);
       void earsExist().then((open) => open && sendEars({ type: "ears:configure", settings }));
       // Choosing "Hey Navi" means Navi should be listening for its name (unless it was turned off).
       if (toHandsFree) void resume();

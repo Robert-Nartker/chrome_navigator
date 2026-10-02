@@ -26,6 +26,8 @@ export interface SessionDecision {
 const WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey wakey|wake up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?(?:[\s,.!?]+(.*))?$/i;
 /** The same, said on its own (while awake, "wake" can start an ordinary command). */
 const JUST_WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey wakey|wake up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?[\s,.!?]*$/i;
+/** Push to talk: how long the mic stays open for follow-ups after the last command (or Navi's reply). */
+export const PUSH_TALK_SEC = 8;
 /** After the name is heard mid-phrase, the finished phrase is treated as the one that woke Navi. */
 const SPOKEN_WAKE_MS = 8000;
 
@@ -50,10 +52,15 @@ export class WakeSession {
     return this.options.mode === "open" ? "awake" : this.state;
   }
 
+  /** Push to talk: the mic closes once the session falls asleep, after this many quiet seconds. */
+  private get timeoutSec(): number {
+    return this.options.mode === "push" ? Math.min(PUSH_TALK_SEC, this.options.timeoutSec) : this.options.timeoutSec;
+  }
+
   /** Milliseconds until the session falls asleep (0 when asleep). */
   get remainingMs(): number {
     if (this.current !== "awake" || this.options.mode === "open") return 0;
-    return Math.max(0, this.lastActivity + this.options.timeoutSec * 1000 - this.now());
+    return Math.max(0, this.lastActivity + this.timeoutSec * 1000 - this.now());
   }
 
   /** True if interim (partial) speech starts with the wake name or "wake up". */
@@ -122,7 +129,7 @@ export class WakeSession {
   }
 
   private expireIfIdle() {
-    if (this.state === "awake" && this.now() - this.lastActivity > this.options.timeoutSec * 1000) {
+    if (this.state === "awake" && this.now() - this.lastActivity > this.timeoutSec * 1000) {
       this.state = "sleeping";
     }
   }

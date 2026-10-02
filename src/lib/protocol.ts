@@ -51,7 +51,8 @@ export type ContentRequest =
   | { kind: "click"; id: number; gen?: number }
   | { kind: "type"; id?: number; gen?: number; text: string; submit: boolean; clear: boolean }
   | { kind: "select"; id: number; gen?: number; option: string }
-  | { kind: "scroll"; direction: ScrollDirection; amount: ScrollAmount }
+  /** `id`: scroll the panel or list this element is in (a sidebar of filters), not the page. */
+  | { kind: "scroll"; direction: ScrollDirection; amount: ScrollAmount; id?: number; gen?: number }
   | { kind: "pressKey"; key: Key }
   | { kind: "typeKeys"; text: string; submit: boolean }
   | { kind: "unsaved" }

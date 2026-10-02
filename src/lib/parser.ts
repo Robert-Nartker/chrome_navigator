@@ -44,6 +44,11 @@ export type Intent =
   | { type: "openSettings" }
   /** The spoken tour of Navi. */
   | { type: "tutorial" }
+  | { type: "listenMode"; mode: "handsfree" | "open" | "push" }
+  /** Chrome's keyboard shortcut settings (to change push to talk's key). */
+  | { type: "shortcuts" }
+  /** Navi's side panel. */
+  | { type: "panel"; open: boolean }
   | { type: "showGrid" }
   | { type: "hideGrid" }
   | { type: "repeat" }
@@ -192,6 +197,14 @@ const RULES: Rule[] = [
   [/^(?:what did you (?:just )?say|say (?:that|it) again|repeat (?:that|it|yourself|what you said)?|come again|pardon(?: me)?|sorry what|what was that|huh|i didn'?t (?:catch|hear) (?:that|you))$/, () => ({ type: "repeat" })],
   [/^(?:thanks?|thank you|thanks navi|got it|ok(?:ay)? thanks|perfect|cool|nice|great|awesome|good job|sounds good)$/, () => ({ type: "ack" })],
   [/^(?:are you (?:there|awake|listening|on)|you there|hello|hi|hey|can you hear me)$/, () => ({ type: "ack", reply: "I'm here." })],
+
+  // Navi itself: listening mode, shortcuts, its panel (before "switch to …" means a tab)
+  [/^(?:switch to |use |turn on |go to |change to |set (?:it )?to )?(?:push to talk|push-to-talk|press to talk|push talk)(?: mode)?$/, () => ({ type: "listenMode", mode: "push" })],
+  [/^(?:switch to |use |turn on |go to |change to )?open (?:mic|mike|microphone) mode$|^(?:switch to |use |turn on |change to )open (?:mic|mike|microphone)$/, () => ({ type: "listenMode", mode: "open" })],
+  [/^(?:switch to |use |turn on |go to |change to )?(?:hey navi|wake word|wake name|hands[- ]?free) mode$/, () => ({ type: "listenMode", mode: "handsfree" })],
+  [/^(?:change|set|edit|open|show)(?: the| my| your)? (?:keyboard |push to talk |talk )?(?:shortcuts?|hotkeys?|key ?binds?|keys?)$|^keyboard shortcuts$/, () => ({ type: "shortcuts" })],
+  [/^(?:open|show|bring up|pull up|display)(?: me)?(?: the| your| navi'?s)? (?:side ?panel|sidebar|side bar|panel)$|^(?:open|show) (?:navi'?s|the navi) (?:panel|sidebar)$/, () => ({ type: "panel", open: true })],
+  [/^(?:close|hide|dismiss|put away)(?: the| your| navi'?s)? (?:side ?panel|sidebar|side bar|panel)$/, () => ({ type: "panel", open: false })],
   [/^(?:(?:talk|speak) (?:louder|up)|louder|speak up)$/, () => ({ type: "voice", change: "louder" })],
   [/^(?:(?:talk|speak) (?:quieter|softer|more quietly)|quieter|softer|not so loud|too loud)$/, () => ({ type: "voice", change: "quieter" })],
   [/^(?:talk|speak) (?:faster|quicker)$/, () => ({ type: "voice", change: "faster" })],

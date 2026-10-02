@@ -238,9 +238,24 @@ function jumpTo(scroller: Element | Window, top: number) {
   pendingJump = requestAnimationFrame(() => scroller.scrollTo({ top, behavior: "instant" }));
 }
 
-export function scroll(direction: ScrollDirection, amount: ScrollAmount): string {
+/** The scrollable panel or list an element is in (a sidebar of filters, a dropdown's list), if any. */
+function scrollerAround(el: Element, sideways: boolean): Element | null {
+  for (let node: Element | null = el; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+    if (sideways ? isScrollableSideways(node) : isScrollable(node)) return node;
+  }
+  return null;
+}
+
+function isScrollableSideways(el: Element): boolean {
+  return /(auto|scroll|overlay)/.test(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 20;
+}
+
+/** `within`: scroll the panel or list this element is in, instead of what's in the middle of the screen. */
+export function scroll(direction: ScrollDirection, amount: ScrollAmount, within?: Element): string {
   cancelAnimationFrame(pendingJump);
-  const target = scrollTarget();
+  const sideways = direction === "left" || direction === "right";
+  const panel = within ? scrollerAround(within, sideways) : null;
+  const target = panel ?? scrollTarget();
   const isDoc = target === document.scrollingElement || target === document.documentElement;
   const viewport = isDoc ? innerHeight : target.clientHeight;
   const factor = amount === "small" ? 0.4 : amount === "large" ? 2 : 0.85;
@@ -261,13 +276,14 @@ export function scroll(direction: ScrollDirection, amount: ScrollAmount): string
       scroller.scrollBy({ top: delta, behavior: scrollBehavior() });
       break;
     case "left":
-      scroller.scrollBy({ left: -Math.round(innerWidth * factor), behavior: scrollBehavior() });
+      scroller.scrollBy({ left: -Math.round((isDoc ? innerWidth : target.clientWidth) * factor), behavior: scrollBehavior() });
       break;
     case "right":
-      scroller.scrollBy({ left: Math.round(innerWidth * factor), behavior: scrollBehavior() });
+      scroller.scrollBy({ left: Math.round((isDoc ? innerWidth : target.clientWidth) * factor), behavior: scrollBehavior() });
       break;
   }
-  return `scrolled ${direction}`;
+  if (within && !panel) return `scrolled the page ${direction} (that element isn't in a panel of its own)`;
+  return panel ? `scrolled ${direction} in the panel around it` : `scrolled ${direction}`;
 }
 
 export function selectOption(el: Element, option: string): string {

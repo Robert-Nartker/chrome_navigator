@@ -38,6 +38,8 @@ new thread (a separate conversation; optionally "new thread about <topic>"); swi
 pin Navi to this window (also "stay in this window"; Navi then works only there, even while the user uses another window); unpin Navi (also "follow me")
 move this tab to a new window; move this tab to the other window; open youtube in a new window
 wake up (wakes Navi)
+push to talk mode; open mic mode; wake word mode (how Navi listens); change the shortcut (Chrome's shortcut settings)
+open the panel; close the panel (Navi's side panel)
 how are the helpers doing (background agents the AI started); stop helpers; stop helper 2; stop everything (the command running now and all helpers)
 describe the screen (what's on it, for someone who can't see it); open settings (Navi's settings); start the tutorial (a spoken tour of Navi)
 go to sleep; turn off (stops listening until turned back on); stop`;

@@ -22,6 +22,15 @@ const form = document.getElementById("settings") as HTMLFormElement;
 const saved = document.getElementById("saved") as HTMLElement;
 const field = <T extends HTMLElement>(id: keyof Settings) => document.getElementById(id) as T;
 
+// The push-to-talk shortcut: Chrome keeps it, and only Chrome's own page can change it.
+async function showShortcut() {
+  const commands = await chrome.commands.getAll().catch(() => []);
+  document.getElementById("talk-shortcut")!.textContent = commands.find((c) => c.name === "wake-navi")?.shortcut || "not set";
+}
+void showShortcut();
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void showShortcut());
+document.getElementById("change-shortcut")?.addEventListener("click", () => void chrome.tabs.create({ url: "chrome://extensions/shortcuts" }));
+
 document.getElementById("start-tutorial")?.addEventListener("click", () => {
   void chrome.runtime.sendMessage({ type: "navi:tutorial", action: "start" }).catch(() => undefined);
 });

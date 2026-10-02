@@ -168,3 +168,19 @@ describe("metrics", async () => {
     expect(toCsv(rows).split("\n")[2]).toContain('"open ""the"" video, please"');
   });
 });
+
+describe("the page's own search box", async () => {
+  const { pickSearchBox } = await import("../../src/lib/browser");
+  const el = (id: number, role: string, name: string, extra: object = {}) => ({ id, role, name, tag: "input", inViewport: true, ...extra });
+  it("prefers the one for the part of the site you're in", () => {
+    const facebook = [el(1, "combobox", "Search Facebook"), el(2, "link", "Marketplace"), el(3, "searchbox", "Search Marketplace")];
+    expect(pickSearchBox(facebook, "https://www.facebook.com/marketplace/category/vehicles")?.id).toBe(3);
+    expect(pickSearchBox(facebook, "https://www.facebook.com/")?.id).toBe(3);
+    expect(pickSearchBox([el(1, "combobox", "Search Facebook"), el(2, "searchbox", "Search Marketplace", { inViewport: false })], "https://www.facebook.com/groups")?.id).toBe(1);
+  });
+  it("finds search fields by role, type or name, and nothing else", () => {
+    expect(pickSearchBox([el(1, "textbox", "Email"), el(2, "textbox", "Search", { inputType: "text" })], "https://x.com")?.id).toBe(2);
+    expect(pickSearchBox([el(1, "textbox", "Query", { inputType: "search" })], "https://x.com")?.id).toBe(1);
+    expect(pickSearchBox([el(1, "textbox", "Email"), el(2, "button", "Search")], "https://x.com")).toBeUndefined();
+  });
+});

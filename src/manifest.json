@@ -25,28 +25,53 @@
     "default_path": "sidepanel.html"
   },
   "options_page": "options.html",
-  "permissions": ["sidePanel", "tabs", "scripting", "storage", "tts", "sessions", "offscreen"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "sidePanel",
+    "tabs",
+    "scripting",
+    "storage",
+    "tts",
+    "sessions",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "commands": {
     "open-navi": {
-      "suggested_key": { "default": "Alt+Shift+N" },
+      "suggested_key": {
+        "default": "Alt+Shift+N"
+      },
       "description": "Open the Navi side panel"
     },
     "wake-navi": {
-      "suggested_key": { "default": "Alt+Shift+M" },
-      "description": "Talk to Navi now (or put it back to sleep)"
+      "suggested_key": {
+        "default": "Ctrl+Space",
+        "mac": "MacCtrl+Space"
+      },
+      "description": "Push to talk: talk to Navi now (press again to stop)"
     }
   },
-  "omnibox": { "keyword": "navi" },
-  "cross_origin_opener_policy": { "value": "same-origin" },
-  "cross_origin_embedder_policy": { "value": "credentialless" },
+  "omnibox": {
+    "keyword": "navi"
+  },
+  "cross_origin_opener_policy": {
+    "value": "same-origin"
+  },
+  "cross_origin_embedder_policy": {
+    "value": "credentialless"
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }

@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WebSpeechEngine } from "../../src/lib/speech";
+import { WebSpeechEngine, withoutRunWords } from "../../src/lib/speech";
 
-// A scripted stand-in for Chrome's recognizer: tests say what it hears and when it ends.
+// A scripted stand-in for Chrome's recognizer: tests say what it hears and when it ends. Like Chrome,
+// a session's results are a growing list of pieces; only the last one can still be changing.
 type Handler = ((e?: unknown) => void) | null;
+type Piece = { transcript: string; isFinal: boolean; others: string[] };
 class FakeRecognition {
   static all: FakeRecognition[] = [];
   onresult: Handler = null;
@@ -12,6 +14,7 @@ class FakeRecognition {
   onaudiostart: Handler = null;
   aborted = false;
   startedAt = Date.now();
+  pieces: Piece[] = [];
   constructor() {
     FakeRecognition.all.push(this);
   }
@@ -29,8 +32,15 @@ class FakeRecognition {
     this.aborted = true;
     setTimeout(() => this.onend?.(), 0);
   }
-  hear(transcript: string, isFinal: boolean) {
-    this.onresult?.({ resultIndex: 0, results: [Object.assign([{ transcript, confidence: 0.9 }], { isFinal })] });
+  /** Words of the piece being heard (a new piece if the last one is finished); `isFinal` finishes it. */
+  hear(transcript: string, isFinal: boolean, others: string[] = []) {
+    const last = this.pieces.at(-1);
+    if (last && !last.isFinal) Object.assign(last, { transcript, isFinal, others });
+    else this.pieces.push({ transcript, isFinal, others });
+    const results = this.pieces.map((p) =>
+      Object.assign([{ transcript: p.transcript, confidence: 0.9 }, ...p.others.map((t) => ({ transcript: t, confidence: 0.4 }))], { isFinal: p.isFinal }),
+    );
+    this.onresult?.({ resultIndex: this.pieces.length - 1, results });
   }
   fail(error: string) {
     this.onerror?.({ error, message: "" });
@@ -56,19 +66,26 @@ class FakeAudioContext {
 }
 
 let finals: string[];
+let alternatives: string[][];
 let interims: string[];
 let infos: string[];
 let errors: string[];
 const callbacks = {
   onInterim: (t: string) => interims.push(t),
-  onFinal: (t: string) => finals.push(t),
+  onFinal: (t: string, _c: number, alts?: string[]) => {
+    finals.push(t);
+    alternatives.push(alts ?? []);
+  },
   onRunningChange: () => {},
   onError: (m: string) => errors.push(m),
   onInfo: (m: string) => infos.push(m),
 };
 
+/** A whole command ends sooner (Navi's ears decide by parsing it; here, a short list). */
+const WHOLE = new Set(["close tab", "go back", "scroll down"]);
+
 async function started(): Promise<WebSpeechEngine> {
-  const engine = new WebSpeechEngine({ lang: "en-US" }, callbacks);
+  const engine = new WebSpeechEngine({ lang: "en-US", endOfPhraseMs: (t) => (WHOLE.has(t) ? 200 : 600) }, callbacks);
   await engine.start();
   await vi.advanceTimersByTimeAsync(1);
   return engine;
@@ -78,6 +95,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   FakeRecognition.all = [];
   finals = [];
+  alternatives = [];
   interims = [];
   infos = [];
   errors = [];
@@ -96,23 +114,78 @@ afterEach(() => {
 });
 
 describe("Chrome's recognizer, kept listening", () => {
-  it("finishes a phrase Chrome sits on, starts a fresh session at once, and ignores Chrome's late copy", async () => {
+  it("puts the pieces Chrome splits a phrase into back together", async () => {
     const engine = await started();
-    const first = current();
-    first.hear("close tab", false);
+    current().hear("8", true);
+    await vi.advanceTimersByTimeAsync(300);
+    current().hear("thousand", false);
+    expect(interims.at(-1)).toBe("8 thousand");
+    current().hear("thousand", true);
+    expect(finals).toEqual([]);
+    await vi.advanceTimersByTimeAsync(650);
+    expect(finals).toEqual(["8 thousand"]);
+    // The next phrase starts fresh.
+    current().hear("close", true);
+    await vi.advanceTimersByTimeAsync(250);
+    current().hear("tab", true);
+    await vi.advanceTimersByTimeAsync(650);
+    expect(finals).toEqual(["8 thousand", "close tab"]);
+    engine.stop();
+  });
+
+  it("runs a whole command after a moment, and waits longer for one that isn't finished", async () => {
+    const engine = await started();
+    current().hear("close tab", true);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(finals).toEqual(["close tab"]);
+    current().hear("search for", true);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(finals).toEqual(["close tab"]);
+    current().hear("used cars", true);
+    await vi.advanceTimersByTimeAsync(650);
+    expect(finals).toEqual(["close tab", "search for used cars"]);
+    engine.stop();
+  });
+
+  it("passes on Chrome's other guesses for a phrase in one piece", async () => {
+    const engine = await started();
+    current().hear("scroll dune", true, ["scroll down", "scroll june"]);
+    await vi.advanceTimersByTimeAsync(700);
+    expect(finals).toEqual(["scroll dune"]);
+    expect(alternatives).toEqual([["scroll down", "scroll june"]]);
+    engine.stop();
+  });
+
+  it("finishes a phrase Chrome sits on, without restarting Chrome, and doesn't run Chrome's late copy", async () => {
+    const engine = await started();
+    current().hear("close tab", false);
     await vi.advanceTimersByTimeAsync(1000);
     expect(finals).toEqual([]);
     await vi.advanceTimersByTimeAsync(150);
     expect(finals).toEqual(["close tab"]);
-    expect(first.aborted).toBe(true);
-    // Chrome's own final arrives late: not run twice.
-    first.hear("close tab", true);
+    // Chrome finishes it late: not run twice. Same session, no gap.
+    current().hear("close tab", true);
+    await vi.advanceTimersByTimeAsync(700);
     expect(finals).toEqual(["close tab"]);
-    // A new session is listening within a tenth of a second.
-    await vi.advanceTimersByTimeAsync(100);
-    expect(FakeRecognition.all).toHaveLength(2);
+    expect(FakeRecognition.all).toHaveLength(1);
+    expect(current().aborted).toBe(false);
     current().hear("go back", true);
+    await vi.advanceTimersByTimeAsync(250);
     expect(finals).toEqual(["close tab", "go back"]);
+    engine.stop();
+  });
+
+  it("hears new words Chrome adds to a piece it was holding", async () => {
+    const engine = await started();
+    current().hear("close tab", false);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(finals).toEqual(["close tab"]);
+    // Chrome keeps going in the same piece: only the new words are a new phrase.
+    current().hear("close tab scroll down", false);
+    expect(interims.at(-1)).toBe("scroll down");
+    current().hear("close tab scroll down", true);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(finals).toEqual(["close tab", "scroll down"]);
     engine.stop();
   });
 
@@ -133,6 +206,11 @@ describe("Chrome's recognizer, kept listening", () => {
     current().hear("undo", false);
     current().end();
     expect(finals).toEqual(["undo"]);
+    // Pieces Chrome finished but Navi was still waiting on, too.
+    await vi.advanceTimersByTimeAsync(100);
+    current().hear("8", true);
+    current().end();
+    expect(finals).toEqual(["undo", "8"]);
     expect(interims.at(-1)).toBe("");
     engine.stop();
   });
@@ -166,7 +244,7 @@ describe("Chrome's recognizer, kept listening", () => {
     expect(waits).toEqual([500, 1000, 2000, 4000, 8000, 8000]);
     // A session that works resets it.
     current().hear("scroll down", true);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(250);
     const before = FakeRecognition.all.length;
     current().end();
     await vi.advanceTimersByTimeAsync(80);
@@ -226,5 +304,17 @@ describe("Chrome's recognizer, kept listening", () => {
     expect(FakeRecognition.all).toHaveLength(1);
     expect(current().aborted).toBe(false);
     engine.stop();
+  });
+});
+
+describe("words Navi already ran from a piece Chrome was holding", () => {
+  const w = (s: string) => s.split(" ");
+  it("come off when Chrome adds to the piece, even if it tidied them up", () => {
+    expect(withoutRunWords(w("close tab scroll down"), w("close tab"))).toBe("scroll down");
+    expect(withoutRunWords(w("close tab scroll down"), w("close tap"))).toBe("scroll down");
+    expect(withoutRunWords(w("close tab"), w("close tab"))).toBe("");
+  });
+  it("don't when the piece is different speech", () => {
+    expect(withoutRunWords(w("go to sleep"), w("hey navi what time is it"))).toBe("go to sleep");
   });
 });

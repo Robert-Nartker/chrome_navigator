@@ -45,7 +45,7 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
     case "select":
       return { ok: true, detail: selectOption(element(req.id, req.gen), req.option) };
     case "scroll":
-      return { ok: true, detail: scroll(req.direction, req.amount) };
+      return { ok: true, detail: scroll(req.direction, req.amount, req.id !== undefined ? element(req.id, req.gen) : undefined) };
     case "pressKey":
       return { ok: true, detail: pressKey(req.key) };
     case "typeKeys":

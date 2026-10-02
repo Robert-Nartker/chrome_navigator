@@ -4,6 +4,7 @@
 
 import { runTyped, startNavi, toggleWake } from "./background/navi";
 import { loadedDevBuild, reinjectContentScripts, reopenAfterDevRestart } from "./lib/dev-reload";
+import { closePanel, panelOpen, registerPanel } from "./background/panels";
 
 startNavi();
 
@@ -17,24 +18,13 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "update") void reinjectContentScripts();
 });
 
-/** Side panels that are open, by window: each panel keeps a port connected while it's open. */
-const openPanels = new Map<number, chrome.runtime.Port>();
-
-chrome.runtime.onConnect.addListener((port) => {
-  const match = port.name.match(/^navi-panel:(\d+)$/);
-  if (!match) return;
-  const windowId = Number(match[1]);
-  openPanels.set(windowId, port);
-  port.onDisconnect.addListener(() => {
-    if (openPanels.get(windowId) === port) openPanels.delete(windowId);
-  });
-});
+chrome.runtime.onConnect.addListener(registerPanel);
 
 // Type to Navi from the address bar: "navi", a space, then a command or question.
 chrome.omnibox.setDefaultSuggestion({ description: "Ask Navi or run a command (the answer shows on the page)" });
 chrome.omnibox.onInputEntered.addListener((text) => runTyped(text));
 
-// Alt+Shift+M: talk to Navi now, without saying its name (or put it back to sleep).
+// Ctrl+Space (push to talk): talk to Navi now, without saying its name (or put it back to sleep).
 // Alt+Shift+N (Option+Shift+N on a Mac) opens the panel, or closes it if it's open.
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command === "wake-navi") {
@@ -44,12 +34,8 @@ chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== "open-navi") return;
   const windowId = tab?.windowId;
   if (windowId === undefined) return;
-  const open = openPanels.get(windowId);
-  if (open) {
-    // sidePanel.close() is Chrome 141+; older versions: the panel closes itself.
-    const close = (chrome.sidePanel as { close?: (o: { windowId: number }) => Promise<void> }).close;
-    if (close) close({ windowId }).catch(() => open.postMessage({ type: "navi:close-panel" }));
-    else open.postMessage({ type: "navi:close-panel" });
+  if (panelOpen(windowId)) {
+    void closePanel(windowId);
     return;
   }
   // Opening must happen synchronously within the shortcut's user gesture.

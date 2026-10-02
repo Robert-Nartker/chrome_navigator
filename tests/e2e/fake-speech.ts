@@ -18,6 +18,8 @@ export function installFakeRecognizer(status = "available") {
     live = false;
     /** The microphone it was given (Navi passes its own mic track). */
     trackLabel = "";
+    /** This session's results, as Chrome keeps them: pieces of speech, only the last one still changing. */
+    pieces: { transcript: string; isFinal: boolean; others: string[] }[] = [];
     constructor() {
       (window as unknown as { __recognition: FakeRecognition }).__recognition = this;
     }
@@ -44,7 +46,14 @@ export function installFakeRecognizer(status = "available") {
   const w = window as unknown as Record<string, unknown>;
   w.SpeechRecognition = w.webkitSpeechRecognition = FakeRecognition;
   w.__hear = (transcript: string, isFinal: boolean, others: string[] = []) => {
-    const result = Object.assign([{ transcript, confidence: 0.95 }, ...others.map((t) => ({ transcript: t, confidence: 0.5 }))], { isFinal });
-    (w.__recognition as FakeRecognition | undefined)?.onresult?.({ resultIndex: 0, results: [result] });
+    const rec = w.__recognition as FakeRecognition | undefined;
+    if (!rec) return;
+    const last = rec.pieces.at(-1);
+    if (last && !last.isFinal) Object.assign(last, { transcript, isFinal, others });
+    else rec.pieces.push({ transcript, isFinal, others });
+    const results = rec.pieces.map((p) =>
+      Object.assign([{ transcript: p.transcript, confidence: 0.95 }, ...p.others.map((t) => ({ transcript: t, confidence: 0.5 }))], { isFinal: p.isFinal }),
+    );
+    rec.onresult?.({ resultIndex: rec.pieces.length - 1, results });
   };
 }

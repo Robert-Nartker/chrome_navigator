@@ -2,8 +2,11 @@
 
 import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, modelInfo } from "./models";
 
-/** "handsfree": say the wake name first. "open": every word is a command while the mic is on. */
-export type ListenMode = "handsfree" | "open";
+/**
+ * "handsfree": say the wake name first. "open": every word is a command while the mic is on. "push": the
+ * mic stays closed until the push-to-talk shortcut (a Bluetooth headset keeps its good sound until then).
+ */
+export type ListenMode = "handsfree" | "open" | "push";
 /**
  * How freely Navi acts. "default": asks only before what can't be taken back (sending, buying, deleting,
  * closing unsaved typing). "yolo": never asks except before payments and sensitive details, no step limit.
@@ -189,8 +192,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined, mode?: AiM
     const value = own !== undefined ? own : raw && raw[key] !== undefined ? raw[key] : (MODE_DEFAULTS[current][key] ?? DEFAULT_SETTINGS[key]);
     (s as Record<string, unknown>)[key] = value;
   }
-  // "Click to talk" ("push") became "Open mic".
-  if ((s.listenMode as string) === "push") s.listenMode = "open";
+  if (!["handsfree", "open", "push"].includes(s.listenMode)) s.listenMode = "handsfree";
   if (s.recognizer !== "parakeet") s.recognizer = "chrome";
   if (s.autonomy !== "yolo") s.autonomy = "default";
   // The old default step limit (12) was too few for tasks that span several emails or pages.

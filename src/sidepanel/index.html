@@ -75,9 +75,14 @@
             <input type="radio" name="mode" value="open" aria-describedby="hint-open" />
             <span>Open mic</span>
           </label>
+          <label title="The mic opens when you press the push-to-talk shortcut (Ctrl+Space).">
+            <input type="radio" name="mode" value="push" aria-describedby="hint-push" />
+            <span>Push to talk</span>
+          </label>
         </div>
         <p id="hint-handsfree" class="sr-only">Say “Hey <span class="wake-name">Navi</span>”, then talk.</p>
         <p id="hint-open" class="sr-only">Everything is a command until you turn the mic off.</p>
+        <p id="hint-push" class="sr-only">The mic opens when you press the push-to-talk shortcut, and closes a few seconds after you stop.</p>
       </fieldset>
       <!-- Pro only: act without asking (except payments and passwords), with no step limit. -->
       <button id="yolo" class="yolo" type="button" aria-pressed="false" aria-describedby="yolo-hint" hidden>YOLO</button>

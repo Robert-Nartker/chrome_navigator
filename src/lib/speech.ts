@@ -110,12 +110,23 @@ export function speechSupported(): boolean {
   return !!recognitionCtor();
 }
 
-const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+/**
+ * A piece's words without the ones Navi already ran from it. Chrome may tidy those words up meanwhile
+ * ("close tap" becomes "close tab"), so it's enough that most of them match; if they don't, it's new speech.
+ */
+export function withoutRunWords(words: string[], run: string[]): string {
+  if (!run.length) return words.join(" ");
+  const bare = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, "");
+  const same = run.filter((w, i) => words[i] !== undefined && bare(words[i]) === bare(w)).length;
+  return same >= Math.ceil(run.length / 2) ? words.slice(run.length).join(" ") : words.join(" ");
+}
 
 export interface WebSpeechOptions {
   lang: string;
   /** The microphone to listen with ("" for the default). */
   deviceId?: string;
+  /** How long to wait for more words after a finished piece of `text` (shorter for a whole command). */
+  endOfPhraseMs?: (text: string) => number;
 }
 
 /** Why Chrome's on-device recognizer can't run, for the user. */
@@ -136,6 +147,12 @@ export function onDeviceProblem(status: OnDeviceStatus, lang: string): string {
  * hold a phrase for seconds (or drop it) when it isn't sure the speaker is done.
  */
 const STALL_MS = 1100;
+/**
+ * After Chrome finishes a piece of a phrase, how long Navi waits for more before running it. Chrome splits
+ * phrases at short pauses ("8" … "thousand", "close" … "tab"); the pieces belong together. A piece that's
+ * already a whole command waits less (see WebSpeechOptions.endOfPhraseMs).
+ */
+const PHRASE_END_MS = 600;
 /** Pause between Chrome's listening sessions (it ends them every so often; nothing is heard in between). */
 const RESTART_MS = 60;
 /** Longest wait between restarts after real errors (a broken mic isn't reopened several times a second). */
@@ -161,8 +178,6 @@ export class WebSpeechEngine implements SpeechEngine {
   private stream: MediaStream | null = null;
   private trackSupported = true;
   private restartTimer: number | undefined;
-  /** Fires when the partial transcript stops changing but Chrome hasn't finished the phrase. */
-  private stallTimer: number | undefined;
   /** Last start, audio, or result event from the recognizer. */
   private lastSign = 0;
   /** Last result (partial or final) from the recognizer. */
@@ -177,12 +192,19 @@ export class WebSpeechEngine implements SpeechEngine {
   /** A real error (mic gone, service down) asks for a longer wait before the next start, longer each time. */
   private errorBackoff = 0;
   private sessionError = false;
-  /** A phrase Navi finished itself when Chrome stalled, so Chrome's late copy of it isn't run twice. */
-  private forced: { text: string; at: number } | null = null;
+  /**
+   * Chrome's results this session up to `consumed` have been run, and the first `consumedWords` words of
+   * the one at `consumed` (a phrase Navi finished itself while Chrome was still holding it).
+   */
+  private consumed = 0;
+  private consumedWords: string[] = [];
+  /** The phrase being heard: pieces Chrome has finished, then words it's still working on. */
+  private phrase = { done: "", live: "", confidence: 0, alternatives: [] as string[], results: 0, lastWords: [] as string[], lastFinal: true };
+  /** Runs the phrase once it's over (a pause after a finished piece, or words that stop changing). */
+  private phraseTimer: number | undefined;
   /** Mic loudness, to notice Chrome going deaf while someone talks. */
   private level: { ctx: AudioContext; analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer>; floor: number; loudMs: number } | null = null;
   private lastDeafRestart = 0;
-  private lastInterim = "";
 
   constructor(
     private readonly options: WebSpeechOptions,
@@ -295,7 +317,7 @@ export class WebSpeechEngine implements SpeechEngine {
     this.recognition = null;
     window.clearInterval(this.watchdog);
     window.clearTimeout(this.restartTimer);
-    window.clearTimeout(this.stallTimer);
+    window.clearTimeout(this.phraseTimer);
     rec?.abort();
     this.closeMic();
     if (this.active) {
@@ -304,12 +326,27 @@ export class WebSpeechEngine implements SpeechEngine {
     }
   }
 
-  /** Chrome's own final copy of a phrase Navi already finished itself. */
-  private isForcedCopy(transcript: string): boolean {
-    const forced = this.forced;
-    if (!forced || Date.now() - forced.at > 4000) return false;
-    const t = normalize(transcript);
-    return t === forced.text || forced.text.startsWith(t) || t.startsWith(forced.text);
+  /**
+   * Runs the phrase being heard (whatever Chrome has of it), and marks those words as used so Chrome's
+   * later copy of them isn't run again. The session goes on: the next phrase is heard without a gap.
+   */
+  private finishPhrase() {
+    window.clearTimeout(this.phraseTimer);
+    const p = this.phrase;
+    const text = [p.done, p.live].filter(Boolean).join(" ").trim();
+    if (!text) return;
+    if (p.lastFinal) {
+      this.consumed = p.results;
+      this.consumedWords = [];
+    } else {
+      this.consumed = p.results - 1;
+      this.consumedWords = p.lastWords;
+    }
+    this.phrase = { done: "", live: "", confidence: 0, alternatives: [], results: p.results, lastWords: [], lastFinal: true };
+    this.hearing = false;
+    this.heardSinceLaunch = true;
+    this.callbacks.onInterim("");
+    this.callbacks.onFinal(text, p.confidence, p.alternatives);
   }
 
   private launch(Ctor: RecognitionCtor) {
@@ -335,38 +372,47 @@ export class WebSpeechEngine implements SpeechEngine {
     rec.onresult = (event) => {
       if (rec !== this.recognition) return;
       this.lastSign = this.lastResult = Date.now();
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      // Everything Chrome has heard this session that hasn't been run yet, piece by piece.
+      const done: string[] = [];
+      let live = "";
+      let lastWords: string[] = [];
+      let lastFinal = true;
+      let single: RecognitionResult | null = null;
+      for (let i = this.consumed; i < event.results.length; i++) {
         const result = event.results[i];
-        const transcript = result[0]?.transcript ?? "";
+        const all = (result[0]?.transcript ?? "").trim();
+        lastWords = all ? all.split(/\s+/) : [];
+        lastFinal = result.isFinal;
+        // Words Navi already ran (it finished the phrase while Chrome was still holding it) come off.
+        const text = i === this.consumed ? withoutRunWords(lastWords, this.consumedWords) : all;
         if (result.isFinal) {
-          this.heardSinceLaunch = true;
+          if (text) done.push(text);
+          single = done.length === 1 ? result : null;
           this.lastError = "";
-          const others = Array.from({ length: result.length ?? 1 }, (_, k) => result[k]?.transcript?.trim() ?? "").slice(1).filter(Boolean);
-          if (transcript.trim() && !this.isForcedCopy(transcript)) this.callbacks.onFinal(transcript.trim(), result[0]?.confidence ?? 0, others);
-        } else {
-          interim += transcript;
-        }
+        } else live = [live, text].filter(Boolean).join(" ");
       }
-      const words = interim.trim();
+      const phrase = {
+        done: done.join(" "),
+        live,
+        confidence: single?.[0]?.confidence ?? 0,
+        // Chrome's other guesses, when the phrase is one piece.
+        alternatives: single && !live ? Array.from({ length: single.length ?? 1 }, (_, k) => single![k]?.transcript?.trim() ?? "").slice(1).filter(Boolean) : [],
+        results: event.results.length,
+        lastWords,
+        lastFinal,
+      };
+      this.phrase = phrase;
+      const words = [phrase.done, phrase.live].filter(Boolean).join(" ");
       this.hearing = !!words;
-      this.lastInterim = words;
+      if (words) this.heardSinceLaunch = true;
       this.callbacks.onInterim(words);
-      // Chrome can sit on a phrase that's already over (unsure the speaker is done, or hearing noise),
-      // leaving the words on screen without running them, and sometimes drops them. If they stop changing,
-      // Navi finishes the phrase itself and starts a fresh session, so the next thing said is heard.
-      window.clearTimeout(this.stallTimer);
-      if (words) {
-        this.stallTimer = window.setTimeout(() => {
-          if (rec !== this.recognition) return;
-          this.forced = { text: normalize(words), at: Date.now() };
-          this.heardSinceLaunch = true;
-          this.hearing = false;
-          this.callbacks.onInterim("");
-          this.callbacks.onFinal(words, 0);
-          rec.abort();
-        }, STALL_MS);
-      }
+      window.clearTimeout(this.phraseTimer);
+      if (!words) return;
+      // Still talking: wait for Chrome. If the words stop changing, Chrome is holding a phrase that's over
+      // (unsure the speaker is done, or hearing noise), so Navi runs it. Otherwise Chrome has finished the
+      // pieces so far: run them after a short pause, unless more words follow.
+      const wait = live ? STALL_MS : (this.options.endOfPhraseMs?.(words) ?? PHRASE_END_MS);
+      this.phraseTimer = window.setTimeout(() => rec === this.recognition && this.finishPhrase(), wait);
     };
     rec.onerror = (event) => {
       // Back off on every real error so a broken mic isn't reopened several times a second.
@@ -405,12 +451,8 @@ export class WebSpeechEngine implements SpeechEngine {
     };
     rec.onend = () => {
       if (rec !== this.recognition) return;
-      window.clearTimeout(this.stallTimer);
-      // A phrase still on screen when Chrome ends the session is finished, not thrown away.
-      if (this.hearing && this.lastInterim) {
-        this.forced = { text: normalize(this.lastInterim), at: Date.now() };
-        this.callbacks.onFinal(this.lastInterim, 0);
-      }
+      // A phrase still being heard when Chrome ends the session is run, not thrown away.
+      this.finishPhrase();
       this.hearing = false;
       // Chrome ends sessions every so often, and after silence: restart at once, so nothing said is missed.
       // Only a session that failed straight away (nothing heard, under a second) or a real error waits,
@@ -441,7 +483,9 @@ export class WebSpeechEngine implements SpeechEngine {
     this.recognition = rec;
     this.launchedAt = Date.now();
     this.heardSinceLaunch = false;
-    this.lastInterim = "";
+    this.consumed = 0;
+    this.consumedWords = [];
+    this.phrase = { done: "", live: "", confidence: 0, alternatives: [], results: 0, lastWords: [], lastFinal: true };
     const track = this.stream?.getAudioTracks()[0];
     try {
       if (track?.readyState === "live") rec.start(track);

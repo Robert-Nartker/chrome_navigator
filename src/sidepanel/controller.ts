@@ -15,6 +15,7 @@ import {
   goBack,
   moveTab,
   naviWindowId,
+  pickSearchBox,
   tabsWithUnsavedTyping,
   navigate,
   pageRequest,
@@ -162,6 +163,8 @@ export class Controller {
       onWake?(): void;
       /** The tutorial ended (`finished`: the user got to the end). */
       onTutorialEnd?(finished: boolean): void;
+      /** Opens or closes Navi's side panel in a window; returns what to say. */
+      onPanel?(open: boolean, windowId: number | undefined): Promise<string>;
     },
     private readonly threads: ThreadBook,
     private readonly pin: WindowPin,
@@ -949,6 +952,20 @@ export class Controller {
   }
 
   /** Confirmation of an action: shown always, spoken only in spoken-feedback mode. */
+  /** Searches with the page's own search box, if it has one. */
+  private async searchOnPage(tab: chrome.tabs.Tab, query: string): Promise<boolean> {
+    if (!isWebUrl(tab.url)) return false;
+    const snap = await snapshot(tab).catch(() => null);
+    const box = snap && pickSearchBox(snap.elements, tab.url);
+    if (!snap || !box) return false;
+    await pageRequest(tab, { kind: "type", id: box.id, gen: snap.gen, text: query, submit: true, clear: true });
+    await waitForLoad(tab.id!, 5000);
+    // "Search Marketplace" names where it searches; "Search the site" doesn't.
+    const place = box.name.replace(/^search\s+(?:in\s+)?/i, "");
+    await this.confirm(`Searching ${/^[A-Z]/.test(place) && !/^(?:The|This|Our|All)\b/.test(place) && place !== box.name ? place : "this site"} for ${query}`);
+    return true;
+  }
+
   private async confirm(text: string) {
     this.navi(text);
     // In the speech queue, so it never talks over what Navi is saying (e.g. the tutorial).
@@ -1025,6 +1042,28 @@ export class Controller {
         await chrome.runtime.openOptionsPage();
         await this.confirm("Opened Navi's settings");
         return;
+      case "listenMode": {
+        await saveSettings({ listenMode: intent.mode });
+        const key = (await chrome.commands.getAll().catch(() => [])).find((c) => c.name === "wake-navi")?.shortcut;
+        const text =
+          intent.mode === "push"
+            ? `Push to talk. The mic is closed until you press ${key || "the push-to-talk shortcut (set one in Chrome's shortcut settings)"}.`
+            : intent.mode === "open"
+              ? "Open mic: everything you say is a command until you turn the mic off."
+              : `Wake word mode: say “Hey ${this.getSettings().wakeName}” before a command.`;
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
+      case "shortcuts":
+        await chrome.tabs.create({ url: "chrome://extensions/shortcuts", windowId: await naviWindowId() });
+        await this.confirm("Opened Chrome's shortcut settings: Navi's are at the top");
+        return;
+      case "panel": {
+        const text = (await this.hooks.onPanel?.(intent.open, await naviWindowId())) ?? "";
+        if (text) await this.confirm(text);
+        return;
+      }
       case "describeScreen":
         // Handled in dispatch (it may use the AI).
         return;
@@ -1142,22 +1181,18 @@ export class Controller {
         return;
       }
       case "search": {
-        // "Search for …" on YouTube (or another site Navi can search) searches that site.
-        const engine = (intent.onSite && siteEngine(tab.url)) || intent.engine;
+        // "Search for …" searches the site you're on: with its known search (YouTube, Amazon…), else its
+        // own search box (Facebook Marketplace…). Only a page without one sends it to Google.
+        const known = intent.onSite && siteEngine(tab.url);
+        if (intent.onSite && !known && (await this.searchOnPage(tab, intent.query))) return;
+        const engine = known || intent.engine;
         await navigate(engine === intent.engine ? intent.url : searchUrl(intent.query, engine), intent.newTab);
         await this.confirm(`Searching ${engine === "google" ? "" : `${engine} `}for ${intent.query}`);
         return;
       }
-      case "siteSearch": {
-        const snap = await snapshot(tab);
-        const box =
-          snap.elements.find((e) => e.role === "searchbox") ??
-          snap.elements.find((e) => e.role === "textbox" && /search/i.test(e.name));
-        if (!box) throw new Unhandled("I couldn't find a search box on this page.");
-        await pageRequest(tab, { kind: "type", id: box.id, gen: snap.gen, text: intent.query, submit: true, clear: true });
-        await this.confirm(`Searching this site for ${intent.query}`);
+      case "siteSearch":
+        if (!(await this.searchOnPage(tab, intent.query))) throw new Unhandled("I couldn't find a search box on this page.");
         return;
-      }
       case "clickNumber": {
         const res = await pageRequest(tab, { kind: "click", id: intent.n });
         await this.confirm(res.detail ?? `Clicked ${intent.n}`);

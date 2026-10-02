@@ -84,6 +84,9 @@ function renderStatus() {
     if (settings.listenMode === "open") {
       state = "awake";
       text = "Open mic: just say a command";
+    } else if (settings.listenMode === "push") {
+      state = "awake";
+      text = `Listening: say a command (${talkShortcut || "the shortcut"} again to stop)`;
     } else if (ears.awake) {
       state = "awake";
       text = "Awake: just say a command";
@@ -91,6 +94,10 @@ function renderStatus() {
       state = "sleeping";
       text = `Say “Hey ${settings.wakeName}”`;
     }
+  } else if (worker.listening && settings.listenMode === "push") {
+    // Push to talk: on, with the mic closed until the shortcut.
+    state = "sleeping";
+    text = talkShortcut ? `Press ${talkShortcut} to talk` : "Set a push-to-talk shortcut in Chrome's shortcut settings";
   } else if (worker.listening) {
     // Asked to listen; the mic is still opening.
     state = "starting";
@@ -113,6 +120,17 @@ function renderStatus() {
   setToggle(ui.gridButton, worker.grid, worker.grid ? "Hide grid" : "Grid");
 }
 
+/** The push-to-talk shortcut as Chrome shows it ("Ctrl+Space", "⌃Space"), or "" if none is set. */
+let talkShortcut = "";
+async function loadShortcut() {
+  const commands = await chrome.commands.getAll().catch(() => []);
+  talkShortcut = commands.find((c) => c.name === "wake-navi")?.shortcut ?? "";
+  renderStatus();
+}
+void loadShortcut();
+// Changed in Chrome's shortcut settings meanwhile: picked up when the panel is shown again.
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void loadShortcut());
+
 const STATUS_LABELS: Record<string, string> = {
   off: "Off",
   error: "Mic unavailable",
@@ -132,7 +150,7 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, STATUS_LABELS[state] ?? text);
   const hint =
     state === "off"
-      ? `Navi is off and stays off, even after Chrome restarts. Click the mic or press Alt+Shift+M to turn it on.`
+      ? `Navi is off and stays off, even after Chrome restarts. Click the mic${talkShortcut ? ` or press ${talkShortcut}` : ""} to turn it on.`
       : state === "error"
         ? ears.micError || worker.problem || text
         : state === "working"
@@ -622,7 +640,9 @@ pinElsewhere.addEventListener("click", () => {
 
 /** Tells the background worker this panel is open, so the shortcut can close it. */
 async function registerPanel() {
-  const { id } = await chrome.windows.getCurrent();
+  // Opened by voice as a window of its own, the panel belongs to the window it was opened for.
+  const forWindow = Number(new URLSearchParams(location.search).get("window")) || undefined;
+  const id = forWindow ?? (await chrome.windows.getCurrent()).id;
   myWindow = id;
   renderPin();
   const port = chrome.runtime.connect({ name: `navi-panel:${id}` });

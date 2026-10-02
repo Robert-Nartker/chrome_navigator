@@ -348,7 +348,7 @@ test("video volume: set to a level, and turned up or down however it's said", as
   await expect.poll(volume).toBe(80);
 });
 
-test("“open” opens a new tab and “go back” there returns to where you were; “go to” stays in this tab", async ({
+test("“open” opens a new tab; “go back” is the browser's back button and never closes a tab; “go to” stays in this tab", async ({
   panel,
   site,
   baseUrl,
@@ -360,16 +360,29 @@ test("“open” opens a new tab and “go back” there returns to where you we
   await expect.poll(() => webTabs().length).toBe(2);
   await expect(site).toHaveURL(/localhost.*index\.html/);
   const opened = webTabs().find((p) => p.url().includes("127.0.0.1"))!;
-  // The new tab has nothing to go back to: it closes, back to the page it came from.
+  // The new tab has nothing to go back to: Navi says so (and how to get back) instead of closing it.
   await run(panel, "go back");
+  await expect(panel.locator("#log li.error .text").last()).toHaveText(
+    "There's no previous page in this tab. To get back to “Navi Test Page”, say “close tab”.",
+  );
+  expect(opened.isClosed()).toBe(false);
+  await run(panel, "close tab");
   await expect.poll(() => opened.isClosed()).toBe(true);
-  await expect(panel.locator("#log li.navi").last()).toContainText("Back to");
   // "Go to" replaces the page, and "go back" is ordinary history.
   await run(panel, `go to 127.0.0.1:${port}/about.html`);
   await expect(site).toHaveURL(/127\.0\.0\.1.*about\.html/);
   await run(panel, "go back");
   await expect(site).toHaveURL(/localhost.*index\.html/);
   expect(webTabs().length).toBe(1);
+});
+
+test("“search for …” on a site Navi doesn't know uses the site's own search box, not Google", async ({ panel, site }) => {
+  await run(panel, "search for octopus");
+  await expect(site).toHaveURL(/localhost.*search\.html\?q=octopus/);
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("Searching this site for octopus");
+  // "Google …" still searches the web.
+  await run(panel, "google octopus");
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("Searching for octopus");
 });
 
 test("closing a tab with unsent typing asks first by default (“yes” closes it); searches don't count; YOLO just closes", async ({
@@ -1166,6 +1179,30 @@ function openaiReply(output: unknown[], usage = { input_tokens: 2000, output_tok
   return { status: 200, contentType: "application/json", body: JSON.stringify({ id: "resp_test", status: "completed", output, usage }) };
 }
 
+test("the AI scrolls a side panel (a column of filters) by naming an element in it, not the page", async ({ panel, site, context, baseUrl }) => {
+  const bodies: { input: { type?: string; output?: string; content?: unknown; role?: string }[] }[] = [];
+  const call = (name: string, args: object) => ({ type: "function_call", id: `fc_${name}`, call_id: `call_${name}`, name, arguments: JSON.stringify(args) });
+  await context.route("https://api.openai.com/v1/responses", (route) => {
+    const body = route.request().postDataJSON();
+    bodies.push(body);
+    const outputs = body.input.filter((x: { type?: string }) => x.type === "function_call_output").map((x: { output: string }) => x.output);
+    if (!outputs.length) return route.fulfill(openaiReply([call("look_at_page", {})]));
+    if (outputs.length === 1) {
+      const id = Number(outputs[0].match(/\[(\d+)\] checkbox "Make: Acura"/)?.[1]);
+      return route.fulfill(openaiReply([call("scroll", { direction: "down", amount: "page", element_id: id })]));
+    }
+    return route.fulfill(openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Scrolled the filters." }] }]));
+  });
+  await site.goto(`${baseUrl}/filters.html`);
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await type(panel, "find the toyota filter in the sidebar");
+  await expect.poll(() => site.evaluate(() => document.getElementById("filters")!.scrollTop)).toBeGreaterThan(100);
+  expect(await site.evaluate(() => scrollY)).toBe(0);
+  const results = bodies[2].input.filter((i) => i.type === "function_call_output");
+  expect(results.at(-1)!.output).toContain("scrolled down in the panel around it");
+});
+
 test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is logged", async ({ panel, site, context }) => {
   const bodies: Record<string, unknown>[] = [];
   const auth: string[] = [];
@@ -1748,6 +1785,24 @@ test.describe("Navi's window", () => {
     await run(panel, "new tab");
     await expect.poll(() => tabsIn(panel, b)).toBe(inB + 1);
     expect(await tabsIn(panel, a)).toBe(inA + 2);
+  });
+
+  test("“open the panel” and “close the panel” by voice, in Navi's window", async ({ panel, context, baseUrl }) => {
+    const { b } = await twoWindows(panel, context, baseUrl);
+    await focus(panel, b);
+    const panelFor = (w: number) => context.pages().find((p) => p.url().endsWith(`sidepanel.html?window=${w}`));
+    // Chrome opens the side panel only from a click or a shortcut, so by voice it opens as a window.
+    await run(panel, "open the panel");
+    await expect.poll(() => !!panelFor(b)).toBe(true);
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(
+      "Opened Navi's panel as a window (Chrome opens the side panel only from a click or a shortcut)",
+    );
+    await panelFor(b)!.waitForFunction(() => "navi" in window);
+    await run(panel, "open the panel");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Navi's panel is already open.");
+    await run(panel, "close the panel");
+    await expect.poll(() => !!panelFor(b)).toBe(false);
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Closed Navi's panel");
   });
 
   test("moving a tab to a new window or the other window, and opening a site in a new window", async ({ panel, site, context, baseUrl }) => {

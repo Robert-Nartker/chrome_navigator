@@ -127,7 +127,9 @@
           <select id="listenMode">
             <option value="handsfree">Hey Navi (say the wake name, then talk)</option>
             <option value="open">Open mic (every word is a command until you turn the mic off)</option>
+            <option value="push">Push to talk (the mic opens only when you press the shortcut)</option>
           </select>
+          <p class="hint">Push-to-talk shortcut: <strong id="talk-shortcut">not set</strong> <button id="change-shortcut" type="button" class="link-button">Change</button>. In any mode it means “listen to me now”. Push to talk keeps the mic closed the rest of the time, so a Bluetooth headset (AirPods) keeps its good sound until you talk.</p>
           <label for="recognizer">Recognizer</label>
           <select id="recognizer">
             <option value="chrome">Chrome's (default: light, starts instantly)</option>

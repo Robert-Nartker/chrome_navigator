@@ -1,7 +1,7 @@
 // Browser-level control (tabs, navigation) plus a typed channel to the content
 // script in the tab being controlled. Runs in Navi's background service worker.
 
-import type { ContentRequest, ContentResponse, PageSnapshot } from "./protocol";
+import type { ContentRequest, ContentResponse, ElementInfo, PageSnapshot } from "./protocol";
 
 const WEB_URL = /^(https?|file|ftp):/;
 
@@ -185,20 +185,39 @@ export async function tabsWithUnsavedTyping(tabs: chrome.tabs.Tab[]): Promise<ch
 }
 
 /**
- * Goes back a page. A tab with nothing to go back to that was opened from another tab (by Navi, or a
- * link that opened a new tab) is closed instead, back to the tab it came from, as on a phone.
+ * Goes back a page, exactly like Chrome's back button. With nothing to go back to (some sites change
+ * filters and views without adding a page to go back to), it says so: it never closes the tab.
  */
 export async function goBack(tab: chrome.tabs.Tab): Promise<chrome.tabs.Tab> {
   try {
     await chrome.tabs.goBack(tab.id!);
-    return await waitForLoad(tab.id!);
   } catch {
     const opener = tab.openerTabId !== undefined ? await chrome.tabs.get(tab.openerTabId).catch(() => undefined) : undefined;
-    if (!opener?.id) throw new Error(`There's no previous page in “${tab.title || tab.url || "this tab"}”.`);
-    await chrome.tabs.update(opener.id, { active: true });
-    await chrome.tabs.remove(tab.id!);
-    return opener;
+    const tip = opener ? ` To get back to “${opener.title || "the tab it came from"}”, say “close tab”.` : "";
+    throw new Error(`There's no previous page in this tab.${tip}`);
   }
+  return waitForLoad(tab.id!);
+}
+
+/**
+ * The page's own search box, for "search for …" on a site Navi doesn't know: a search field, preferring
+ * one named for the part of the site you're in ("Search Marketplace" over "Search Facebook" on
+ * facebook.com/marketplace).
+ */
+export function pickSearchBox(elements: ElementInfo[], url: string | undefined): ElementInfo | undefined {
+  const isSearch = (e: ElementInfo) =>
+    e.role === "searchbox" || e.inputType === "search" || (["textbox", "combobox"].includes(e.role) && /\bsearch\b/i.test(e.name));
+  let path: string[] = [];
+  try {
+    path = new URL(url ?? "").pathname.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3);
+  } catch {
+    // No URL: no preference.
+  }
+  const score = (e: ElementInfo) => {
+    const name = e.name.toLowerCase();
+    return path.filter((w) => name.includes(w)).length * 4 + (e.inViewport ? 2 : 0) + (e.role === "searchbox" ? 1 : 0);
+  };
+  return elements.filter(isSearch).sort((a, b) => score(b) - score(a))[0];
 }
 
 /** The tabs in Navi's window (or `inWindow`). */

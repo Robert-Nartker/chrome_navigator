@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Listings with filters</title>
+<style>
+  body { margin: 0; display: flex; }
+  #filters { width: 240px; height: 300px; overflow-y: auto; border-right: 1px solid #ccc; }
+  #filters label { display: block; padding: 10px; }
+  main { flex: 1; }
+  .listing { height: 200px; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+  <aside id="filters" aria-label="Filters">
+    <label><input type="checkbox"> Make: Acura</label>
+    <label><input type="checkbox"> Make: Audi</label>
+    <label><input type="checkbox"> Make: BMW</label>
+    <label><input type="checkbox"> Make: Chevrolet</label>
+    <label><input type="checkbox"> Make: Ford</label>
+    <label><input type="checkbox"> Make: Honda</label>
+    <label><input type="checkbox"> Make: Hyundai</label>
+    <label><input type="checkbox"> Make: Kia</label>
+    <label><input type="checkbox"> Make: Mazda</label>
+    <label><input type="checkbox"> Make: Nissan</label>
+    <label><input type="checkbox"> Make: Subaru</label>
+    <label><input type="checkbox"> Make: Toyota</label>
+    <label><input type="checkbox"> Make: Volkswagen</label>
+  </aside>
+  <main>
+    <div class="listing">2015 Honda Civic</div><div class="listing">2018 Toyota Corolla</div><div class="listing">2012 Ford Focus</div>
+    <div class="listing">2016 Mazda 3</div><div class="listing">2019 Kia Soul</div><div class="listing">2014 Subaru Impreza</div>
+  </main>
+</body>
+</html>
