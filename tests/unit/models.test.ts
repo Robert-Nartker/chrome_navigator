@@ -105,6 +105,24 @@ describe("which models run", () => {
     expect([g.model, g.routerModel]).toEqual(["gpt-6.1-sol", "gpt-6.1-sol"]);
   });
 
+  it("keeps Free's and Pro's own settings: saved for the mode, else saved before modes existed, else the mode's default", () => {
+    const pro = { openaiKey: "sk", aiMode: "pro" as const };
+    // Memory is on by default in Pro, off in Free.
+    expect(normalizeSettings(pro).memory).toBe(true);
+    expect(normalizeSettings({ ...pro, aiMode: "free" }).memory).toBe(false);
+    expect(normalizeSettings({}).memory).toBe(false);
+    // Each mode's own values win, and switching modes switches them.
+    const stored = { ...pro, autonomy: "default" as const, modes: { pro: { autonomy: "yolo" as const, memory: false }, free: { memory: true } } };
+    expect(normalizeSettings(stored)).toMatchObject({ autonomy: "yolo", memory: false });
+    expect(normalizeSettings({ ...stored, aiMode: "free" })).toMatchObject({ autonomy: "default", memory: true });
+    // A value saved before modes existed is kept for both.
+    expect(normalizeSettings({ ...pro, maxAgentSteps: 25 }).maxAgentSteps).toBe(25);
+    // Another mode's settings can be shown without switching.
+    expect(normalizeSettings(stored, "free").memory).toBe(true);
+    // Helper agents default to GPT-6.1 Sol at low reasoning.
+    expect(normalizeSettings(pro)).toMatchObject({ subagentModel: "gpt-6.1-sol", subagentEffort: "low" });
+  });
+
   it("asks rarely by default; YOLO only has to be chosen", () => {
     expect(normalizeSettings({}).autonomy).toBe("default");
     expect(normalizeSettings({ autonomy: "yolo" }).autonomy).toBe("yolo");

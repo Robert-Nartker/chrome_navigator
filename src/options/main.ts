@@ -2,7 +2,18 @@ import { type Step, deleteCommand, describeCommand, loadCommands, onCommandsChan
 import { clearMetrics, loadMetrics, summarize, toCsv } from "../lib/metrics";
 import { MODEL_CATALOG, PROVIDER_DEFAULTS, type ApiProvider, formatCost, modelInfo } from "../lib/models";
 import { NANO_STATUS_TEXT, nanoStatus } from "../lib/nano";
-import { DEFAULT_SETTINGS, type Settings, activeSettings, aiModeOf, loadSettings, providersWithKeys, saveSettings } from "../lib/settings";
+import {
+  type AiMode,
+  DEFAULT_SETTINGS,
+  type Settings,
+  activeSettings,
+  aiModeOf,
+  loadSettings,
+  loadStoredSettings,
+  normalizeSettings,
+  providersWithKeys,
+  saveSettings,
+} from "../lib/settings";
 import { Speaker, pickVoice } from "../lib/voice-output";
 import { KOKORO_VOICES } from "../tts-lab/kokoro-voices";
 
@@ -82,20 +93,31 @@ chrome.tts.getVoices((voices) => {
   select.value = current;
 });
 
+/** The settings Free and Pro each keep their own value for (see MODE_KEYS). */
+function fillModeFields(s: Settings) {
+  selectValue(modelSelect, s.model);
+  field<HTMLSelectElement>("effort").value = s.effort;
+  field<HTMLInputElement>("fastMode").checked = s.fastMode;
+  field<HTMLInputElement>("maxAgentSteps").value = String(s.maxAgentSteps);
+  field<HTMLSelectElement>("autonomy").value = s.autonomy;
+  selectValue(routerSelect, s.routerModel);
+  updateModelNote();
+}
+
+// Choosing Free or Pro shows that mode's own settings (saving keeps them for that mode).
+field<HTMLSelectElement>("aiMode").addEventListener("change", async () => {
+  fillModeFields(normalizeSettings(await loadStoredSettings(), field<HTMLSelectElement>("aiMode").value as AiMode));
+});
+
 async function fill() {
   const s = await loadSettings();
   field<HTMLSelectElement>("aiMode").value = aiModeOf(s);
   void nanoStatus().then((status) => (document.getElementById("nano-note")!.textContent = `On-device AI: ${NANO_STATUS_TEXT[status]}`));
   field<HTMLInputElement>("apiKey").value = s.apiKey;
   field<HTMLInputElement>("openaiKey").value = s.openaiKey;
-  selectValue(modelSelect, s.model);
-  field<HTMLSelectElement>("effort").value = s.effort;
-  field<HTMLInputElement>("fastMode").checked = s.fastMode;
-  field<HTMLInputElement>("maxAgentSteps").value = String(s.maxAgentSteps);
   field<HTMLInputElement>("wakeName").value = s.wakeName;
   field<HTMLSelectElement>("listenMode").value = s.listenMode;
   field<HTMLSelectElement>("recognizer").value = s.recognizer;
-  field<HTMLSelectElement>("autonomy").value = s.autonomy;
   field<HTMLInputElement>("sessionTimeoutSec").value = String(s.sessionTimeoutSec);
   field<HTMLInputElement>("lang").value = s.lang;
   field<HTMLSelectElement>("feedback").value = s.feedback;
@@ -104,14 +126,13 @@ async function fill() {
   voice.value = s.voiceName;
   field<HTMLInputElement>("speechRate").value = String(s.speechRate);
   field<HTMLInputElement>("volume").value = String(s.volume);
-  selectValue(routerSelect, s.routerModel);
   field<HTMLInputElement>("allowPageText").checked = s.allowPageText;
   field<HTMLInputElement>("allowScreenshots").checked = s.allowScreenshots;
   field<HTMLInputElement>("typedPageContext").checked = s.typedPageContext;
   field<HTMLTextAreaElement>("blockedSites").value = s.blockedSites.join("\n");
   field<HTMLSelectElement>("speechOutput").value = s.speechOutput;
   field<HTMLSelectElement>("naviVoice").value = s.naviVoice;
-  updateModelNote();
+  fillModeFields(s);
 }
 
 function clamp(value: string, min: number, max: number, fallback: number) {

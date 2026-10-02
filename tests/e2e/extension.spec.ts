@@ -10,6 +10,7 @@ import path from "node:path";
 import { KOKORO, KOKORO_STAND_INS } from "./fake-models";
 import { installFakeRecognizer } from "./fake-speech";
 import { CHROMIUM, startServer } from "./helpers";
+import { type Settings, normalizeSettings } from "../../src/lib/settings";
 
 const DIST = path.resolve("dist");
 
@@ -156,6 +157,11 @@ type RunHook = { navi: { run(t: string, source?: "typed" | "voice"): Promise<voi
 /** A command as if spoken (the voice pipeline: router, then the AI with the page's element list). */
 async function run(panel: Page, command: string) {
   await panel.evaluate((text) => (window as unknown as RunHook).navi.run(text, "voice"), command);
+}
+
+/** Navi's settings as it runs with them (each mode keeps some of its own, so the stored object isn't enough). */
+async function settingsOf(page: Page): Promise<Settings> {
+  return normalizeSettings(await page.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Partial<Settings>));
 }
 
 /** A message typed in the panel's chat box. */
@@ -455,9 +461,7 @@ test("YOLO: the panel's switch turns it on; the AI is then told to act without a
 
   await yolo.click();
   await expect(yolo).toHaveAttribute("aria-pressed", "true");
-  expect(await panel.evaluate(async () => ((await chrome.storage.local.get("settings")) as { settings: { autonomy: string } }).settings.autonomy)).toBe(
-    "yolo",
-  );
+  expect((await settingsOf(panel)).autonomy).toBe("yolo");
   await type(panel, "look over every section of this page for me");
   await expect(panel.locator("#log li.navi").last()).toContainText("Scrolled through it all.");
   expect(systems).toHaveLength(3 + 6);
@@ -503,8 +507,7 @@ test("setup: connecting a key checks it, then turns on that provider's recommend
   await expect(result).toContainText("Connected to Anthropic.");
   await expect(result).toContainText("Tasks and chat: Claude Sonnet 5.5 (low reasoning). Unclear speech: Claude Sonnet 5.5 (no reasoning).");
   await expect(setup.locator("#ai-warning")).toBeHidden();
-  settings = await setup.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Record<string, string>);
-  expect(settings).toMatchObject({ apiKey: "sk-ant-good", model: "claude-sonnet-5-5", routerModel: "claude-sonnet-5-5", effort: "low" });
+  expect(await settingsOf(setup)).toMatchObject({ apiKey: "sk-ant-good", model: "claude-sonnet-5-5", routerModel: "claude-sonnet-5-5", effort: "low" });
   expect(seen).toEqual(["sk-ant-wrong", "sk-ant-good"]);
   await expect(panel.locator("#key-banner")).toBeHidden();
 
@@ -514,8 +517,7 @@ test("setup: connecting a key checks it, then turns on that provider's recommend
   await setup.locator("#ai-connect").click();
   await expect(result).toContainText("Connected to OpenAI.");
   await expect(setup.locator("#ai-warning")).toContainText("doesn't list gpt-6-luna");
-  settings = await setup.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Record<string, string>);
-  expect(settings).toMatchObject({ openaiKey: "sk-proj-test", apiKey: "sk-ant-good", model: "gpt-6.1-sol", routerModel: "gpt-6-luna" });
+  expect(await settingsOf(setup)).toMatchObject({ openaiKey: "sk-proj-test", apiKey: "sk-ant-good", model: "gpt-6.1-sol", routerModel: "gpt-6-luna" });
 
   // Reopening shows what's connected.
   await setup.reload();
@@ -583,9 +585,7 @@ test.describe("Navi Free", () => {
     await expect(thinking).toBeVisible();
     await expect(thinking.getByRole("radio", { name: "Low" })).toBeChecked();
     await thinking.getByRole("radio", { name: "Extra high" }).check();
-    await expect
-      .poll(() => panel.evaluate(async () => (await chrome.storage.local.get("settings")).settings as { effort: string; model: string }))
-      .toMatchObject({ effort: "xhigh", model: "gpt-6.1-sol" });
+    await expect.poll(() => settingsOf(panel)).toMatchObject({ effort: "xhigh", model: "gpt-6.1-sol" });
     await expect(thinking.getByRole("radio", { name: "Extra high" })).toBeChecked();
     await panel.locator("#plan").click();
     await expect(panel.locator("#plan")).toHaveText("Free");
@@ -593,6 +593,28 @@ test.describe("Navi Free", () => {
     expect(await panel.evaluate(async () => ((await chrome.storage.local.get("settings")).settings as { aiMode: string }).aiMode)).toBe("free");
     await panel.locator("#plan").click();
     await expect(panel.locator("#plan")).toHaveText(/^Pro/);
+
+    // Free and Pro keep their own settings: Pro's YOLO and reasoning come back after a trip to Free.
+    await expect(thinking.getByRole("radio", { name: "Extra high" })).toBeChecked();
+    const yolo = panel.getByRole("button", { name: "YOLO" });
+    await yolo.click();
+    await expect(yolo).toHaveAttribute("aria-pressed", "true");
+    await panel.locator("#plan").click();
+    await expect(panel.locator("#plan")).toHaveText("Free");
+    expect(await settingsOf(panel)).toMatchObject({ autonomy: "default", memory: false });
+    await panel.locator("#plan").click();
+    await expect(yolo).toHaveAttribute("aria-pressed", "true");
+    expect(await settingsOf(panel)).toMatchObject({ autonomy: "yolo", effort: "xhigh", memory: true });
+
+    // The settings page shows the chosen mode's own values.
+    const options = await context.newPage();
+    await options.goto(panel.url().replace("sidepanel.html", "options.html"));
+    await expect(options.locator("#autonomy")).toHaveValue("yolo");
+    await options.locator("#aiMode").selectOption("free");
+    await expect(options.locator("#autonomy")).toHaveValue("default");
+    await options.locator("#aiMode").selectOption("pro");
+    await expect(options.locator("#autonomy")).toHaveValue("yolo");
+    await expect(options.locator("#effort")).toHaveValue("xhigh");
   });
 });
 

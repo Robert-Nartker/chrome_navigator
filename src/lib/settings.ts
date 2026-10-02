@@ -55,6 +55,16 @@ export interface Settings {
   blockedSites: string[];
   maxAgentSteps: number;
   autonomy: Autonomy;
+  /** Navi's memory of the user and their projects, curated in the background (see memory.ts). */
+  memory: boolean;
+  /** The model and reasoning for helper agents Navi starts for simple sub-tasks. */
+  subagentModel: string;
+  subagentEffort: Effort;
+  /**
+   * Navi Free's and Navi Pro's own values for the settings in MODE_KEYS. The top-level values are what
+   * Navi runs with now (the current mode's, resolved by normalizeSettings).
+   */
+  modes?: Partial<Record<AiMode, ModeSettings>>;
   /** Who speaks Navi's replies: Navi's on-device voice (Kokoro), or the computer's system voices. */
   speechOutput: VoiceOutput;
   /** Navi's on-device voice: a Kokoro voice, e.g. "af_heart". */
@@ -62,6 +72,28 @@ export interface Settings {
 }
 
 export type VoiceOutput = "navi" | "chrome";
+
+/** Settings Navi Free and Navi Pro each keep their own value for; switching modes switches them. */
+export const MODE_KEYS = [
+  "memory",
+  "autonomy",
+  "model",
+  "effort",
+  "routerModel",
+  "fastMode",
+  "maxAgentSteps",
+  "subagentModel",
+  "subagentEffort",
+] as const;
+export type ModeKey = (typeof MODE_KEYS)[number];
+export type ModeSettings = Partial<Pick<Settings, ModeKey>>;
+const isModeKey = (key: string): key is ModeKey => (MODE_KEYS as readonly string[]).includes(key);
+
+/** What each mode starts with until the user changes it. */
+export const MODE_DEFAULTS: Record<AiMode, ModeSettings> = {
+  free: { memory: false },
+  pro: { memory: true },
+};
 
 export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
@@ -86,6 +118,9 @@ export const DEFAULT_SETTINGS: Settings = {
   blockedSites: [],
   maxAgentSteps: 20,
   autonomy: "default",
+  memory: false,
+  subagentModel: PROVIDER_DEFAULTS.openai.model,
+  subagentEffort: "low",
   speechOutput: "navi",
   naviVoice: "af_heart",
 };
@@ -123,6 +158,7 @@ export function activeSettings(s: Settings): Settings {
     next.effort = PROVIDER_DEFAULTS[fallback].effort;
   }
   if (s.routerModel !== "off" && !keyFor(s, s.routerModel)) next.routerModel = PROVIDER_DEFAULTS[fallback].routerModel;
+  if (!keyFor(s, s.subagentModel)) next.subagentModel = PROVIDER_DEFAULTS[fallback].model;
   return next;
 }
 
@@ -131,9 +167,19 @@ export function naviVoiceOf(s: Settings): { voice: string } | undefined {
   return s.speechOutput === "chrome" ? undefined : { voice: s.naviVoice };
 }
 
-/** Defaults for anything missing, and renames from older versions. */
-export function normalizeSettings(raw: Partial<Settings> | undefined): Settings {
+/**
+ * Defaults for anything missing, renames from older versions, and the current mode's own values for
+ * MODE_KEYS (or `mode`'s, to show another mode's settings). Each comes from what was saved for that mode,
+ * else what was saved before modes existed, else the mode's default.
+ */
+export function normalizeSettings(raw: Partial<Settings> | undefined, mode?: AiMode): Settings {
   const s = { ...DEFAULT_SETTINGS, ...raw };
+  const current = mode ?? aiModeOf(s);
+  for (const key of MODE_KEYS) {
+    const own = raw?.modes?.[current]?.[key];
+    const value = own !== undefined ? own : raw && raw[key] !== undefined ? raw[key] : (MODE_DEFAULTS[current][key] ?? DEFAULT_SETTINGS[key]);
+    (s as Record<string, unknown>)[key] = value;
+  }
   // "Click to talk" ("push") became "Open mic".
   if ((s.listenMode as string) === "push") s.listenMode = "open";
   if (s.recognizer !== "parakeet") s.recognizer = "chrome";
@@ -143,6 +189,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
   // Older models are replaced by their current-generation successors.
   s.model = RETIRED_MODELS[s.model] ?? s.model;
   s.routerModel = RETIRED_MODELS[s.routerModel] ?? s.routerModel;
+  s.subagentModel = RETIRED_MODELS[s.subagentModel] ?? s.subagentModel;
   // ElevenLabs was removed (it keeps requests unless you're on an Enterprise plan): its voice setting
   // becomes Navi's own on-device voice.
   if (s.speechOutput !== "chrome") s.speechOutput = "navi";
@@ -158,10 +205,27 @@ export async function loadSettings(): Promise<Settings> {
   return normalizeSettings(stored.settings as Partial<Settings> | undefined);
 }
 
+/** The settings as stored: shared values, plus each mode's own values under `modes`. */
+export async function loadStoredSettings(): Promise<Partial<Settings>> {
+  return ((await chrome.storage.local.get("settings")).settings ?? {}) as Partial<Settings>;
+}
+
+/**
+ * Saves changes. Settings in MODE_KEYS are saved for the mode Navi is in after the change (so switching
+ * Free/Pro later brings back that mode's own choices); the rest are shared.
+ */
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
-  const next = { ...(await loadSettings()), ...patch };
+  const stored = await loadStoredSettings();
+  const next: Partial<Settings> = { ...stored };
+  const own: ModeSettings = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (isModeKey(key)) (own as Record<string, unknown>)[key] = value;
+    else (next as Record<string, unknown>)[key] = value;
+  }
+  const mode = aiModeOf(normalizeSettings(next));
+  if (Object.keys(own).length) next.modes = { ...stored.modes, [mode]: { ...stored.modes?.[mode], ...own } };
   await chrome.storage.local.set({ settings: next });
-  return next;
+  return normalizeSettings(next);
 }
 
 export function onSettingsChanged(callback: (settings: Settings) => void) {
