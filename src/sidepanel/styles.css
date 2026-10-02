@@ -896,6 +896,79 @@ body {
   color: var(--accent);
 }
 
+.helpers[hidden] {
+  display: none;
+}
+
+.helpers {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 12px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--elevated);
+}
+
+.helper-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.helper-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+/* A steady dot, not an animation: helpers can run for minutes. */
+.helper-list li::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+.helper-task {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.helper-meta {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.helper-list .icon-button {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
+.link-button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+}
+
 .feed-empty {
   flex: none;
   margin: 16px 22px 0;

@@ -362,6 +362,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
       worker = msg.state;
       renderStatus();
       renderPin();
+      renderHelpers();
       break;
     case "view:metric":
       addMetric(msg.metric);
@@ -533,6 +534,40 @@ threadUi.running.addEventListener("click", () => {
   if (threads.running) void toWorker({ type: "navi:thread", action: "switch", id: threads.running });
 });
 
+// ---------- Helpers ----------
+
+const helperUi = { section: $("helpers"), list: $<HTMLUListElement>("helper-list"), stopAll: $<HTMLButtonElement>("helpers-stop-all") };
+
+function renderHelpers() {
+  const running = worker.helpers ?? [];
+  helperUi.section.hidden = !running.length;
+  helperUi.stopAll.hidden = running.length < 2;
+  helperUi.list.replaceChildren(
+    ...running.map((h) => {
+      const li = document.createElement("li");
+      const task = document.createElement("span");
+      task.className = "helper-task";
+      task.textContent = h.task;
+      task.title = `${h.task}\n${h.activity}`;
+      const meta = document.createElement("span");
+      meta.className = "helper-meta";
+      meta.textContent = `step ${h.step} · ${formatCost(h.costUsd)}`;
+      const stop = document.createElement("button");
+      stop.type = "button";
+      stop.className = "icon-button";
+      stop.setAttribute("aria-label", `Stop helper: ${h.task}`);
+      stop.title = "Stop this helper";
+      stop.innerHTML =
+        '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+      stop.addEventListener("click", () => void toWorker({ type: "navi:helper", action: "stop", id: h.id }));
+      li.append(task, meta, stop);
+      return li;
+    }),
+  );
+}
+
+helperUi.stopAll.addEventListener("click", () => void toWorker({ type: "navi:helper", action: "stop" }));
+
 // ---------- Navi's window ----------
 
 /** The window this panel is in. */
@@ -586,6 +621,7 @@ async function init() {
   if (hello) {
     worker = hello.worker;
     renderPin();
+    renderHelpers();
     ears = hello.ears;
     for (const m of hello.metrics) addMetric(m);
     entries = hello.log;

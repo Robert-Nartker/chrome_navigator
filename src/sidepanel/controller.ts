@@ -47,6 +47,8 @@ import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../l
 import { searchUrl, siteEngine } from "../lib/sites";
 import { type ThreadBook, findThread, threadTitle, threadTranscript } from "../lib/threads";
 import type { WindowPin } from "../lib/window-pin";
+import { type Helpers, describeHelper } from "../lib/helpers";
+import type { HelperApi } from "../lib/agent";
 import type { Voice } from "../lib/voice-output";
 
 import type { LogKind } from "../lib/messages";
@@ -93,9 +95,12 @@ export interface RunOptions {
 }
 
 /** Commands about threads and Navi's window: they run right away, even while another command runs. */
-type InstantIntent = Extract<Intent, { type: "newThread" | "switchThread" | "listThreads" | "renameThread" | "pinWindow" }>;
+type InstantIntent = Extract<
+  Intent,
+  { type: "newThread" | "switchThread" | "listThreads" | "renameThread" | "pinWindow" | "stopHelpers" | "listHelpers" }
+>;
 
-const INSTANT = new Set(["newThread", "switchThread", "listThreads", "renameThread", "pinWindow"]);
+const INSTANT = new Set(["newThread", "switchThread", "listThreads", "renameThread", "pinWindow", "stopHelpers", "listHelpers"]);
 const isInstant = (intent: Intent | null): intent is InstantIntent => !!intent && INSTANT.has(intent.type);
 
 interface Outcome {
@@ -144,6 +149,7 @@ export class Controller {
     },
     private readonly threads: ThreadBook,
     private readonly pin: WindowPin,
+    private readonly helpers: Helpers,
   ) {
     this.agent = new NaviAgent(getSettings);
     const refresh = () =>
@@ -515,7 +521,7 @@ export class Controller {
           if (!typed || this.getSettings().feedback === "spoken") void this.say(text);
         },
       },
-      { typed, recent: this.recent, earlier: this.earlier() },
+      { typed, recent: this.recent, earlier: this.earlier(), helpers: this.helperApi(this.threads.running ?? this.threads.current) },
     );
     const seconds = (result.totalMs / 1000).toFixed(1);
     this.navi(
@@ -597,6 +603,23 @@ export class Controller {
     return this.speech;
   }
 
+  /** Helpers the AI starts from a thread report back to it. */
+  private helperApi(thread: string): HelperApi {
+    return {
+      start: async (req) => {
+        const helper = await this.helpers.start(req, thread);
+        const where = helper.window !== undefined ? "in its own window" : "without a browser";
+        return `Helper ${helper.id} started ${where}. It reports back when it's done; check_helpers gets its result.`;
+      },
+      check: (wait, signal) => this.helpers.collect(thread, wait, signal),
+    };
+  }
+
+  /** Says something at the next quiet moment, after anything Navi is already saying. */
+  announce(text: string) {
+    void this.say(text).catch(() => undefined);
+  }
+
   /** What was said earlier in the thread of the command running now. */
   private earlier(max?: number): string {
     const thread = this.threads.get(this.threads.running ?? this.threads.current);
@@ -627,6 +650,17 @@ export class Controller {
   private async instantCommand(intent: InstantIntent): Promise<{ text: string; speak: boolean; ok: boolean }> {
     const threads = this.threads;
     switch (intent.type) {
+      case "stopHelpers": {
+        if (intent.everything) this.cancel();
+        const stopped = this.helpers.stopAll();
+        const what = stopped ? `Stopped ${stopped === 1 ? "the helper" : `${stopped} helpers`}` : "No helpers were running";
+        return { text: intent.everything ? `${what}, and everything else.` : `${what}.`, speak: true, ok: true };
+      }
+      case "listHelpers": {
+        const running = this.helpers.running();
+        if (!running.length) return { text: "No helpers are running.", speak: true, ok: true };
+        return { text: running.map(describeHelper).join(" "), speak: true, ok: true };
+      }
       case "pinWindow": {
         if (!intent.on) {
           await this.pin.set(undefined);

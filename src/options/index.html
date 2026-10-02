@@ -79,6 +79,22 @@
           <label for="maxAgentSteps">Max steps per command</label>
           <input id="maxAgentSteps" type="number" min="1" max="30" />
           <p class="hint">In YOLO mode there's no limit. Saying “stop” ends a task any time.</p>
+          <div class="row">
+            <div>
+              <label for="subagentModel">Helper model</label>
+              <select id="subagentModel"></select>
+            </div>
+            <div>
+              <label for="subagentEffort">Helper reasoning</label>
+              <select id="subagentEffort">
+                <option value="none">None</option>
+                <option value="low">Low (recommended)</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+          <p class="hint">Helpers are background agents Navi starts for simple side tasks, each in its own window, with limits of 15 steps, 5 minutes and $0.50. They never send, post, buy or delete.</p>
           <label for="routerModel">When a command isn't recognized</label>
           <select id="routerModel"></select>
           <p class="hint">For speech only: the quick check fixes misheard commands and ignores background noise, before anything slower runs.</p>

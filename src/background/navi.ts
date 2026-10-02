@@ -3,9 +3,10 @@
 // panel and the floating pill on pages are views of this, so Navi works with the panel closed.
 
 import { routeUtterance } from "../lib/router";
-import { sleep } from "../lib/browser";
+import { setFocusedWindowForTests, sleep } from "../lib/browser";
 import { curateMemory, loadInbox, loadMemory, noteExchange } from "../lib/memory";
 import { recordMetric } from "../lib/metrics";
+import { formatCost } from "../lib/models";
 import { type NanoStatus, setNanoTransport } from "../lib/nano";
 import { LogBook } from "../lib/logbook";
 import {
@@ -26,7 +27,7 @@ import type { Voice } from "../lib/voice-output";
 import { Controller, HELP_TEXT, type LogPlace } from "../sidepanel/controller";
 import { ThreadBook } from "../lib/threads";
 import { WindowPin } from "../lib/window-pin";
-import { setFocusedWindowForTests } from "../lib/browser";
+import { Helpers, describeHelper } from "../lib/helpers";
 
 let settings: Settings = DEFAULT_SETTINGS;
 let settingsLoaded: Promise<void> = Promise.resolve();
@@ -199,6 +200,29 @@ function log(kind: LogKind, text: string, meta?: string, onPage = true, place: L
   }
 }
 
+const helpers = new Helpers({
+  getSettings: () => activeSettings(settings),
+  onChange(running) {
+    worker = { ...worker, helpers: running };
+    broadcastWorker();
+  },
+  onEnd(helper, awaited) {
+    const ms = (helper.ended ?? Date.now()) - helper.started;
+    log("info", describeHelper(helper), `Helper · ${helper.step} steps · ${(ms / 1000).toFixed(1)}s · ${formatCost(helper.costUsd)}`, false, {
+      thread: helper.thread,
+      solo: true,
+    });
+    const metric: CommandMetric = {
+      t: new Date().toISOString(), command: `(helper) ${helper.task.slice(0, 80)}`, path: "background", intent: "helper",
+      ms, steps: helper.step, model: helper.model, costUsd: helper.costUsd, error: helper.status === "done" ? undefined : helper.why,
+    };
+    addMetric(metric);
+    void recordMetric(metric).catch(() => undefined);
+    // The main AI reports the helpers it waits for; otherwise Navi says how it went at a quiet moment.
+    if (!awaited) controller.announce(helper.status === "done" ? `A helper finished. ${helper.result}` : `A helper stopped: ${helper.why}.`);
+  },
+});
+
 const controller = new Controller(
   // With only one provider's key, that provider's models run.
   () => activeSettings(settings),
@@ -241,6 +265,7 @@ const controller = new Controller(
   },
   threads,
   pin,
+  helpers,
 );
 
 function addMetric(metric: CommandMetric) {
@@ -372,7 +397,11 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       });
       return true;
     case "navi:run":
-      void controller.run(msg.text, { source: msg.source ?? "typed" }).then(() => sendResponse({ metrics }));
+      // Always answers: a view waiting on a reply that never comes gets "message channel closed".
+      void controller
+        .run(msg.text, { source: msg.source ?? "typed" })
+        .catch((err: unknown) => log("error", `Something went wrong: ${err instanceof Error ? err.message : String(err)}`))
+        .finally(() => sendResponse({ metrics }));
       return true;
     case "navi:dictate":
       void (async () => {
@@ -397,14 +426,18 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       else controller.setNumbers(!controller.numbersShown).then(done, fail);
       return true;
     }
+    case "navi:helper":
+      if (msg.id === undefined) helpers.stopAll();
+      else helpers.stop(msg.id);
+      sendResponse(true);
+      return false;
     case "navi:pin":
       void controller.pinWindow(msg.window).finally(() => sendResponse(true));
       return true;
     case "navi:thread":
-      void threads.ready.then(() => {
-        controller.threadAction(msg.action, msg.id, msg.title);
-        sendResponse(threads.state());
-      });
+      void threads.ready
+        .then(() => controller.threadAction(msg.action, msg.id, msg.title))
+        .finally(() => sendResponse(threads.state()));
       return true;
     case "navi:help":
       log("navi", HELP_TEXT);
@@ -424,7 +457,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void): bo
       void resume().finally(() => sendResponse(true));
       return true;
     case "navi:test":
-      void test(msg).then(sendResponse);
+      void test(msg).then(sendResponse, (err: unknown) => sendResponse({ error: String(err) }));
       return true;
     default:
       return false;

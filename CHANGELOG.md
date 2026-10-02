@@ -4,6 +4,11 @@ What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md);
 
 ## 2026-10-02
 
+- **Helpers.** Navi's AI can hand side tasks to helper agents ("for each of these, find …", research across sites, filling in a form elsewhere) and keep going. Each helper runs on the helper model (Settings; GPT-6.1 Sol at low reasoning by default) in a browser window of its own, opened without taking focus, or without a window for writing tasks. The AI collects their results; one that finishes on its own is announced.
+  - **Supervised:** at most 3 at once; each has a limit of 15 steps, 5 minutes and $0.50, and is stopped if it repeats the same action with nothing changing. Helpers never send, post, buy or delete (they prepare and report back), and work only in their own window.
+  - The panel lists running helpers with a stop button for each; "stop helpers", "stop everything" and "how are the helpers doing" work by voice. Their cost counts in today's total.
+- Fixed: with no API key yet, choosing Pro in Settings and saving stored Pro's model settings under Free.
+- Navi always answers the side panel, even if a command fails unexpectedly (a rare "message channel closed" error in tests).
 - **Navi's window.** Each command now stays in the window it was given in: move to another window mid-task and Navi keeps working where it started, without taking focus. A command given while Navi works waits its turn, then runs in its own window.
   - **Pin Navi to a window** ("pin Navi to this window", or the pin button in the panel): Navi then works only there, whichever window you're using, so you can work in one window while Navi works in another. "Unpin Navi" goes back to following you; closing the pinned window unpins it (Navi says so).
 - **Threads.** Separate conversations, like a chat app: "new thread" (or "new thread about trip planning", or the + in the panel) starts one; "go back to the trip thread", "previous thread" or the thread menu switches; "list threads" and "rename this thread to …" too. Each thread keeps its own feed and its own AI conversation; one that has expired is recapped from its last exchanges. Threads and their feeds are kept in this browser profile (up to 20 threads).

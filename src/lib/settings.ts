@@ -222,7 +222,8 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
     if (isModeKey(key)) (own as Record<string, unknown>)[key] = value;
     else (next as Record<string, unknown>)[key] = value;
   }
-  const mode = aiModeOf(normalizeSettings(next));
+  // The mode chosen with these settings (Settings can edit Pro's before a key is added), else the one running.
+  const mode = patch.aiMode ?? aiModeOf(normalizeSettings(next));
   if (Object.keys(own).length) next.modes = { ...stored.modes, [mode]: { ...stored.modes?.[mode], ...own } };
   await chrome.storage.local.set({ settings: next });
   return normalizeSettings(next);

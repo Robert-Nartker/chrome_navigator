@@ -4,7 +4,7 @@ Planned changes and ideas for Navi. Shipped work is in [CHANGELOG.md](CHANGELOG.
 
 **Status:** *Idea* (worth exploring) → *Planned* (agreed, not started) → *In progress* → shipped (moved to the changelog).
 
-Most of what's next shares one theme: **several agents, windows and tasks at once**, without them stepping on each other or on the user. Items 4 and 5 build on the shared groundwork below. (Items 1–3 and part of 5 have shipped.)
+Most of what's next shares one theme: **several agents, windows and tasks at once**, without them stepping on each other or on the user. Items 4 and 5 build on the shared groundwork below. (Items 1–3 and parts of 4 and 5 have shipped.)
 
 ## Shared groundwork for concurrency
 
@@ -12,40 +12,21 @@ Today Navi runs one agent at a time, and every action targets "the tab the user 
 
 - **Agent targets.** Each agent is bound to its own window (and the tabs it opened) instead of the focused tab. *Started:* a command is bound to its window for as long as it runs; running several agents in different windows at once is next.
 - **Locks.** At most one agent drives a given window. Changes to Navi's settings, personal commands and memory go through a single writer, so two agents can't edit them at once.
-- **A supervisor.** Every agent gets a step limit, a time limit and a cost budget, plus stuck detection: the same action repeated with no change on the page, or no progress for a while. A stuck or runaway agent is stopped and reported. "Stop" (or "stop everything") ends all agents. The side panel lists what's running, with a stop button for each.
+- **A supervisor.** *Shipped for helpers:* a step limit, a time limit and a cost budget, plus stuck detection (the same action repeated with no change on the page). A stuck or runaway helper is stopped and reported. "Stop everything" ends the command and all helpers. The side panel lists what's running, with a stop button for each.
 - **Questions from agents the user isn't watching.** A background agent that needs a yes ("send it?") or is stuck waits in a queue. The panel shows it, and Navi says it out loud at a quiet moment instead of interrupting.
 - **Speech.** Replies from several agents are queued, never spoken over each other, and say where they come from ("Background task: …").
 
 Threads (item 1), memory (item 2) and Free/Pro presets (item 3) shipped on 2026-10-02; see the changelog. Threads run one command at a time; running several at once needs the groundwork above.
 
-## 4. Subagents and background Navi — *Idea*
+## 4. Subagents and background Navi — *Partly shipped*
 
-Navi (GPT-6.1 Sol) can launch helper agents that run alongside the main one.
+Shipped on 2026-10-02: the main AI can start helpers (4a without a browser, 4b in their own unfocused window), supervised with step, time and cost limits and stuck detection, listed in the panel with stop buttons. See the changelog. Still open:
 
-Example: while the main agent goes through a work to-do list, every time it finds a task that needs doing, it starts a subagent to do that task in another window, and keeps looking for more.
-
-### 4a. Agents that don't use the browser
-
-Research, summarizing, planning, drafting. These are entirely possible: they're just more AI calls that Navi directs and collects results from.
-
-- **Requirements:** the supervisor limits above (steps, time, budget, stuck detection) and a cap on how many run at once.
-- **Open question:** web research would use the provider's own web search tool (OpenAI's or Anthropic's). Before turning it on, check that it meets Navi's rule that every AI service is data private (zero retention).
-
-### 4b. Agents that use the browser, in their own window
-
-- **Possible:**
-  - An extension can open a new window in the same Chrome profile, so it's signed in to everything, not a guest window. It can be opened minimized, or small and unfocused, so it doesn't take over the screen.
-  - Navi acts through each page's elements (clicks, typing, reading), not by moving the real mouse or typing on the real keyboard. So an agent working in another window doesn't fight the user, or the main agent, for the cursor.
-- **Limits of a minimized or hidden window (needs a prototype to measure):**
-  - Chrome slows down timers in pages it isn't showing, and pauses drawing them. Most sites still work through their elements, but some lazy-loading lists ("load more as you scroll"), animations and video won't progress.
-  - Screenshots ("look at the screen") don't work for a minimized window. The agent has to rely on the element list there.
-  - Chrome can unload or freeze tabs that stay hidden for a long time. Navi can mark its tabs as not to be unloaded; freezing needs testing.
-  - Some sites behave differently without focus.
-  - **Fallback:** a small unfocused window in a corner, which Chrome keeps drawing normally.
-- **Requirements**
-  - Each subagent owns its window (agent targets) and closes it when done, unless the user wants to see the result.
-  - Background agents follow the same asking rules as the main agent. Their questions go to the queue above.
-  - A visible list of running agents, with "stop" for each and for all.
+- **Web research without a browser (4a):** the provider's own web search tool would let a helper research without opening sites. Before turning it on, check that it meets Navi's rule that every AI service is data private (zero retention).
+- **Questions from helpers:** today a helper that needs the user's OK stops and reports what's ready; a question queue (the panel shows it, Navi asks at a quiet moment, the helper continues) would let it finish the job.
+- **Minimized helper windows:** helpers open normal windows behind the user's. Chrome slows down pages it isn't showing, so minimized windows need measuring first: timers slow down, lazy-loading lists and video don't progress, screenshots don't work, and long-hidden tabs can be frozen.
+- **Surviving a restart:** helpers live in Navi's background worker; if Chrome stops it, running helpers end (their windows stay open).
+- **Limits in Settings:** the 15 steps / 5 minutes / $0.50 limits are fixed today.
 
 ## 5. Talk to a background window while you work — *Partly shipped*
 

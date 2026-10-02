@@ -126,6 +126,12 @@
       </div>
     </nav>
 
+    <!-- Helpers: background agents the AI started, each with its own window and limits. -->
+    <section id="helpers" class="helpers" aria-label="Helpers" hidden>
+      <ul id="helper-list" class="helper-list"></ul>
+      <button id="helpers-stop-all" class="link-button" type="button" hidden>Stop all helpers</button>
+    </section>
+
     <p id="feed-empty" class="feed-empty" hidden>New thread. Say “Hey <span class="wake-name">Navi</span>” or type below; the other threads keep their own history.</p>
     <ol id="log" class="feed" aria-label="Activity"></ol>
     <!-- Screen readers hear Navi's replies and errors, not every step. -->

@@ -1225,6 +1225,173 @@ test("GPT agent: OpenAI picks the element, extension clicks it, and the cost is 
   await expect(panel.locator("#log li.navi").last()).toContainText("<$0.01");
 });
 
+test.describe("helpers", () => {
+  type Body = { model: string; instructions: string; input: { role?: string; content?: unknown; type?: string; output?: string }[]; tools?: { name: string }[]; reasoning?: { effort: string } };
+  const call = (name: string, args: object, id = name) => ({ type: "function_call", id: `fc_${id}`, call_id: `call_${id}`, name, arguments: JSON.stringify(args) });
+  const message = (text: string) => ({ type: "message", role: "assistant", content: [{ type: "output_text", text }] });
+  const isHelper = (b: Body) => b.instructions.startsWith("You are a Navi helper");
+  const outputs = (b: Body) => b.input.filter((i) => i.type === "function_call_output").map((i) => String(i.output));
+  const notes = (panel: Page) => panel.locator("#log > li.solo.info .text");
+  const said = (panel: Page) => panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid);
+  async function usePro(panel: Page) {
+    await panel.evaluate(() =>
+      chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }),
+    );
+    await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  }
+
+  test("the AI hands a side task to a helper: its own window, the helper model, the user's page untouched, the result comes back", async ({
+    panel,
+    site,
+    context,
+    baseUrl,
+  }) => {
+    const main: Body[] = [];
+    const helper: Body[] = [];
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        helper.push(body);
+        if (helper.length === 1) {
+          const id = Number(String(body.input[0].content).match(/\[(\d+)\] button "Subscribe"/)?.[1]);
+          return route.fulfill(openaiReply([call("click", { element_id: id })]));
+        }
+        return route.fulfill(openaiReply([message("Subscribed on the helper's copy of the page.")]));
+      }
+      main.push(body);
+      if (main.length === 1) {
+        return route.fulfill(
+          openaiReply([call("start_helper", { task: "Click Subscribe on the test page.", url: `${baseUrl}/index.html?helper`, keep_open: true })]),
+        );
+      }
+      if (main.length === 2) return route.fulfill(openaiReply([call("check_helpers", { wait: true })]));
+      return route.fulfill(openaiReply([message(`Done. ${outputs(body).at(-1)}`)]));
+    });
+    await usePro(panel);
+    await type(panel, "get a helper to subscribe on the test page");
+
+    // The helper ran on the helper model (GPT-6.1 Sol, low), with page tools only, in its own window.
+    expect(helper).toHaveLength(2);
+    expect(helper[0]).toMatchObject({ model: "gpt-6.1-sol", reasoning: { effort: "low" } });
+    const tools = helper[0].tools!.map((t) => t.name);
+    expect(tools).toContain("click");
+    for (const missing of ["start_helper", "close_tabs", "say", "save_command"]) expect(tools).not.toContain(missing);
+    expect(String(helper[0].input[0].content)).toContain('Task from Navi: "Click Subscribe on the test page."');
+    expect(String(helper[0].input[0].content)).toContain("index.html?helper");
+    expect(main[0].tools!.map((t) => t.name)).toEqual(expect.arrayContaining(["start_helper", "check_helpers"]));
+    expect(outputs(main[1])[0]).toMatch(/^Helper 1 started in its own window/);
+
+    const helperPage = context.pages().find((p) => p.url().endsWith("?helper"))!;
+    await expect(helperPage.locator("#subs")).toHaveText("1");
+    await expect(site.locator("#subs")).toHaveText("0");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(
+      "Done. Helper 1 (“Click Subscribe on the test page.”) finished: Subscribed on the helper's copy of the page.",
+    );
+    await expect(notes(panel).filter({ hasText: "Helper 1" })).toContainText("finished: Subscribed on the helper's copy");
+    // The AI reported it, so Navi didn't announce it too; its cost is logged as background work.
+    expect(await said(panel)).not.toContain("A helper finished");
+    const log = await panel.evaluate(async () => (await chrome.storage.local.get("metrics")).metrics as { command: string; path: string; model: string }[]);
+    expect(log.find((m) => m.command.startsWith("(helper)"))).toMatchObject({ path: "background", model: "gpt-6.1-sol" });
+    await expect(panel.locator("#helpers")).toBeHidden();
+  });
+
+  test("the supervisor stops a stuck helper and one over its budget, closes their windows, and says so", async ({ panel, context, baseUrl }) => {
+    const helperCalls: Record<string, number> = {};
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        const task = /Task from Navi: "(.*)"/.exec(String(body.input[0].content))?.[1] ?? "";
+        helperCalls[task] = (helperCalls[task] ?? 0) + 1;
+        // Scrolling up at the top of the page changes nothing.
+        if (task === "Stuck task") return route.fulfill(openaiReply([call("scroll", { direction: "up", amount: "page" }, `s${helperCalls[task]}`)]));
+        // A million tokens in one call is over any helper's budget.
+        return route.fulfill(openaiReply([call("look_at_page", {}, "l")], { input_tokens: 1_000_000, output_tokens: 10, input_tokens_details: { cached_tokens: 0 } }));
+      }
+      const asked = /Typed message: "(.*)"/.exec(String(body.input.filter((i) => i.role === "user").at(-1)?.content))?.[1] ?? "";
+      if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("Started.")]));
+      const task = asked.includes("stuck") ? "Stuck task" : "Costly task";
+      return route.fulfill(openaiReply([call("start_helper", { task, url: `${baseUrl}/index.html?${task.split(" ")[0]}`, keep_open: false })]));
+    });
+    await usePro(panel);
+    await type(panel, "start the stuck helper");
+    await expect(notes(panel).filter({ hasText: "Stuck task" })).toHaveText(
+      "Helper 1 (“Stuck task”) was stopped: it was stuck doing the same thing (scroll) with nothing changing.",
+    );
+    expect(helperCalls["Stuck task"]).toBe(3);
+    await expect.poll(() => said(panel)).toContain("A helper stopped: it was stuck");
+    await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Stuck"))).toBe(false);
+
+    await type(panel, "start the costly helper");
+    await expect(notes(panel).filter({ hasText: "Costly task" })).toHaveText("Helper 2 (“Costly task”) was stopped: it reached its $0.50 budget.");
+    expect(helperCalls["Costly task"]).toBe(1);
+    await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Costly"))).toBe(false);
+  });
+
+  test("at most 3 at once; the panel lists them with stop buttons; stopping by voice and from the panel", async ({ panel, context, baseUrl }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    let main = 0;
+    const mainBodies: Body[] = [];
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        await hold;
+        return route.fulfill(openaiReply([message("Done.")])).catch(() => undefined);
+      }
+      mainBodies.push(body);
+      if (++main === 1) {
+        return route.fulfill(
+          openaiReply([1, 2, 3, 4].map((n) => call("start_helper", { task: `Task ${n}`, url: `${baseUrl}/about.html?${n}`, keep_open: false }, `h${n}`))),
+        );
+      }
+      return route.fulfill(openaiReply([message("Started three helpers.")]));
+    });
+    await usePro(panel);
+    await type(panel, "start four helpers");
+    const out = outputs(mainBodies[1]);
+    expect(out.slice(0, 3).every((o) => o.startsWith("Helper"))).toBe(true);
+    expect(out[3]).toContain("3 helpers are already running");
+
+    const rows = panel.locator("#helper-list li");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.first().locator(".helper-task")).toHaveText("Task 1");
+    await expect(panel.locator("#helpers-stop-all")).toBeVisible();
+    await run(panel, "how are the helpers doing");
+    await expect(panel.locator("#log > li.solo.navi .text").last()).toContainText("Helper 1 (“Task 1”): still working");
+
+    // One from the panel, one by voice, then the rest.
+    await panel.getByRole("button", { name: "Stop helper: Task 2" }).click();
+    await expect(rows).toHaveCount(2);
+    await expect(notes(panel).filter({ hasText: "Task 2" })).toHaveText("Helper 2 (“Task 2”) was stopped: you stopped it.");
+    await run(panel, "stop helpers");
+    await expect(rows).toHaveCount(0);
+    await expect(panel.locator("#helpers")).toBeHidden();
+    await expect(panel.locator("#log > li.solo.navi .text").last()).toHaveText("Stopped 2 helpers.");
+    await expect.poll(() => context.pages().filter((p) => p.url().includes("about.html?")).length).toBe(0);
+    release();
+  });
+
+  test("Settings: the helper model and reasoning, per mode", async ({ panel, context }) => {
+    const options = await context.newPage();
+    await options.goto(panel.url().replace("sidepanel.html", "options.html"));
+    await expect(options.locator("#subagentModel")).toHaveValue("gpt-6.1-sol");
+    await expect(options.locator("#subagentEffort")).toHaveValue("low");
+    await options.locator("#aiMode").selectOption("pro");
+    await options.locator("#subagentModel").selectOption("claude-sonnet-5-5");
+    await options.locator("#subagentEffort").selectOption("medium");
+    await options.locator("button[type=submit]").click();
+    // Saved for Pro (Navi runs Free until a key is added).
+    const pro = async () => normalizeSettings(await panel.evaluate(async () => (await chrome.storage.local.get("settings")).settings as Partial<Settings>), "pro");
+    await expect.poll(async () => (await pro()).subagentModel).toBe("claude-sonnet-5-5");
+    expect((await pro()).subagentEffort).toBe("medium");
+    // Free keeps its own.
+    await options.locator("#aiMode").selectOption("free");
+    await expect(options.locator("#subagentModel")).toHaveValue("gpt-6.1-sol");
+    await options.locator("#aiMode").selectOption("pro");
+    await expect(options.locator("#subagentEffort")).toHaveValue("medium");
+  });
+});
+
 test.describe("Navi's window", () => {
   /** Window A has the test page; window B opens a second copy. Returns their ids and B's page. */
   async function twoWindows(panel: Page, context: BrowserContext, baseUrl: string) {

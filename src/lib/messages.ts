@@ -9,6 +9,7 @@ import type { NanoRequest } from "./nano";
 import type { RecentCommand } from "./router";
 import type { Settings } from "./settings";
 import type { ThreadsState } from "./threads";
+import type { HelperSummary } from "./helpers";
 import type { EarconName } from "./voice-output";
 
 export type LogKind = "user" | "navi" | "step" | "info" | "error";
@@ -71,6 +72,8 @@ export interface WorkerState {
   problem?: string;
   /** The window Navi is pinned to (it works only there), if it is. */
   pinnedWindow?: number;
+  /** Helpers running in the background. */
+  helpers?: HelperSummary[];
 }
 
 /** Ears -> worker (views may listen in on state and interim). */
@@ -121,6 +124,8 @@ export type WorkerRequest =
   | { type: "navi:toggle"; what: "numbers" | "grid" }
   | { type: "navi:help" }
   | { type: "navi:hello" }
+  /** The panel's helper list: stop one helper, or all of them (no id). */
+  | { type: "navi:helper"; action: "stop"; id?: number }
   /** The panel's pin button: Navi works only in this window (null: in whichever window the user is using). */
   | { type: "navi:pin"; window: number | null }
   /** The panel's thread menu: start, switch to, rename or delete a thread. */

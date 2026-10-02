@@ -63,7 +63,10 @@ export type Intent =
   | { type: "listThreads" }
   | { type: "renameThread"; title: string }
   /** Navi works only in this window (on), or in whichever window the user is using (off). */
-  | { type: "pinWindow"; on: boolean };
+  | { type: "pinWindow"; on: boolean }
+  /** Helpers: background agents the AI started. "Stop everything" stops them and the command running now. */
+  | { type: "stopHelpers"; everything: boolean }
+  | { type: "listHelpers" };
 
 /**
  * Commands understood while the mouse grid is showing. Cells are keypad numbers 1-9,
@@ -200,6 +203,11 @@ const RULES: Rule[] = [
   [/^(?:the )?(previous|last|other) (?:thread|conversation|chat)$/, (m) => ({ type: "switchThread", name: m[1] })],
   [/^(?:list|show)(?: me)? (?:my |the |all )?(?:my )?(?:threads|conversations|chats)$|^what (?:threads|conversations|chats) (?:do i have|are there)$|^which (?:threads|conversations) do i have$/, () => ({ type: "listThreads" })],
   [/^(?:rename|call|name) (?:this|the) (?:thread|conversation|chat)(?: to)? (.+)$/, (m) => ({ type: "renameThread", title: titleCase(m[1]) })],
+
+  // Helpers (background agents the AI starts)
+  [/^(?:stop|cancel|end|kill) (?:all (?:of )?)?(?:the |my )?(?:helpers?|helper agents?|background (?:tasks?|agents?))$/, () => ({ type: "stopHelpers", everything: false })],
+  [/^(?:stop|cancel) (?:everything|it all|all of it)$/, () => ({ type: "stopHelpers", everything: true })],
+  [/^(?:how are|what are) (?:the |my )?helpers? doing$|^(?:helper|helpers) status$|^check on (?:the |my )?helpers$|^(?:are )?(?:the |my )?helpers? (?:done|finished)$/, () => ({ type: "listHelpers" })],
 
   // Navi's window ("pin navi to this window": Navi keeps working there while you use another one)
   [/^(?:pin|keep|lock) (?:navi |yourself )?(?:to |in |on )?(?:this|the current|my current) window$|^pin (?:navi|yourself) here$|^(?:make|set) this (?:window )?(?:the |my )?navi(?:'s)? window$|^(?:work|stay) in this window$|^use this window for navi$/, () => ({ type: "pinWindow", on: true })],

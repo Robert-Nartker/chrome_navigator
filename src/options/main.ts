@@ -23,10 +23,12 @@ const saved = document.getElementById("saved") as HTMLElement;
 const field = <T extends HTMLElement>(id: keyof Settings) => document.getElementById(id) as T;
 
 const modelSelect = field<HTMLSelectElement>("model");
+const helperSelect = field<HTMLSelectElement>("subagentModel");
 const routerSelect = field<HTMLSelectElement>("routerModel");
 const price = (m: (typeof MODEL_CATALOG)[number]) => `$${m.price.input} / $${m.price.output} per M tokens`;
 for (const m of MODEL_CATALOG.filter((x) => x.roles.includes("agent"))) {
   modelSelect.add(new Option(`${m.label} (${price(m)})`, m.id));
+  helperSelect.add(new Option(`${m.label} (${price(m)})`, m.id));
 }
 // Quick-check models: each provider's default first.
 const routerIds = [PROVIDER_DEFAULTS.openai.routerModel, PROVIDER_DEFAULTS.anthropic.routerModel];
@@ -102,6 +104,8 @@ function fillModeFields(s: Settings) {
   field<HTMLInputElement>("maxAgentSteps").value = String(s.maxAgentSteps);
   field<HTMLSelectElement>("autonomy").value = s.autonomy;
   field<HTMLInputElement>("memory").checked = s.memory;
+  selectValue(helperSelect, s.subagentModel);
+  field<HTMLSelectElement>("subagentEffort").value = s.subagentEffort;
   selectValue(routerSelect, s.routerModel);
   updateModelNote();
 }
@@ -157,6 +161,8 @@ form.addEventListener("submit", async (e) => {
     recognizer: field<HTMLSelectElement>("recognizer").value as Settings["recognizer"],
     autonomy: field<HTMLSelectElement>("autonomy").value as Settings["autonomy"],
     memory: field<HTMLInputElement>("memory").checked,
+    subagentModel: helperSelect.value,
+    subagentEffort: field<HTMLSelectElement>("subagentEffort").value as Settings["subagentEffort"],
     sessionTimeoutSec: clamp(field<HTMLInputElement>("sessionTimeoutSec").value, 10, 1800, DEFAULT_SETTINGS.sessionTimeoutSec),
     lang: field<HTMLInputElement>("lang").value.trim() || DEFAULT_SETTINGS.lang,
     feedback: field<HTMLSelectElement>("feedback").value as Settings["feedback"],
