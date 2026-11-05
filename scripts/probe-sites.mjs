@@ -19,7 +19,7 @@ const urls = process.argv.slice(2).length
       "https://www.google.com/search?q=pizza+near+me",
     ];
 const outDir = "probe-output";
-const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium";
 await mkdir(outDir, { recursive: true });
 
 const context = await chromium.launchPersistentContext(await mkdtemp(path.join(tmpdir(), "navi-probe-")), {

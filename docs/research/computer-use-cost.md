@@ -257,4 +257,4 @@ What it adds to the picture:
 - GPT-6 Luna was about 17x cheaper than Sol but passed 5–9 of 12, rising with reasoning; 'none' cost more than 'low' because it took extra steps, which matches Browser Use's Luna result.
 - At Navi's default limit of 12 steps (since raised to 20), the multi-email reply task fails for every model (they run out of steps), so the default limit, not the model, is the binding constraint on longer tasks.
 
-The interactive chart with all three views (computer use, browser use, Navi's tests) is `reports/Computer use cost Pareto frontier.html`.
+The interactive chart with all three views (computer use, browser use, Navi's tests) is [computer-use-cost.html](computer-use-cost.html).

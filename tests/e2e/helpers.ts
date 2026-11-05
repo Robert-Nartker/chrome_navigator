@@ -5,7 +5,8 @@ import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
-const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+/** Cloud sandboxes link their preinstalled Chromium here, whatever its version. */
+const SANDBOX_CHROMIUM = "/opt/pw-browsers/chromium";
 /** Playwright's own Chromium unless NAVI_CHROMIUM (or the sandbox build) is present. */
 export const CHROMIUM = process.env.NAVI_CHROMIUM ?? (existsSync(SANDBOX_CHROMIUM) ? SANDBOX_CHROMIUM : undefined);
 

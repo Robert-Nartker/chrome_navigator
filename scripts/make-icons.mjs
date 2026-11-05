@@ -9,7 +9,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <path d="M40 92V36h10l28 38V36h10v56H78L50 54v38z" fill="#fff"/>
 </svg>`;
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
 const page = await browser.newPage();
 for (const size of [16, 32, 48, 128]) {
   await page.setViewportSize({ width: size, height: size });

@@ -14,3 +14,9 @@ Navi is a voice-first Chrome extension. Read README.md for the layout, CHANGELOG
 
 - `npm run check` runs types, lint, unit tests and the browser tests (Playwright, headless Chromium with fake speech and fake AI replies).
 - The fakes can't show real recognizer behavior, real voices or real focus changes across windows. For anything touching listening, windows or speech, add a browser test that reproduces the real situation as closely as the fakes allow (two windows, a recognizer that holds or drops a phrase), and check that the test fails without the fix.
+
+## Branches
+
+- **Latest:** `claude/sleepy-hypatia-gt7x80`. Every change goes here, pushed as soon as `npm run check` passes, so nothing is lost. The owner's dev loop (`npm run dev`) follows it.
+- **Stable:** `main`, the default branch. Fast-forward it to latest only after `npm run check` passes *and* the owner has tried that version in real Chrome and said it works. Never commit to `main` directly or rewrite its history.
+- Commits: the owner is the author (`Robert Nartker <187243174+Robert-Nartker@users.noreply.github.com>`, via `--author`), Claude is the committer and co-author.

@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Navi: navigate Chrome hands-free with your voice.",
+  "license": "MIT",
+  "author": "Robert Nartker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Robert-Nartker/chrome_navigator.git"
+  },
+  "homepage": "https://github.com/Robert-Nartker/chrome_navigator#readme",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",

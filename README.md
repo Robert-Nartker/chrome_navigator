@@ -6,12 +6,17 @@ Built for two groups:
 - **Accessibility:** people with motor impairments who can't use a mouse and keyboard, and blind or low-vision users, via spoken feedback and "read this page" / "where am I".
 - **Speed:** developers and power users who want to browse hands-free.
 
-BDAA AI Fundamentals track project, Autumn 2026.
+BDAA AI Fundamentals track project, Autumn 2026. **Status:** early and in active development; not on the Chrome Web Store yet, so you load it yourself (below).
 
 <p>
   <img src="docs/screenshots/panel-done-light.png" alt="Navi's side panel after a few commands: what was said, how it was heard, and the AI's steps" width="300">
   <img src="docs/screenshots/panel-working-dark.png" alt="Navi's side panel while the AI works on a task, in dark mode" width="300">
 </p>
+
+## Stable and latest versions
+
+- **`main` is stable:** the version to install for everyday use or to show someone. It only moves forward after the full test suite passes and the change has been tried in real Chrome.
+- **`claude/sleepy-hypatia-gt7x80` is the latest:** every change lands here first, after the test suite passes. The live-reload setup below follows it, so you're always testing the newest version.
 
 ## Quick start
 
@@ -228,7 +233,13 @@ npm run bench:mock        # checks the harness with fake API replies (free)
 
 Real usage is logged too: **Settings → Usage log** shows the running AI cost. **Export CSV** gives every command's path (fast path or AI), latency, steps, tokens and cost.
 
-## Changelog and roadmap
+## Changelog, roadmap and research
 
 - [CHANGELOG.md](CHANGELOG.md): what's changed, newest first.
-- [ROADMAP.md](ROADMAP.md): what's planned next (threads, memory, Free/Pro presets, subagents and background windows, a first-run tutorial) with requirements and open questions.
+- [ROADMAP.md](ROADMAP.md): what's planned next (speech recognition that just works, Voice ID, more helpers and background windows) with requirements and open questions.
+- [docs/accessibility.md](docs/accessibility.md): who Navi is for, what each group needs, and the gaps.
+- [docs/research/](docs/research/): the research behind Navi's choices: speech recognition, wake words and voice ID, the AI stack, and the cost of computer-use models ([interactive chart](docs/research/computer-use-cost.html)).
+
+## License
+
+[MIT](LICENSE). Bundled third-party code keeps its own license: `third_party/qwen-asr/` (MIT) and `third_party/silero-vad/` (MIT).

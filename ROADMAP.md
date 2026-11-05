@@ -59,6 +59,7 @@ Navi learns the user's voice (about 30 seconds, once) and ignores other people: 
 
 ## Earlier ideas
 
+- **Download and demo website** — *Idea.* A one-page site (GitHub Pages) for the launch: a download link (Chrome Web Store once listed, a GitHub release until then), the one-time setup steps, a short demo video of a hands-free task and a productivity task, and who Navi is for.
 - **Older Chrome versions** — *Idea.* Some Chrome versions block speech recognition in background pages, and Navi asks you to update Chrome. A fallback that listens from the side panel would cover them.
 - **Voice ID** — *Idea.* Optional enrollment on the setup page so that, during a session, only your voice is acted on (Picovoice Eagle or WeSpeaker ONNX); see `docs/research/wake-word-and-voice-id.md`.
 - **Dedicated wake-word model** — *Idea.* A small model trained on "Hey Navi" (Porcupine or openWakeWord). It would be more reliable than finding the name in the recognizer's text, and lighter than transcribing everything.
