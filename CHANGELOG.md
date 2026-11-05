@@ -2,6 +2,11 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-05
+
+- **Navi Free no longer hangs when Chrome doesn't answer about its on-device AI.** Some Chrome versions and states (Chrome 153 in testing; possibly while Chrome updates the model) never reply when asked whether Gemini Nano is ready, and every command that needed the answer waited forever, including "start the tutorial" and anything that wasn't a built-in command. Navi now waits at most 3 seconds, then says Chrome isn't answering and carries on.
+- **The repository is public**, under the MIT license. `main` is the stable version, and the work branch has the latest changes (see the README).
+
 ## 2026-10-02
 
 - **Phrases arrive whole.** Chrome splits what you say at short pauses and Navi used to run each piece on its own, so "8 thousand" reached the AI as "8" and "close tab" could run as "close". Navi now joins the pieces: it runs a whole command a moment after you stop (0.2 s) and waits a little longer when what you've said isn't complete yet (0.6 s). A phrase Chrome holds on to is finished without restarting Chrome, so the next command is heard straight away.

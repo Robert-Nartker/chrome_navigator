@@ -22,8 +22,8 @@ type Fixtures = {
   panel: Page;
   /** Give Chromium a fake microphone (a test tone) that's allowed without a prompt. */
   fakeMic: boolean;
-  /** Replace Chrome's on-device model (Gemini Nano) in extension pages with a scripted one. */
-  fakeNano: boolean;
+  /** Replace Chrome's on-device model (Gemini Nano) in extension pages with a scripted one ("silent": one that never answers). */
+  fakeNano: boolean | "silent";
   /** Replace Chrome's speech recognizer with a scripted one reporting this on-device status (null: the real one). */
   fakeSpeech: string | null;
 };
@@ -32,9 +32,15 @@ type Fixtures = {
  * A stand-in for Chrome's Prompt API: routes a few phrases, and answers Navi Free's chat for the
  * requests the tests make. Every prompt is kept in window.__nanoLog.
  */
-function installFakeNano() {
+function installFakeNano(mode: boolean | "silent") {
   if (location.protocol !== "chrome-extension:") return;
   const w = window as unknown as Record<string, unknown>;
+  if (mode === "silent") {
+    // Some Chrome builds and states never answer about the on-device model.
+    const never = () => new Promise(() => {});
+    w.LanguageModel = { availability: never, create: never };
+    return;
+  }
   const log: { text: string; image: boolean }[] = [];
   w.__nanoLog = log;
   const none = { phrases: [], steps: [], description: "" };
@@ -124,7 +130,7 @@ const test = base.extend<Fixtures>({
       headless: true,
       args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...media],
     });
-    if (fakeNano) await context.addInitScript(installFakeNano);
+    if (fakeNano) await context.addInitScript(installFakeNano, fakeNano);
     if (fakeSpeech) await context.addInitScript(installFakeRecognizer, fakeSpeech);
     // Navi's on-device voice downloads its model from Hugging Face; tests never do (voice tests serve stand-ins).
     await context.route("https://huggingface.co/**", (route) => route.abort());
@@ -1386,7 +1392,8 @@ test("describe the screen: the AI looks and describes it for someone who can't s
 test("open settings, by voice", async ({ panel, context }) => {
   const opened = context.waitForEvent("page");
   await run(panel, "open settings");
-  expect((await opened).url()).toContain("/options.html");
+  // Newer Chrome reports the tab before its address is set.
+  await (await opened).waitForURL(/\/options\.html/);
   await expect(panel.locator("#log li.navi .text").last()).toHaveText("Opened Navi's settings");
 });
 
@@ -2102,6 +2109,20 @@ test("no key: Navi runs Free, and says when its on-device AI isn't ready", async
   await expect(panel.locator("#log li.step").last()).toContainText("Navi Free's on-device AI isn't ready");
   await expect(panel.locator("#plan")).toHaveText("Free");
   expect(calls).toBe(0);
+});
+
+test.describe("when Chrome never answers about its on-device AI", () => {
+  test.use({ fakeNano: "silent" });
+  test("Navi Free says so and keeps working instead of hanging", async ({ panel }) => {
+    await run(panel, "which of these plans is the best deal");
+    await expect(panel.locator("#log li.step").last()).toContainText("Chrome isn't answering about it right now");
+    // Commands that check for the on-device AI first still run.
+    await run(panel, "start the tutorial");
+    await expect(panel.locator("#tutorial-progress")).toHaveText("Tutorial 1 of 8 ·");
+    await run(panel, "end tutorial");
+    await run(panel, "scroll down");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(/scroll/i);
+  });
 });
 
 test("everyday commands: auto-scroll, find on page, bare numbers, repeat, switch back", async ({ panel, site, context, baseUrl }) => {

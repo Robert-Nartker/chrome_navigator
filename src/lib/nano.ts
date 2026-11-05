@@ -3,8 +3,8 @@
 // it through a transport set up at startup (see background/navi.ts). The setup and settings pages
 // use it directly to check it and download it.
 
-/** "unsupported": this Chrome has no on-device model at all. */
-export type NanoStatus = "available" | "downloadable" | "downloading" | "unavailable" | "unsupported";
+/** "unsupported": this Chrome has no on-device model at all. "silent": Chrome didn't answer when asked. */
+export type NanoStatus = "available" | "downloadable" | "downloading" | "unavailable" | "unsupported" | "silent";
 
 export interface NanoRequest {
   /** Instructions (sent once per session; sessions are reused per instruction text). */
@@ -23,7 +23,11 @@ export const NANO_STATUS_TEXT: Record<NanoStatus, string> = {
   downloading: "Downloading…",
   unavailable: "This computer can't run it: it needs about 16 GB of memory or a graphics card with 4 GB, and 22 GB of free disk space.",
   unsupported: "This version of Chrome doesn't include it (Chrome 138 or newer on Windows, macOS, Linux or a Chromebook Plus).",
+  silent: "Chrome isn't answering about it right now (it may be updating it). Try again in a minute, or restart Chrome.",
 };
+
+/** Chrome answers in milliseconds when it can; some builds and states never answer at all. */
+const STATUS_WAIT_MS = 3000;
 
 // ---------- In the worker: requests go to the background page ----------
 
@@ -56,7 +60,7 @@ interface LanguageModelSession {
   destroy(): void;
 }
 interface LanguageModelApi {
-  availability(options?: object): Promise<Exclude<NanoStatus, "unsupported">>;
+  availability(options?: object): Promise<Exclude<NanoStatus, "unsupported" | "silent">>;
   create(options?: object): Promise<LanguageModelSession>;
 }
 
@@ -70,10 +74,14 @@ const OPTIONS = (image: boolean) => ({
 export async function nanoStatus(): Promise<NanoStatus> {
   const lm = api();
   if (!lm) return "unsupported";
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const silent = new Promise<"silent">((resolve) => (timer = setTimeout(() => resolve("silent"), STATUS_WAIT_MS)));
   try {
-    return await lm.availability(OPTIONS(true));
+    return await Promise.race([lm.availability(OPTIONS(true)), silent]);
   } catch {
     return "unavailable";
+  } finally {
+    clearTimeout(timer);
   }
 }
 
