@@ -682,6 +682,7 @@ export class Controller {
         return `Helper ${helper.id} started ${where}. Its report comes to you when it's done.`;
       },
       check: () => this.helpers.check(thread),
+      message: (id, text) => this.helpers.message(id, text),
       stop: (id) => (this.helpers.stop(id, "Navi stopped it") ? `Stopped helper ${id}.` : `Helper ${id} isn't running.`),
     };
   }

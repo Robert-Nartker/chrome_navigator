@@ -11,6 +11,7 @@ Quality first: these make what's there work better, not add more.
 - **Less chatter acted on.** "Uh huh" no longer repeats the last command; "find me a recipe…" goes to the AI instead of searching the page.
 - **Faster when Chrome hesitates.** Chrome often shows a command's words without finishing them; Navi waited 1.1 s before acting on them, and now waits 0.5 s for a whole command (a phrase that isn't one yet still waits, and a bare "scroll" waits for "up" or "down").
 - **Typing and finding take just the words meant:** "type in hello and then hit enter" types "hello"; "find where it says pricing" finds "pricing".
+- **Tell a running helper more.** "Also check Best Buy": the main AI can now send a running helper a message about its task (more to do, a change of plan), which it reads at its next step, instead of stopping it and starting over. If a helper finishes before reading it, its report says so.
 - **A listening log, for tuning recognition with real use.** The usage log now keeps, for each spoken command, what Chrome wrote down, its other guesses, whether Chrome finished the phrase, and how long Navi waited. Say **"what did you hear?"** to hear exactly what Chrome wrote down, and **"that's not what I said"** to mark the last command as misheard. On this computer only; nothing said while Navi is asleep is kept.
 
 ## 2026-11-05

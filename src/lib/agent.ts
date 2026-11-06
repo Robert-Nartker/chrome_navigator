@@ -72,7 +72,7 @@ Personal commands: the user can create their own voice shortcuts. When they ask 
 
 const HELPERS = `
 
-Helpers: for side tasks that take several steps and don't need the user (one per item on a to-do list, research across several sites, filling in a form somewhere else), call start_helper. Each helper is an AI agent with its own browser window, so the user's window stays theirs, and several can run at once. Helpers can't send, post, buy or delete: they prepare things and report back, and you or the user finish them. Give each one a complete task with every detail it needs (it doesn't see this conversation) and a start URL. Don't wait for them: after starting them, tell the user in a few words and end your turn. When helpers finish you get a "Helper report" message (from them, not the user); answer it as Navi, telling the user what they found or did in a sentence or two, or act on it if that's what the user asked for. If other helpers you started for the same request are still running and the results only make sense together, reply with just [quiet] and tell the user once they've all reported. You can call check_helpers any time to see how they're doing, and stop_helper to stop one that's off track, taking too long, or no longer needed. Don't use helpers for quick things you can do yourself in a step or two, unless the user asks for one: when the user asks for a helper (or a "sub agent", "subagent" or "background agent"), start one.`;
+Helpers: for side tasks that take several steps and don't need the user (one per item on a to-do list, research across several sites, filling in a form somewhere else), call start_helper. Each helper is an AI agent with its own browser window, so the user's window stays theirs, and several can run at once. Helpers can't send, post, buy or delete: they prepare things and report back, and you or the user finish them. Give each one a complete task with every detail it needs (it doesn't see this conversation) and a start URL. Don't wait for them: after starting them, tell the user in a few words and end your turn. When helpers finish you get a "Helper report" message (from them, not the user); answer it as Navi, telling the user what they found or did in a sentence or two, or act on it if that's what the user asked for. If other helpers you started for the same request are still running and the results only make sense together, reply with just [quiet] and tell the user once they've all reported. You can call check_helpers any time to see how they're doing, message_helper to add to a running helper's task or change it (the user says "also check Best Buy"), and stop_helper to stop one that's off track, taking too long, or no longer needed. Don't use helpers for quick things you can do yourself in a step or two, unless the user asks for one: when the user asks for a helper (or a "sub agent", "subagent" or "background agent"), start one.`;
 
 /** Navi's instructions, with the asking rules for the user's autonomy setting. */
 export function systemPrompt(autonomy: Autonomy): string {
@@ -209,6 +209,10 @@ const TOOLS: ToolDef[] = [
     keep_open: { type: "boolean", description: "Leave its window open when it's done, for the user to see the result." },
   }),
   tool("check_helpers", "See how your helpers are doing: each running one's time, step and current action, and how any that ended since your last check went.", {}),
+  tool("message_helper", "Tell a running helper something about its task: more to do, a change of plan, an answer it needs. It reads it at its next step.", {
+    helper_id: { type: "integer", description: "The helper's number." },
+    message: { type: "string", description: "What to tell it, complete (it doesn't see this conversation)." },
+  }),
   tool("stop_helper", "Stop a helper (it's off track, taking too long, or no longer needed). Its window closes.", {
     helper_id: { type: "integer", description: "The helper's number." },
   }),
@@ -262,6 +266,7 @@ const NON_PAGE_TOOLS = new Set([
   "move_tab",
   "start_helper",
   "check_helpers",
+  "message_helper",
   "stop_helper",
 ]);
 const MAX_SHOT_WIDTH = 1280;
@@ -319,6 +324,7 @@ export interface AgentHooks {
 export interface HelperApi {
   start(task: { task: string; url: string; keepOpen: boolean }): Promise<string>;
   check(): string;
+  message(id: number, text: string): string;
   stop(id: number): string;
 }
 
@@ -1001,6 +1007,12 @@ export class NaviAgent {
       }
       case "check_helpers":
         return this.context.helpers?.check() ?? "No helpers.";
+      case "message_helper": {
+        const helpers = this.context.helpers;
+        if (!helpers) return "No helpers.";
+        hooks.onStep?.(`Messaging helper ${input.helper_id}`);
+        return helpers.message(Number(input.helper_id), String(input.message ?? ""));
+      }
       case "stop_helper": {
         const helpers = this.context.helpers;
         if (!helpers) return "No helpers.";

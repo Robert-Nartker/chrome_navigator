@@ -20,13 +20,12 @@ Threads (item 1), memory (item 2) and Free/Pro presets (item 3) shipped on 2026-
 
 ## 4. Subagents and background Navi — *Partly shipped*
 
-Shipped on 2026-10-02: the main AI can start helpers (4a without a browser, 4b in their own unfocused window), check on them and stop them, and gets their reports back, like subagents in Claude Code. One time limit (Settings, 15 minutes), a nudge and then a stop for helpers going in circles, listed in the panel with stop buttons. See the changelog. Still open:
+Shipped on 2026-10-02: the main AI can start helpers (4a without a browser, 4b in their own unfocused window), check on them and stop them, and gets their reports back (and since 2026-11-06 can tell a running one more about its task), like subagents in Claude Code. One time limit (Settings, 15 minutes), a nudge and then a stop for helpers going in circles, listed in the panel with stop buttons. See the changelog. Still open:
 
 - **Web research without a browser (4a):** the provider's own web search tool would let a helper research without opening sites. Before turning it on, check that it meets Navi's rule that every AI service is data private (zero retention).
 - **Questions from helpers:** today a helper that needs the user's OK stops and reports what's ready; a question queue (the panel shows it, Navi asks at a quiet moment, the helper continues) would let it finish the job.
 - **Minimized helper windows:** helpers open normal windows behind the user's. Chrome slows down pages it isn't showing, so minimized windows need measuring first: timers slow down, lazy-loading lists and video don't progress, screenshots don't work, and long-hidden tabs can be frozen.
 - **Surviving a restart:** helpers live in Navi's background worker; if Chrome stops it, running helpers end (their windows stay open).
-- **Messages to a running helper:** the main AI can check and stop helpers, but not yet steer one ("also check Best Buy").
 
 ## 5. Talk to a background window while you work — *Partly shipped*
 

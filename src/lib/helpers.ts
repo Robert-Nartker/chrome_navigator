@@ -46,6 +46,8 @@ export interface HelperInfo {
   why?: string;
   /** The main AI has seen how it ended. */
   collected: boolean;
+  /** Messages from the main AI it hasn't read yet (it reads them at its next step). */
+  inbox: string[];
 }
 
 /** What views show for a running helper. */
@@ -94,7 +96,7 @@ export function describeHelper(h: HelperInfo, now = Date.now()): string {
     case "running":
       return `${name}: working for ${formatDuration(now - h.started)}${h.step ? `, step ${h.step}` : ""}, now: ${h.activity}`;
     case "done":
-      return `${name} finished: ${h.result}`;
+      return `${name} finished: ${h.result}${h.inbox.length ? " (It finished before reading your last message.)" : ""}`;
     case "stopped":
       return `${name} was stopped: ${h.why}.${h.lastAction ? ` Its last action: ${h.lastAction}.` : ""}`;
     case "failed":
@@ -146,6 +148,7 @@ export class Helpers {
       started: Date.now(),
       activity: "Starting…",
       collected: false,
+      inbox: [],
     };
     if (req.url) {
       // Its own window, opened behind the user's: it never takes focus.
@@ -188,11 +191,12 @@ export class Helpers {
         onActions: (actions, page) => {
           const repeats = stuck.note(actions, page);
           const what = [...new Set(actions.map((a) => a.name))].join(", ");
+          const notes = helper.inbox.splice(0).map((m) => `Message from Navi about your task: ${m}`);
           if (repeats >= HELPER_RULES.stopAfter) stop(`it was stuck doing the same thing (${what}) with nothing changing`);
           else if (repeats >= HELPER_RULES.nudgeAfter) {
-            return `Note from Navi: you've done this ${repeats} times in a row and the page hasn't changed. Try a different way, or stop and report what's in the way.`;
+            notes.push(`Note from Navi: you've done this ${repeats} times in a row and the page hasn't changed. Try a different way, or stop and report what's in the way.`);
           }
-          return undefined;
+          return notes.length ? notes.join("\n\n") : undefined;
         },
       }, { timeLimitMinutes: minutes });
       helper.costUsd = result.costUsd;
@@ -215,6 +219,16 @@ export class Helpers {
       this.deps.onEnd(helper);
       this.changed();
     }
+  }
+
+  /** Sends a running helper a message about its task (more to do, a change of plan); it reads it at its next step. */
+  message(id: number, text: string): string {
+    const helper = this.get(id);
+    const message = text.trim();
+    if (!message) return "The message is empty.";
+    if (!helper || helper.status !== "running") return `Helper ${id} isn't running.`;
+    helper.inbox.push(message);
+    return `Sent to helper ${id}; it reads it at its next step.`;
   }
 
   /** Stops one helper. */

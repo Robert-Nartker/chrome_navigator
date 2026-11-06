@@ -36,7 +36,7 @@ describe("the helper supervisor", () => {
   it("describes how each one is doing, in words that read well aloud", () => {
     const h: HelperInfo = {
       id: 2, task: "Find the cheapest desk", thread: "t", keepOpen: false, model: "gpt-6.1-sol", status: "running", step: 4,
-      costUsd: 0.01, started: 0, activity: "Reading the page", collected: false,
+      costUsd: 0.01, started: 0, activity: "Reading the page", collected: false, inbox: [],
     };
     expect(describeHelper(h, 185_000)).toBe("Helper 2 (“Find the cheapest desk”): working for 3 minutes, step 4, now: Reading the page");
     expect(describeHelper({ ...h, step: 0, activity: "Thinking…" }, 5000)).toBe("Helper 2 (“Find the cheapest desk”): working for 5 seconds, now: Thinking…");

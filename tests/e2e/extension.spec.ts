@@ -1546,6 +1546,40 @@ test.describe("helpers", () => {
     await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Slow"))).toBe(false);
   });
 
+  test("the AI can tell a running helper more about its task, and the helper reads it at its next step", async ({ panel, context, baseUrl }) => {
+    const helperBodies: Body[] = [];
+    let mainTurns = 0;
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        helperBodies.push(body);
+        const told = outputs(body).some((o) => o.includes("Message from Navi about your task: Also check the about page."));
+        // It keeps reading the page until it's told more, then finishes with it.
+        if (told) return route.fulfill(openaiReply([message("Read the home page, and the about page as asked.")]));
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        return route.fulfill(openaiReply([call("read_page", {}, `r${helperBodies.length}`)]));
+      }
+      if (isReport(body)) return route.fulfill(openaiReply([message("Your helper read both pages.")]));
+      if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("Okay.")]));
+      mainTurns++;
+      const asked = /Typed message: "(.*)"/.exec(lastUser(body))?.[1] ?? "";
+      if (asked.includes("also")) return route.fulfill(openaiReply([call("message_helper", { helper_id: 1, message: "Also check the about page." })]));
+      return route.fulfill(openaiReply([call("start_helper", { task: "Read the home page", url: `${baseUrl}/index.html?helper`, keep_open: false })]));
+    });
+    await panel.evaluate(() =>
+      chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6-luna", effort: "none", routerModel: "off" } }),
+    );
+    await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+    await type(panel, "have a helper read the home page");
+    await expect.poll(() => helperBodies.length).toBeGreaterThan(1);
+    await type(panel, "also have it check the about page");
+    await expect(notes(panel).filter({ hasText: "Read the home page" })).toContainText("Helper 1 (“Read the home page”) finished: Read the home page, and the about page as asked.", { timeout: 15_000 });
+    expect(mainTurns).toBe(2);
+    // The message came once, at the step after it was sent.
+    const withMessage = helperBodies.filter((b) => outputs(b).some((o) => o.includes("Message from Navi about your task")));
+    expect(withMessage.length).toBe(1);
+  });
+
   test("several at once; the AI and the user check on them and stop them; the panel lists them with stop buttons", async ({ panel, context, baseUrl }) => {
     let release = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
