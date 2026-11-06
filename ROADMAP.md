@@ -41,7 +41,9 @@ See the changelog. Next: practice steps for dictation and the mouse grid, and a 
 
 ## 7. Speech recognition that just works — *Top priority*
 
-Chrome's on-device recognizer is the weak link: short commands misheard as one wrong word, phrases held or dropped, and (fixed on 2026-10-02) restart gaps that made Navi deaf. The fixes help, but the recognizer itself stays a black box. From the research (2026-10-02; Wispr Flow, Superwhisper, Aqua, Talon and others), what works:
+Chrome's on-device recognizer is the weak link: short commands misheard as one wrong word, phrases held or dropped, and (fixed on 2026-10-02) restart gaps that made Navi deaf. The fixes help, but the recognizer itself stays a black box.
+
+*Progress, 2026-11-06:* Navi now understands most of what Chrome mishears (156 of 166 realistic mishearings, matching by sound; `tests/unit/hearing.test.ts`), never scrolls the opposite way, acts on a held whole command in 0.5 s instead of 1.1 s, and wakes for more mishearings of "Hey Navi". The usage log now records how each spoken command was heard ("held", the runner-up guesses, timings), and "that's not what I said" marks mistakes, so the next fixes can come from real use instead of guesses. Next: go through a real session's log and fix what it shows. From the research (2026-10-02; Wispr Flow, Superwhisper, Aqua, Talon and others), what works:
 
 - **A cloud streaming recognizer, only while Navi is awake (Pro).** Soniox (about $0.12 an hour of streaming, nothing stored by default), Deepgram Flux (built-in end-of-turn detection) or ElevenLabs Scribe v2 Realtime, over a WebSocket from Navi's background page, with Navi's commands and the page's labels sent as key terms. A local voice detector opens the stream only while someone talks, so a day costs cents. Audio leaves the computer, so it's opt-in, with zero retention.
 - **Better on-device listening (Free, and Pro's fallback):** Chrome's phrase boosting for the commands (tested before and removed for false "hearing" in noise; retry with weaker boosts and only while awake), and a command grammar over the recognizer's guesses.
