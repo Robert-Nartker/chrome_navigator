@@ -75,3 +75,24 @@ describe("hearing: typing and finding take just the words meant", () => {
     expect(parseCommand("find where it says pricing")).toEqual({ type: "find", text: "pricing" });
   });
 });
+
+describe("hearing: the wake name", async () => {
+  const { WakeSession } = await import("../../src/lib/session");
+  const woke = (said: string) => new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 }).handle(said).woke;
+  it("wakes for the ways Chrome writes “Hey Navi” down", () => {
+    const heard = [
+      "hey navi scroll down", "Hey Navi.", "hey navy", "hey Navy, open YouTube", "hey nabi", "hey novi", "hey navie", "hey navvy",
+      "a navy", "hay navy", "hey nevi", "hey knavey", "hey nobby", "hey nadi", "hey nafi", "hey navid", "hey nervy", "hey navi's",
+      "okay navi", "ok navy", "yo navi", "heynavi", "hey Navigator", "hey navigate", "hey navigation", "hey navigators", "hi navi",
+      "Navi, scroll down", "hey Mavi", "hey davi", "hey nah v", "hey Nabby", "hey Nabil", "hey Nevie",
+    ];
+    for (const h of heard) expect(woke(h), `"${h}"`).toBe(true);
+  });
+  it("doesn't wake for everyday talk", () => {
+    const talk = [
+      "hey nancy can you pass the salt", "hey there", "hey man", "hey buddy", "hey Google", "hey Siri", "hey mom", "I joined the navy",
+      "okay", "navigate to the store", "the navy seals", "hey now", "hey babe", "hey honey", "hey Nate", "have a nice day", "hey look at this", "hey Nick",
+    ];
+    for (const t of talk) expect(woke(t), `"${t}"`).toBe(false);
+  });
+});

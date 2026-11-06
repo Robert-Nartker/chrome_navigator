@@ -43,6 +43,11 @@ export function soundsClose(a: string, b: string, slack = 0): boolean {
   return distance(soundKey(a), soundKey(b)) <= slack;
 }
 
+/** How many sounds apart two sound keys are. */
+export function keyDistance(a: string, b: string): number {
+  return distance(a, b);
+}
+
 function distance(a: string, b: string): number {
   if (a === b) return 0;
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);

@@ -1,7 +1,7 @@
 // Fast path: turns common spoken commands into actions with no AI call, so they
 // feel instant. Anything this doesn't recognize goes to the AI agent.
 
-import { soundKey, soundsClose, soundsLike } from "./sounds-like";
+import { keyDistance, soundKey, soundsClose, soundsLike } from "./sounds-like";
 import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from "./protocol";
 import { NUMBER_PATTERN, parseNumber } from "./numbers";
 import { SEARCH_ENGINES, resolveSite, searchUrl } from "./sites";
@@ -158,18 +158,32 @@ function fuzzyWake(text: string, name: string, maxLead: number): { woke: boolean
     const word = bare(words[i]);
     const merged = /^(?:hey|hay|hi|a)(.+)$/.exec(word);
     if (merged && similarity(merged[1], name) >= 0.75) return { woke: true, rest: words.slice(i + 1).join(" ") };
-    if (GREETINGS.has(word) && i + 1 < words.length && similarity(bare(words[i + 1]), name) >= 0.6) {
+    if (GREETINGS.has(word) && i + 1 < words.length && (similarity(bare(words[i + 1]), name) >= 0.6 || soundsLikeName(words[i + 1], name))) {
       return { woke: true, rest: words.slice(i + 2).join(" ").replace(/^[,.!?\s]+/, "") };
     }
   }
   return { woke: false, rest: text.trim() };
 }
 
+/**
+ * A word that sounds like the name, the way recognizers mishear it: the same first and last sounds, at most
+ * one sound off, with b and v alike ("nabby", "nervy" for "Navi"; not "Nate" or "Nancy").
+ */
+function soundsLikeName(word: string, name: string): boolean {
+  const key = (w: string) => soundKey(w).replace(/P/g, "F");
+  const a = key(word);
+  const b = key(name);
+  if (a.length < 2 || a[0] !== b[0] || a.at(-1) !== b.at(-1)) return false;
+  return keyDistance(a, b) <= 1;
+}
+
 /** Spellings speech engines produce for a wake name ("Navi" -> "navy", "navie"...). */
 export function wakeAliases(name: string): WakeWords {
   const n = name.trim().toLowerCase();
   const misheard =
-    n === "navi" ? ["navy", "navie", "navvy", "nabi", "nav e", "nave", "novi", "nobby", "knavey", "havi", "havey", "nevi"] : [];
+    n === "navi"
+      ? ["navy", "navie", "navvy", "nabi", "nav e", "nave", "novi", "nobby", "knavey", "havi", "havey", "nevi", "nah v", "navigate", "navigation", "navigators"]
+      : [];
   // "Navigator", Navi's full name, is a dictionary word, so recognizers write it down reliably.
   const exact = n === "navi" ? [n, "navigator"] : [n];
   return { exact, misheard: misheard.sort((a, b) => b.length - a.length) };
