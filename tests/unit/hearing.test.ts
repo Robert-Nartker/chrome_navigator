@@ -1,0 +1,77 @@
+import { describe, expect, it } from "vitest";
+import { parseCommand } from "../../src/lib/parser";
+
+// How Chrome's recognizer really mishears everyday commands, and the chatter it picks up. Each
+// mishearing must run the command that was meant; chatter must run nothing (it goes to the router,
+// or nowhere; "hold on" stops Navi, "bye" sends it to sleep and "cool" gets a nod, by design); and no mishearing may run a different command, least of all the opposite one.
+
+const MEANT: Record<string, string[]> = {
+  "scroll down": ["scrolled down", "scroll town", "scroll dawn", "scrolldown", "school down", "stroll down", "scroll done", "scrawl down", "Scroll down!", "girl down"],
+  "scroll up": ["scrolled up", "school up", "scrollup", "stroll up", "skull up", "scroll op", "scroll app"],
+  "go back": ["goback", "go bag", "go buck", "go pack", "Go back!", "go bak", "go beck"],
+  "close tab": ["clothes tab", "close tap", "closed tab", "close the tab", "clothes tap", "closetab", "close tub", "close top"],
+  "new tab": ["newtab", "new tap", "knew tab", "new tub", "new top", "new dab"],
+  "next tab": ["nexttab", "next tap", "next top", "next tub"],
+  refresh: ["refreshed", "reload"],
+  "zoom in": ["zoomin", "zoom inn"],
+  "zoom out": ["zoomout"],
+  "go to sleep": ["go to sleeps", "go too sleep", "go to slip"],
+  stop: ["stopped"],
+  "show flags": ["flex"],
+  "hide numbers": ["hide number", "hyde numbers", "height numbers"],
+  "click 5": ["click five", "clique 5", "quick 5", "clicks 5", "click on 5", "click number 5"],
+  pause: ["paws"],
+  mute: ["mewt", "moot"],
+  "where am i": ["wear am i"],
+  "scroll to the top": ["scroll to the tap"],
+};
+
+/** Things people say near the mic that aren't commands. ("Close the door" asks to close a tab named "door": harmless.) */
+const CHATTER = [
+  "uh huh", "mm hmm", "hello", "yellow", "okay", "cool", "nice", "yes", "yeah", "no", "nope", "wow", "what", "right", "sure",
+  "thanks", "bye", "good", "great", "sorry", "oops", "wait", "come on", "oh no", "see you", "one sec", "i know", "me too",
+  "love you", "how are you", "i don't know", "go team", "good job", "no way", "for sure", "not now", "my bad", "hold on",
+  "the new top is nice", "i'm going back home",
+];
+
+/** Requests for the AI that a built-in command mustn't swallow. */
+const TASKS = ["find me a vegetarian recipe that takes under 30 minutes", "find me a cheap flight to denver"];
+
+const intent = (s: string) => JSON.stringify(parseCommand(s));
+
+describe("hearing: what Chrome mishears still runs the command that was meant", () => {
+  for (const [meant, heard] of Object.entries(MEANT)) {
+    it(`"${meant}"`, () => {
+      const want = intent(meant);
+      expect(want, `"${meant}" itself must be a command`).not.toBe("null");
+      for (const h of heard) expect(intent(h), `heard "${h}"`).toBe(want);
+    });
+  }
+});
+
+describe("hearing: chatter and tasks run no built-in command", () => {
+  it("chatter at most stops Navi or gets a nod, never acts on the page or tabs", () => {
+    for (const c of CHATTER) expect(["none", "ack", "stop", "sleep"], `"${c}"`).toContain(parseCommand(c)?.type ?? "none");
+  });
+  it("tasks for the AI", () => {
+    for (const t of TASKS) expect(intent(t), `"${t}"`).toBe("null");
+  });
+});
+
+describe("hearing: never the opposite", () => {
+  it("an unclear word after 'scroll' never scrolls the other way", () => {
+    for (const h of ["scroll op", "scroll app", "scrollup", "scroll a", "scroll uh", "scroll of"]) {
+      const got = parseCommand(h);
+      expect(got && "direction" in got ? got.direction : "none", `"${h}"`).not.toBe("down");
+    }
+  });
+});
+
+describe("hearing: typing and finding take just the words meant", () => {
+  it("type in … and then hit enter", () => {
+    expect(parseCommand("type in hello world and then hit enter")).toEqual({ type: "type", text: "hello world", submit: true });
+  });
+  it("find where it says …", () => {
+    expect(parseCommand("find where it says pricing")).toEqual({ type: "find", text: "pricing" });
+  });
+});

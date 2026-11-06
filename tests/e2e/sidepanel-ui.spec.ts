@@ -618,6 +618,9 @@ test.describe("live caption", () => {
     const last = panel.locator("#log > li.turn").last();
     await expect(last.locator("li.user")).toHaveText(/what time is it/);
     await expect(last.locator("li.step").filter({ hasText: "Heard “what time isn't”, which sounds like “what time is it”" })).toHaveCount(1);
+    // A runner-up said in so many words beats a best guess that only loosely sounds like a command.
+    await hear(panel, "scroll the page a little", true, ["scroll up a little"]);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toHaveText(/scroll up a little/);
     // Never one that closes something.
     const tabs = await panel.evaluate(async () => (await chrome.tabs.query({})).length);
     await hear(panel, "close the door", true, ["close tab"]);

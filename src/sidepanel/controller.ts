@@ -44,7 +44,7 @@ import { bestMatch } from "../lib/match";
 import { loadMemory, memoryBlock } from "../lib/memory";
 import { type CommandMetric, recordMetric } from "../lib/metrics";
 import { NO_USAGE, formatCost } from "../lib/models";
-import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseGridCommand } from "../lib/parser";
+import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseExact, parseGridCommand } from "../lib/parser";
 import { type RecentCommand, routeUtterance } from "../lib/router";
 import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import { searchUrl, siteEngine } from "../lib/sites";
@@ -370,15 +370,16 @@ export class Controller {
 
   /**
    * What was said: the recognizer's best guess, unless that isn't a command and one of its other guesses
-   * is ("scroll dune" / "scroll down"). Never a guess that closes or clears something.
+   * is ("scroll dune" / "scroll down"). A command said in so many words wins over a near-miss, so
+   * "scroll op" with "scroll up" among the guesses scrolls up. Never a guess that closes or clears something.
    */
   private bestGuess(heard: string, alternatives: string[] = []): string {
-    if (!alternatives.length || parseCommand(heard) || matchCommand(heard, this.commands)) return heard;
-    const better = alternatives.find((a) => {
-      const intent = parseCommand(a);
-      return (intent && !isDestructive(intent) && !/^close/.test(intent.type)) || matchCommand(a, this.commands);
-    });
-    return better ?? heard;
+    if (!alternatives.length || parseExact(heard) || matchCommand(heard, this.commands)) return heard;
+    const safe = (intent: Intent | null) => !!intent && !isDestructive(intent) && !/^close/.test(intent.type);
+    const exact = alternatives.find((a) => safe(parseExact(a)) || matchCommand(a, this.commands));
+    if (exact) return exact;
+    if (parseCommand(heard)) return heard;
+    return alternatives.find((a) => safe(parseCommand(a))) ?? heard;
   }
 
   /** The last few commands in the thread of the command running now. */

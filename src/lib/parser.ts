@@ -1,6 +1,7 @@
 // Fast path: turns common spoken commands into actions with no AI call, so they
 // feel instant. Anything this doesn't recognize goes to the AI agent.
 
+import { soundKey, soundsClose, soundsLike } from "./sounds-like";
 import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from "./protocol";
 import { NUMBER_PATTERN, parseNumber } from "./numbers";
 import { SEARCH_ENGINES, resolveSite, searchUrl } from "./sites";
@@ -291,7 +292,7 @@ const RULES: Rule[] = [
     return level === null || level > 100 ? null : { type: "media", action: "volume", volume: level };
   }],
   [/^(?:restart|replay)(?: (?:the |this )?video)?$|^(?:start (?:it )?over|play (?:it )?from the (?:beginning|start))$/, () => ({ type: "media", action: "restart" })],
-  [/^(mute|unmute)(?: (?:the |this )?(?:tab|sound|audio|page))?$/, (m) => ({ type: "muteTab", muted: m[1] === "mute" })],
+  [/^(mute|unmute)(?: it| (?:the |this )?(?:tab|sound|audio|page))?$/, (m) => ({ type: "muteTab", muted: m[1] === "mute" })],
   [/^(mute|unmute) (?:the )?video$/, (m) => ({ type: "media", action: m[1] as MediaAction })],
 
   // History
@@ -362,7 +363,9 @@ const RULES: Rule[] = [
   [/^(?:reset (?:the )?zoom|zoom reset|normal size|actual size)$/, () => ({ type: "zoom", direction: "reset" })],
 
   // Find text on the page, editing, printing
-  [/^(?:find|look for|search (?:the |this )?page for|where does it say) (.+?)(?: on (?:the |this )?page)?$/, (m) => ({ type: "find", text: m[1] })],
+  [/^(?:find|look for|search (?:the |this )?page for|where does it say)(?: where it says)? (.+?)(?: on (?:the |this )?page)?$/, (m) =>
+    // "Find me a recipe…", "look for a cheap flight": a task for the AI, not words on this page.
+    /^(?:me|us|a|an|some|any|my)\b/.test(m[1]) ? null : { type: "find", text: m[1] }],
   [/^(?:find (?:the )?next(?: one)?|next match|next result)$/, () => ({ type: "find" })],
   [/^select (?:all|everything)$/, () => ({ type: "edit", action: "selectAll" })],
   [/^undo(?: that)?$/, () => ({ type: "edit", action: "undo" })],
@@ -373,8 +376,8 @@ const RULES: Rule[] = [
   [/^(?:make (?:it|the text|everything) )?smaller$/, () => ({ type: "zoom", direction: "out" })],
 
   // Reading and orientation (no AI needed)
-  [/^(?:read|read (?:this|the|it) ?(?:page|article|out loud|aloud)?|read it to me|read (?:the )?selection|read this to me)$/, () => ({ type: "readPage" })],
-  [/^(?:where am i|what page (?:is this|am i on)|what(?:'s| is) this page)$/, () => ({ type: "whereAmI" })],
+  [/^(?:read|read (?:this |the |it )?(?:page|article|out loud|aloud)|read (?:this|the|it)|read it to me|read (?:the )?selection|read this to me)$/, () => ({ type: "readPage" })],
+  [/^(?:where am i|where are we|what page (?:is this|am i on)|what(?:'s| is) this page)$/, () => ({ type: "whereAmI" })],
   [/^(?:describe|explain) (?:the |this |my )?(?:screen|page|window)(?: (?:to|for) me)?$|^(?:tell me )?what(?:'s| is) on (?:the |my |this )?screen(?: right now)?$|^what (?:do|can) you see(?: on (?:the |my )?screen)?$|^what am i looking at$/, () => ({ type: "describeScreen" })],
   [/^(?:open|show|go to)(?: me)? (?:navi(?:'s)? |the |your )?(?:settings|options|preferences)$|^navi settings$/, () => ({ type: "openSettings" })],
   [/^(?:(?:start|begin|run|play|take|do|give me|show me|open)(?: me)? )?(?:the |a )?(?:navi )?(?:tutorial|tour|walkthrough|walk through)(?: again)?$|^teach me(?: how to use (?:you|navi|this))?$|^how do i use (?:you|navi|this)$/, () => ({ type: "tutorial" })],
@@ -395,7 +398,7 @@ const RULES: Rule[] = [
     const target = parseNumber(m[2]);
     return target === null ? null : { type: "type", text: m[1], target, submit: / and (?:press enter|submit|search|send)$/.test(m[0]) };
   }],
-  [/^(?:type|dictate) (.+?)(?: and (press enter|submit|search|send))?$/, (m) => {
+  [/^(?:type|dictate)(?: in| out)? (.+?)(?: and (?:then )?(press enter|hit enter|submit|search|send))?$/, (m) => {
     // "type hello in the search box" names a target by description: let the AI find it.
     if (/ (?:in|into) (?:the |this )?\w+(?: \w+)? (?:box|field|bar|input)$/.test(m[1])) return null;
     return { type: "type", text: m[1], submit: !!m[2] };
@@ -420,13 +423,15 @@ const RULES: Rule[] = [
   // instead. Last among the "close …" phrases, so "close grid" or "close the flags" mean what they say.
   [/^close (?:the |my |that |this )?(.+?)( tabs?)?$/, (m) =>
     /^(?:it|this|that|them|everything|all|other tabs?|the other tabs?|window|this window|the window|popup|the popup|dialog|menu|ad|grid|the grid|flags|the flags)$/.test(m[1]) ||
-    // "close tap" is a mishearing of "close tab", not a tab named "tap".
-    (!m[2] && similarity(m[1], "tab") >= 0.6)
+    // "close tap" and "close top" are mishearings of "close tab", not tabs named "tap" or "top".
+    (!m[2] && (similarity(m[1], "tab") >= 0.6 || soundKey(m[1]) === soundKey("tab")))
       ? null
       : { type: "closeNamedTab", query: m[1], saidTab: !!m[2] }],
 
   // Clicking by label: "click sign in". Resolved against the page before falling back to AI.
-  [/^(?:click|press|tap|hit|select|choose)(?: on)?(?: the)? (.+?)(?: button| link| tab| icon)?$/, (m) => ({ type: "clickText", text: m[1] })],
+  [/^(?:click|press|tap|hit|select|choose)(?: on)?(?: the)? (.+?)(?: button| link| tab| icon)?$/, (m) =>
+    // "press inter" is "press enter" misheard, not a button called "inter".
+    /^(?:press|hit) /.test(m[0]) && soundsClose(m[1], "enter") ? matchRules("press enter") : { type: "clickText", text: m[1] }],
 ];
 
 function search(query: string, engine: string): Intent {
@@ -527,6 +532,8 @@ function looseIntent(t: string): Intent | null {
             : /\bright\b/.test(t)
               ? "right"
               : "down";
+    // No direction said: down, unless there's a word that isn't explained ("scroll op" may be "scroll up").
+    if (direction === "down" && !/\bdown\b/.test(t) && (words.some((w) => !SCROLL_WORDS.has(w)) || words.at(-1) === "a")) return null;
     const amount: ScrollAmount = /\b(?:little|bit|slightly|tad|touch|smidge)\b/.test(t)
       ? "small"
       : /\b(?:lot|way|much|far|bunch|fast)\b/.test(t)
@@ -537,6 +544,11 @@ function looseIntent(t: string): Intent | null {
   return null;
 }
 
+/** Words "scroll" can come with that don't hint at a direction. */
+const SCROLL_WORDS = new Set(
+  "scroll scrolling keep going go move page a little bit slightly tad touch smidge lot way much far bunch fast more further some please the just again then now it this me for".split(" "),
+);
+
 /** Canonical phrasings used to catch near-misses from speech recognition ("scrawl down"). */
 const CANONICAL = [
   "scroll down", "scroll up", "scroll to the top", "scroll to the bottom", "page down", "page up",
@@ -545,6 +557,13 @@ const CANONICAL = [
   "read this page", "zoom in", "zoom out", "reset zoom", "pause", "play", "mute", "unmute",
   "what tabs are open", "press enter", "escape", "describe the screen", "open settings", "start the tutorial",
 ];
+
+/** Phrases matched by how they sound when nothing matched by spelling ("clothes tab", "go bag", "paws"). */
+const SOUND_PHRASES = [...CANONICAL, "stop", "flags", "show the flags", "close the tab", "go back a page"];
+/** Words Chrome sometimes runs together ("scrollup", "newtab"). */
+const GLUED = /\b(scroll|zoom|go|close|new|next|page)(up|down|in|out|back|forward|tab)\b/g;
+/** Agreement noises, not "huh?" (which asks Navi to repeat). */
+const AGREEING = /^(?:uh|um|mm|mhm|m)[ -]?(?:huh|hmm|hm|mm)$/;
 
 export function similarity(a: string, b: string): number {
   if (a === b) return 1;
@@ -579,29 +598,47 @@ function closestPhrase(t: string, phrases: string[], threshold = 0.8): string | 
 
 const IN_NEW_TAB = / (?:in|on) (?:a )?new tab$/;
 
-export function parseCommand(text: string): Intent | null {
-  const t = normalize(text);
+/** The phrase with fillers dropped and run-together words split, and the same without a name-like word at either end. */
+function prepare(text: string): { t: string; target: string } | null {
+  if (AGREEING.test(text.toLowerCase().replace(/[.!?,]/g, "").trim())) return null;
+  const t = normalize(text).replace(GLUED, "$1 $2");
   if (!t) return null;
+  // "Navi, sleep" / "scroll down navi": drop a name-like word at either end.
+  const words = t.split(" ");
+  const trimmed = words
+    .slice(NAME_LIKE.test(words[0]) ? 1 : 0, NAME_LIKE.test(words[words.length - 1]) && words.length > 1 ? -1 : undefined)
+    .join(" ");
+  return { t, target: trimmed || t };
+}
+
+/** A command said in so many words (no guessing at near-misses). */
+export function parseExact(text: string): Intent | null {
+  const p = prepare(text);
+  if (!p) return null;
+  const { t, target } = p;
   // "search youtube for lofi in a new tab" (opening sites handles this in its own rule).
   const newTab = IN_NEW_TAB.exec(t);
   if (newTab) {
     const base = matchRules(t.slice(0, newTab.index));
     if (base?.type === "search") return { ...base, newTab: true };
   }
-  const exact = matchRules(t);
+  return matchRules(t) ?? (target !== t ? matchRules(target) : null);
+}
+
+/** A command, said in so many words or nearly: looser phrasings, near-misses in spelling, then in sound. */
+export function parseCommand(text: string): Intent | null {
+  const exact = parseExact(text);
   if (exact) return exact;
-  // "Navi, sleep" / "scroll down navi": drop a name-like word at either end.
-  const words = t.split(" ");
-  const trimmed = words
-    .slice(NAME_LIKE.test(words[0]) ? 1 : 0, NAME_LIKE.test(words[words.length - 1]) && words.length > 1 ? -1 : undefined)
-    .join(" ");
-  if (trimmed && trimmed !== t) {
-    const intent = matchRules(trimmed);
-    if (intent) return intent;
-  }
-  const target = trimmed || t;
+  const target = prepare(text)?.target;
+  if (!target) return null;
   const loose = looseIntent(target);
   if (loose) return loose;
   const near = closestPhrase(target, CANONICAL);
-  return near ? matchRules(near) : null;
+  if (near) return matchRules(near);
+  // "clique 5", "quick 5": a word that sounds like "click", then a number (which makes "click" likely).
+  const [first, ...rest] = target.split(" ");
+  const number = rest.length ? parseBareNumber(rest.join(" ")) : null;
+  if (number !== null && soundsClose(first, "click", 1)) return matchRules(`click ${number}`);
+  const sounds = soundsLike(target, SOUND_PHRASES);
+  return sounds ? matchRules(sounds) : null;
 }
