@@ -42,7 +42,7 @@ import { freeChat } from "../lib/free-chat";
 import { NANO_STATUS_TEXT, nanoStatusRemote } from "../lib/nano";
 import { bestMatch } from "../lib/match";
 import { loadMemory, memoryBlock } from "../lib/memory";
-import { type CommandMetric, recordMetric } from "../lib/metrics";
+import { type CommandMetric, type Hearing, hearingColumns, markLastMisheard, recordMetric } from "../lib/metrics";
 import { NO_USAGE, formatCost } from "../lib/models";
 import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseExact, parseGridCommand } from "../lib/parser";
 import { type RecentCommand, routeUtterance } from "../lib/router";
@@ -104,6 +104,8 @@ export interface RunOptions {
   window?: number;
   /** The recognizer's other guesses at what was said, best first. */
   alternatives?: string[];
+  /** Spoken: how the recognizer heard it (kept in the usage log, on this computer). */
+  hearing?: Hearing;
 }
 
 /** Commands about threads and Navi's window: they run right away, even while another command runs. */
@@ -136,6 +138,8 @@ export class Controller {
   private autoScrolling = false;
   /** Last thing Navi said or showed, for "what did you say?". */
   private lastMessage = "";
+  /** How the last spoken command was heard (for "what did you hear?"). */
+  private lastHearing: Hearing | undefined;
   /** What Navi showed for the command running now. */
   private turnMessage = "";
   /** Each thread's last few commands and what came of them, so the AI can answer "why did that fail?". */
@@ -247,6 +251,7 @@ export class Controller {
     if (!command) return;
     const fromHelper = options.source === "helper";
     const intent = fromHelper ? null : parseCommand(command);
+    if (options.hearing && intent?.type !== "whatHeard" && intent?.type !== "misheard") this.lastHearing = options.hearing;
     if (intent?.type === "stop") {
       this.ui.log("user", command);
       this.cancel();
@@ -331,7 +336,7 @@ export class Controller {
     } finally {
       if (metric) {
         if (options.source === "voice" || options.source === "typed") this.tutorialSaw({ command, intent: metric.intent, path: metric.path });
-        const row: CommandMetric = { t: new Date().toISOString(), command, ...metric };
+        const row: CommandMetric = { t: new Date().toISOString(), command, ...metric, ...hearingColumns(options.hearing) };
         this.hooks.onMetric?.(row);
         void recordMetric(row).catch(() => undefined);
         this.remember(command, options, metric);
@@ -846,7 +851,14 @@ export class Controller {
       this.lastMessage = text;
       this.ui.log("navi", text, undefined, { thread: this.threads.current, solo: true });
     }
-    const row: CommandMetric = { t: new Date().toISOString(), command, path: "fast", intent: intent.type, ms: Math.round(performance.now() - started) };
+    const row: CommandMetric = {
+      t: new Date().toISOString(),
+      command,
+      path: "fast",
+      intent: intent.type,
+      ms: Math.round(performance.now() - started),
+      ...hearingColumns(options.hearing),
+    };
     this.hooks.onMetric?.(row);
     void recordMetric(row).catch(() => undefined);
     if (options.source === "typed" && this.getSettings().feedback !== "spoken") return;
@@ -1280,6 +1292,21 @@ export class Controller {
       }
       case "stop":
         return;
+      case "misheard": {
+        const row = await markLastMisheard();
+        const text = row?.heard ? `Sorry. I heard “${row.heard}”. I've noted it, so it can be fixed.` : "I haven't heard a spoken command yet.";
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
+      case "whatHeard": {
+        const h = this.lastHearing;
+        const others = h?.alternatives?.slice(0, 2).map((a) => `“${a}”`) ?? [];
+        const text = h ? `I heard “${h.heard}”${others.length ? `, or maybe ${others.join(" or ")}` : ""}.` : "I haven't heard a spoken command yet.";
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
       case "repeat": {
         const text = this.lastMessage || "I haven't said anything yet.";
         this.ui.log("navi", text, "Repeated");

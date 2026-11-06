@@ -4,7 +4,7 @@
 // - views: the side panel and the floating pill on web pages, which only show things and pass on clicks
 // The side panel is optional: Navi works the same with it closed.
 
-import type { CommandMetric } from "./metrics";
+import type { CommandMetric, Hearing } from "./metrics";
 import type { NanoRequest } from "./nano";
 import type { RecentCommand } from "./router";
 import type { Settings } from "./settings";
@@ -82,7 +82,7 @@ export interface WorkerState {
 /** Ears -> worker (views may listen in on state and interim). */
 export type EarsEvent =
   | { type: "ears:ready" }
-  | { type: "ears:command"; text: string; confidence: number; alternatives?: string[] }
+  | { type: "ears:command"; text: string; confidence: number; alternatives?: string[]; hearing?: Hearing }
   | { type: "ears:cancel" }
   | { type: "ears:state"; state: EarsState }
   | { type: "ears:interim"; text: string }

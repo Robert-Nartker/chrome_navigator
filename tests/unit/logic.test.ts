@@ -167,6 +167,14 @@ describe("metrics", async () => {
   it("escapes CSV cells", () => {
     expect(toCsv(rows).split("\n")[2]).toContain('"open ""the"" video, please"');
   });
+  it("exports how spoken commands were heard", async () => {
+    const { hearingColumns } = await import("../../src/lib/metrics");
+    const row = { ...rows[0], ...hearingColumns({ heard: "hey navi scroll dawn", alternatives: ["scroll down"], confidence: 0.913, ending: "held", speechMs: 640, waitMs: 510 }), misheard: true };
+    const [head, , line] = toCsv([rows[1], row]).split("\n");
+    expect(head).toContain("heard,alternatives,confidence,ending,speechMs,waitMs,misheard");
+    expect(line.endsWith("hey navi scroll dawn,scroll down,0.91,held,640,510,true")).toBe(true);
+    expect(hearingColumns(undefined)).toEqual({});
+  });
 });
 
 describe("the page's own search box", async () => {

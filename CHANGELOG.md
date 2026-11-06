@@ -2,6 +2,17 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-06
+
+Quality first: these make what's there work better, not add more.
+
+- **Navi understands far more of what Chrome mishears.** On 166 realistic mishearings of everyday commands, 156 now run the command that was meant (121 before), with no new false triggers on chatter. Navi matches by sound when nothing matches by spelling ("clothes tab", "go bag", "paws", "wear am i", "quick 5"): only for short phrases, only when one command is clearly closest, and a one-word command must sound the same ("hello" never becomes "help"). Run-together words are split ("newtab"). When Chrome's best guess only loosely sounds like a command but one of its other guesses is a command in so many words, the other guess runs.
+- **Never the opposite.** "Scroll" with an unclear word ("scroll op", "scroll app", "scrollup", "scroll to the tap") used to scroll down; now it scrolls the way the words sound, or does nothing.
+- **Less chatter acted on.** "Uh huh" no longer repeats the last command; "find me a recipe…" goes to the AI instead of searching the page.
+- **Faster when Chrome hesitates.** Chrome often shows a command's words without finishing them; Navi waited 1.1 s before acting on them, and now waits 0.5 s for a whole command (a phrase that isn't one yet still waits, and a bare "scroll" waits for "up" or "down").
+- **Typing and finding take just the words meant:** "type in hello and then hit enter" types "hello"; "find where it says pricing" finds "pricing".
+- **A listening log, for tuning recognition with real use.** The usage log now keeps, for each spoken command, what Chrome wrote down, its other guesses, whether Chrome finished the phrase, and how long Navi waited. Say **"what did you hear?"** to hear exactly what Chrome wrote down, and **"that's not what I said"** to mark the last command as misheard. On this computer only; nothing said while Navi is asleep is kept.
+
 ## 2026-11-05
 
 - **Navi Free no longer hangs when Chrome doesn't answer about its on-device AI.** Some Chrome versions and states (Chrome 153 in testing; possibly while Chrome updates the model) never reply when asked whether Gemini Nano is ready, and every command that needed the answer waited forever, including "start the tutorial" and anything that wasn't a built-in command. Navi now waits at most 3 seconds, then says Chrome isn't answering and carries on.

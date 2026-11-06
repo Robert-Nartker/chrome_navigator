@@ -963,6 +963,39 @@ test.describe("screenshots", () => {
   }
 });
 
+test.describe("listening log", () => {
+  test.use({ fakeMic: true, fakeSpeech: true });
+  test("the usage log keeps how each spoken command was heard; “what did you hear?” and “that's not what I said” work by voice; nothing said asleep is kept", async ({ panel, site }) => {
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await hear(panel, "what's for dinner tonight", true);
+    // A pause, so the next words are a phrase of their own.
+    await panel.waitForTimeout(800);
+    await hear(panel, "hey navi", true);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "awake");
+    await panel.waitForTimeout(800);
+    await site.bringToFront();
+    const navi = panel.locator("#log li.navi .text");
+    await hear(panel, "scroll dawn", true, ["scroll down", "scroll town"]);
+    await expect.poll(() => site.evaluate(() => scrollY)).toBeGreaterThan(0);
+    await hear(panel, "what did you hear", true);
+    await expect(navi.last()).toHaveText("I heard “scroll dawn”, or maybe “scroll down” or “scroll town”.");
+    // Chrome shows the words but never finishes them.
+    await hear(panel, "go to the top", false);
+    await expect.poll(() => site.evaluate(() => scrollY)).toBe(0);
+    await hear(panel, "that's not what I said", true);
+    await expect(navi.last()).toHaveText("Sorry. I heard “go to the top”. I've noted it, so it can be fixed.");
+    type Row = { command: string; heard?: string; alternatives?: string; ending?: string; speechMs?: number; waitMs?: number; misheard?: boolean };
+    const rows = await panel.evaluate(async () => ((await chrome.storage.local.get("metrics")).metrics ?? []) as Row[]);
+    expect(rows.some((r) => JSON.stringify(r).includes("dinner"))).toBe(false);
+    const dawn = rows.find((r) => r.heard === "scroll dawn")!;
+    expect(dawn).toMatchObject({ alternatives: "scroll down | scroll town", ending: "chrome" });
+    expect(dawn.misheard).toBeUndefined();
+    const top = rows.find((r) => r.heard === "go to the top")!;
+    expect(top).toMatchObject({ ending: "held", misheard: true });
+    expect(top.waitMs).toBeGreaterThanOrEqual(400);
+  });
+});
+
 test.describe("how soon Navi acts", () => {
   test.use({ fakeMic: true, fakeSpeech: true });
   test("a whole command runs at once; one Chrome holds unfinished runs in about half a second; an unfinished phrase waits", async ({ panel, site }) => {

@@ -100,6 +100,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Anything else (AI) | "open the first video", "reply to this email saying thanks", "what's this article about?", "add this to my cart" |
 | Your own commands | "add a command open wordle", "make study mode open Canvas and play lofi on YouTube", "what are my commands", "delete the wordle command" |
 | Control | "stop" (interrupts speech or a running task), "what can I say", "open the panel", "close the panel", "open settings", "start the tutorial" |
+| Hearing | "what did you hear?" (exactly what the recognizer wrote down), "that's not what I said" (marks the last command as misheard in the usage log) |
 
 You can also type in the side panel's chat box, or dictate into it with its mic button:
 - **Built-in and personal commands** run instantly, just like when you say them.
@@ -231,7 +232,7 @@ npm run bench:mock        # checks the harness with fake API replies (free)
 - A projection for 20 hours of light, typical and heavy use.
 - Everything is saved to `bench-results/`.
 
-Real usage is logged too: **Settings → Usage log** shows the running AI cost. **Export CSV** gives every command's path (fast path or AI), latency, steps, tokens and cost.
+Real usage is logged too: **Settings → Usage log** shows the running AI cost. **Export CSV** gives every command's path (fast path or AI), latency, steps, tokens and cost. For spoken commands it also has what the recognizer wrote down, its other guesses, whether Chrome finished the phrase or Navi did (`held`), how long it was spoken and how long Navi waited after the last word, and `misheard` for commands you said "that's not what I said" to. The log stays on your computer; nothing said while Navi is asleep is kept.
 
 ## Changelog, roadmap and research
 

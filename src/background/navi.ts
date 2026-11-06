@@ -471,7 +471,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       })();
       return false;
     case "ears:command":
-      void controller.run(msg.text, { source: "voice", alternatives: msg.alternatives });
+      void controller.run(msg.text, { source: "voice", alternatives: msg.alternatives, hearing: msg.hearing });
       return false;
     case "ears:cancel":
       controller.cancel();

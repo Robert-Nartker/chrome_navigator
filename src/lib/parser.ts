@@ -53,6 +53,10 @@ export type Intent =
   | { type: "showGrid" }
   | { type: "hideGrid" }
   | { type: "repeat" }
+  /** "That's not what I said": the last spoken command is marked misheard in the usage log. */
+  | { type: "misheard" }
+  /** "What did you hear?": exactly what the recognizer wrote down last time. */
+  | { type: "whatHeard" }
   | { type: "ack"; reply?: string }
   | { type: "voice"; change: "louder" | "quieter" | "faster" | "slower" }
   | { type: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
@@ -195,6 +199,8 @@ const RULES: Rule[] = [
   [/^(?:stop|pause|quit) (?:the )?(?:auto ?)?scroll(?:ing)?$/, () => ({ type: "autoScroll", action: "stop" })],
 
   // Talking with Navi
+  [/^(?:no )?(?:that'?s|that is|that was) not what i said$|^(?:no )?you (?:misheard(?: me| that)?|heard (?:me|that) wrong)$|^(?:you )?misheard(?: me)?$|^wrong command$/, () => ({ type: "misheard" })],
+  [/^what did you (?:just )?hear(?: me say)?$|^what did you think i said$|^what did i (?:just )?say$/, () => ({ type: "whatHeard" })],
   [/^(?:what did you (?:just )?say|say (?:that|it) again|repeat (?:that|it|yourself|what you said)?|come again|pardon(?: me)?|sorry what|what was that|huh|i didn'?t (?:catch|hear) (?:that|you))$/, () => ({ type: "repeat" })],
   [/^(?:thanks?|thank you|thanks navi|got it|ok(?:ay)? thanks|perfect|cool|nice|great|awesome|good job|sounds good)$/, () => ({ type: "ack" })],
   [/^(?:are you (?:there|awake|listening|on)|you there|hello|hi|hey|can you hear me)$/, () => ({ type: "ack", reply: "I'm here." })],

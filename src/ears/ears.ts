@@ -6,7 +6,8 @@
 import type { EarsState, LogKind } from "../lib/messages";
 import { WakeSession } from "../lib/session";
 import { DEFAULT_SETTINGS, type Settings, naviVoiceOf } from "../lib/settings";
-import { PHRASE_END_MS, STALL_MS, type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
+import type { Hearing } from "../lib/metrics";
+import { PHRASE_END_MS, type PhraseTiming, STALL_MS, type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import type * as ParakeetModule from "../voice/parakeet";
 import { parakeetModelFor } from "../voice/parakeet-langs";
@@ -14,8 +15,11 @@ import { loadModule } from "../lib/load-module";
 import { isWholeCommand } from "../lib/parser";
 
 export interface EarsOutput {
-  /** A command to run (the wake word is already handled), and the recognizer's other guesses at it. */
-  command(text: string, confidence: number, alternatives: string[]): void;
+  /**
+   * A command to run (the wake word is already handled), the recognizer's other guesses at it, and how
+   * it was heard (for the usage log).
+   */
+  command(text: string, confidence: number, alternatives: string[], hearing: Hearing): void;
   /** "Stop" heard while Navi was talking. */
   cancel(): void;
   state(state: EarsState): void;
@@ -193,7 +197,7 @@ export class Ears {
   }
 
   /** A finished phrase from the recognizer (also used by tests). */
-  final(transcript: string, confidence = 0, alternatives: string[] = []) {
+  final(transcript: string, confidence = 0, alternatives: string[] = [], timing?: PhraseTiming) {
     this.out.interim("");
     if (this.dictating) {
       this.out.dictation(transcript, true);
@@ -223,7 +227,7 @@ export class Ears {
     }
     if (decision.command) {
       const others = alternatives.map((a) => this.session.withoutName(a)).filter((a) => a && a !== decision.command);
-      this.out.command(decision.command, confidence, others);
+      this.out.command(decision.command, confidence, others, { heard: transcript, alternatives, confidence, ...timing });
     }
     // Asleep and not for Navi: show what was heard for a moment, so a missed "Hey Navi" is visible.
     this.heardAsleep = this.asleep && !decision.woke ? transcript : "";
@@ -316,7 +320,7 @@ export class Ears {
   /** What either recognizer reports to. */
   private readonly callbacks: SpeechCallbacks = {
     onInterim: (text) => this.interim(text),
-    onFinal: (text, confidence, alternatives) => this.final(text, confidence, alternatives),
+    onFinal: (text, confidence, alternatives, timing) => this.final(text, confidence, alternatives, timing),
     onRunningChange: () => this.emit(),
     onError: (message, fatal) => void this.onEngineError(message, fatal),
     onInfo: (message) => {
