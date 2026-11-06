@@ -1024,5 +1024,13 @@ test.describe("how soon Navi acts", () => {
     await hear(panel, "scroll", false);
     await panel.waitForTimeout(700);
     expect(await site.evaluate(() => scrollY)).toBe(0);
+    // Nor does a command that ends in the user's own words: "type hello" may go on.
+    await panel.waitForTimeout(800);
+    const turns = panel.locator("#log > li.turn");
+    const before = await turns.count();
+    await hear(panel, "type hello", false);
+    await panel.waitForTimeout(700);
+    expect(await turns.count()).toBe(before);
+    await expect(turns.last().locator("li.user")).toHaveText(/type hello/, { timeout: 2000 });
   });
 });

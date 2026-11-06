@@ -645,14 +645,19 @@ export function parseExact(text: string): Intent | null {
   return matchRules(t) ?? (target !== t ? matchRules(target) : null);
 }
 
+/** Parts of a command that are the user's own words: more may be coming ("type hello…", "search for…"). */
+const FREE_TEXT = ["text", "query", "url", "label", "title", "name"];
+
 /**
- * Whether `text` is a whole command, not the start of a longer one: "scroll down" is, "scroll" isn't
- * (it may be "scroll up"). Decides how soon Navi runs what it hears.
+ * Whether `text` is a whole command, not the start of a longer one: "scroll down" is; "scroll" isn't (it
+ * may be "scroll up"), and nor is one ending in the user's own words ("type hello" may go on). Decides how
+ * soon Navi runs what it hears.
  */
 export function isWholeCommand(text: string): boolean {
   const t = prepare(text)?.target;
   if (!t || CANONICAL.some((phrase) => phrase.startsWith(`${t} `))) return false;
-  return !!parseCommand(text);
+  const intent = parseCommand(text);
+  return !!intent && !FREE_TEXT.some((key) => key in intent);
 }
 
 /** A command, said in so many words or nearly: looser phrasings, near-misses in spelling, then in sound. */
