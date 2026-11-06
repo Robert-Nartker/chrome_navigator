@@ -125,8 +125,11 @@ export interface WebSpeechOptions {
   lang: string;
   /** The microphone to listen with ("" for the default). */
   deviceId?: string;
-  /** How long to wait for more words after a finished piece of `text` (shorter for a whole command). */
-  endOfPhraseMs?: (text: string) => number;
+  /**
+   * How long to wait for more words after `text` (shorter for a whole command): after Chrome finished a
+   * piece of it (`finished`), or after it stopped changing while Chrome still holds it.
+   */
+  endOfPhraseMs?: (text: string, finished: boolean) => number;
 }
 
 /** Why Chrome's on-device recognizer can't run, for the user. */
@@ -146,13 +149,13 @@ export function onDeviceProblem(status: OnDeviceStatus, lang: string): string {
  * How long a partial transcript may sit unchanged before Navi treats it as finished itself. Chrome can
  * hold a phrase for seconds (or drop it) when it isn't sure the speaker is done.
  */
-const STALL_MS = 1100;
+export const STALL_MS = 1100;
 /**
  * After Chrome finishes a piece of a phrase, how long Navi waits for more before running it. Chrome splits
  * phrases at short pauses ("8" … "thousand", "close" … "tab"); the pieces belong together. A piece that's
  * already a whole command waits less (see WebSpeechOptions.endOfPhraseMs).
  */
-const PHRASE_END_MS = 600;
+export const PHRASE_END_MS = 600;
 /** Pause between Chrome's listening sessions (it ends them every so often; nothing is heard in between). */
 const RESTART_MS = 60;
 /** Longest wait between restarts after real errors (a broken mic isn't reopened several times a second). */
@@ -411,7 +414,7 @@ export class WebSpeechEngine implements SpeechEngine {
       // Still talking: wait for Chrome. If the words stop changing, Chrome is holding a phrase that's over
       // (unsure the speaker is done, or hearing noise), so Navi runs it. Otherwise Chrome has finished the
       // pieces so far: run them after a short pause, unless more words follow.
-      const wait = live ? STALL_MS : (this.options.endOfPhraseMs?.(words) ?? PHRASE_END_MS);
+      const wait = this.options.endOfPhraseMs?.(words, !live) ?? (live ? STALL_MS : PHRASE_END_MS);
       this.phraseTimer = window.setTimeout(() => rec === this.recognition && this.finishPhrase(), wait);
     };
     rec.onerror = (event) => {

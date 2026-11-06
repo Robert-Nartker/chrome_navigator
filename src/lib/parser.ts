@@ -625,6 +625,16 @@ export function parseExact(text: string): Intent | null {
   return matchRules(t) ?? (target !== t ? matchRules(target) : null);
 }
 
+/**
+ * Whether `text` is a whole command, not the start of a longer one: "scroll down" is, "scroll" isn't
+ * (it may be "scroll up"). Decides how soon Navi runs what it hears.
+ */
+export function isWholeCommand(text: string): boolean {
+  const t = prepare(text)?.target;
+  if (!t || CANONICAL.some((phrase) => phrase.startsWith(`${t} `))) return false;
+  return !!parseCommand(text);
+}
+
 /** A command, said in so many words or nearly: looser phrasings, near-misses in spelling, then in sound. */
 export function parseCommand(text: string): Intent | null {
   const exact = parseExact(text);

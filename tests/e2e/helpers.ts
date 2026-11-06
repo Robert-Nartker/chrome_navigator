@@ -1,5 +1,6 @@
 // Shared by the e2e specs: which Chromium to run, and a tiny web server for the test pages.
 
+import type { BrowserContext, Page } from "@playwright/test";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
@@ -31,4 +32,19 @@ export function startServer(): Promise<{ server: Server; baseUrl: string }> {
       resolve({ server, baseUrl: `http://localhost:${port}` });
     });
   });
+}
+
+/**
+ * A tab that opens from now on and reaches an address `matches` accepts. Newer Chrome reports a tab
+ * before its address is set, so checking the address when the tab appears can miss it.
+ */
+export async function openedPage(context: BrowserContext, matches: (url: string) => boolean, timeoutMs = 10_000): Promise<Page> {
+  const before = new Set(context.pages());
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const page = context.pages().find((p) => !before.has(p) && matches(p.url()));
+    if (page) return page;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("No new tab reached the address the test expected.");
 }

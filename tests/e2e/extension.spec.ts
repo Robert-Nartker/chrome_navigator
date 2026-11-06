@@ -9,7 +9,7 @@ import path from "node:path";
 
 import { KOKORO, KOKORO_STAND_INS } from "./fake-models";
 import { installFakeRecognizer } from "./fake-speech";
-import { CHROMIUM, startServer } from "./helpers";
+import { CHROMIUM, openedPage, startServer } from "./helpers";
 import { type Settings, normalizeSettings } from "../../src/lib/settings";
 
 const DIST = path.resolve("dist");
@@ -398,7 +398,7 @@ test("closing a tab with unsent typing asks first by default (“yes” closes i
 }) => {
   const port = new URL(baseUrl).port;
   const openNote = async () => {
-    const opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("note.html") });
+    const opened = openedPage(context, (url) => url.includes("note.html"));
     await run(panel, `open localhost:${port}/note.html`);
     const page = await opened;
     await page.waitForLoadState();
@@ -429,7 +429,7 @@ test("closing a tab with unsent typing asks first by default (“yes” closes i
 
 test("the AI doesn't close a tab with unsent typing unless the user said yes to losing it", async ({ panel, baseUrl, context }) => {
   const port = new URL(baseUrl).port;
-  const opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("note.html") });
+  const opened = openedPage(context, (url) => url.includes("note.html"));
   await run(panel, `open localhost:${port}/note.html`);
   const note = await opened;
   await note.getByRole("textbox", { name: "Note", exact: true }).fill("Half-written reply to Sarah");
@@ -1641,7 +1641,7 @@ test.describe("Navi's window", () => {
     const a = await panel.evaluate(async () => (await chrome.tabs.query({})).find((t) => t.url?.endsWith("/index.html"))!.windowId);
     const [b, bPage] = await Promise.all([
       panel.evaluate((url) => chrome.windows.create({ url }).then((w) => w!.id!), `${baseUrl}/index.html?b`),
-      context.waitForEvent("page", { predicate: (p) => p.url().endsWith("?b") }),
+      openedPage(context, (url) => url.endsWith("?b")),
     ]);
     await bPage.waitForLoadState();
     return { a, b, bPage };

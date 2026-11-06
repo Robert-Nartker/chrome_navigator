@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WebSpeechEngine, withoutRunWords } from "../../src/lib/speech";
+import { STALL_MS, WebSpeechEngine, withoutRunWords } from "../../src/lib/speech";
 
 // A scripted stand-in for Chrome's recognizer: tests say what it hears and when it ends. Like Chrome,
 // a session's results are a growing list of pieces; only the last one can still be changing.
@@ -85,7 +85,7 @@ const callbacks = {
 const WHOLE = new Set(["close tab", "go back", "scroll down"]);
 
 async function started(): Promise<WebSpeechEngine> {
-  const engine = new WebSpeechEngine({ lang: "en-US", endOfPhraseMs: (t) => (WHOLE.has(t) ? 200 : 600) }, callbacks);
+  const engine = new WebSpeechEngine({ lang: "en-US", endOfPhraseMs: (t, finished) => (finished ? (WHOLE.has(t) ? 200 : 600) : STALL_MS) }, callbacks);
   await engine.start();
   await vi.advanceTimersByTimeAsync(1);
   return engine;

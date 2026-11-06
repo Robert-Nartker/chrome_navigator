@@ -6,12 +6,12 @@
 import type { EarsState, LogKind } from "../lib/messages";
 import { WakeSession } from "../lib/session";
 import { DEFAULT_SETTINGS, type Settings, naviVoiceOf } from "../lib/settings";
-import { type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
+import { PHRASE_END_MS, STALL_MS, type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import type * as ParakeetModule from "../voice/parakeet";
 import { parakeetModelFor } from "../voice/parakeet-langs";
 import { loadModule } from "../lib/load-module";
-import { parseCommand } from "../lib/parser";
+import { isWholeCommand } from "../lib/parser";
 
 export interface EarsOutput {
   /** A command to run (the wake word is already handled), and the recognizer's other guesses at it. */
@@ -29,6 +29,11 @@ export interface EarsOutput {
 const STOP_WORDS = /\b(stop|cancel|quiet)\b/i;
 /** A short "stop" on its own: stops whatever Navi is doing, even asleep and without the name. */
 const JUST_STOP = /^(?:(?:hey |ok(?:ay)? )?(?:navi|navy)[,.]? )?(?:stop|stop it|stop that|cancel|never ?mind|quiet|be quiet|shut up)[.!]*$/i;
+/**
+ * A whole command Chrome shows but doesn't finish (it isn't sure the speaker is done) runs after its words
+ * have stood still this long; Chrome itself can take seconds.
+ */
+const HELD_COMMAND_MS = 500;
 /** How long what Navi heard while asleep stays on screen. */
 const HEARD_MS = 6000;
 
@@ -382,7 +387,7 @@ export class Ears {
   private chromeEngine(): SpeechEngine {
     // No word boosting: it made Chrome "hear" boosted words in background noise.
     return new WebSpeechEngine(
-      { lang: this.settings.lang, deviceId: this.settings.micDeviceId, endOfPhraseMs: (text) => this.phraseEndMs(text) },
+      { lang: this.settings.lang, deviceId: this.settings.micDeviceId, endOfPhraseMs: (text, finished) => this.phraseEndMs(text, finished) },
       this.callbacks,
     );
   }
@@ -390,11 +395,14 @@ export class Ears {
   /**
    * How long to wait for more words after Chrome finishes a piece of a phrase: a moment if it's already
    * a whole command ("close tab"), longer if not ("search for", "8"), longest while dictating a message.
+   * Words Chrome holds without finishing wait longer, but a whole command still runs after half a second.
    */
-  private phraseEndMs(text: string): number {
-    if (this.dictating) return 900;
+  private phraseEndMs(text: string, finished: boolean): number {
+    if (this.dictating) return finished ? 900 : STALL_MS;
     const command = this.session.withoutName(text);
-    return command && parseCommand(command) ? 200 : 600;
+    const whole = !!command && isWholeCommand(command);
+    if (finished) return whole ? 200 : PHRASE_END_MS;
+    return whole ? HELD_COMMAND_MS : STALL_MS;
   }
 
   private async onEngineError(message: string, fatal: boolean) {

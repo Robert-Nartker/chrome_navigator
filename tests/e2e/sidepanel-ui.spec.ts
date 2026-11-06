@@ -962,3 +962,34 @@ test.describe("screenshots", () => {
     });
   }
 });
+
+test.describe("how soon Navi acts", () => {
+  test.use({ fakeMic: true, fakeSpeech: true });
+  test("a whole command runs at once; one Chrome holds unfinished runs in about half a second; an unfinished phrase waits", async ({ panel, site }) => {
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await hear(panel, "hey navi", true);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "awake");
+    await site.bringToFront();
+    /** Milliseconds from the words to the page moving. */
+    const scrollsAfter = async (say: () => Promise<void>) => {
+      await site.evaluate(() => scrollTo(0, 0));
+      await panel.waitForTimeout(300);
+      const started = Date.now();
+      await say();
+      await expect.poll(() => site.evaluate(() => scrollY), { intervals: [10], timeout: 5000 }).toBeGreaterThan(0);
+      return Date.now() - started;
+    };
+    expect(await scrollsAfter(() => hear(panel, "scroll down", true))).toBeLessThan(500);
+    await panel.waitForTimeout(800);
+    // Chrome shows the words but doesn't finish them (it does this often in real use).
+    const held = await scrollsAfter(() => hear(panel, "scroll down", false));
+    expect(held).toBeGreaterThan(400);
+    expect(held).toBeLessThan(900);
+    // "Scroll" may be the start of "scroll up": it waits for the rest.
+    await panel.waitForTimeout(800);
+    await site.evaluate(() => scrollTo(0, 0));
+    await hear(panel, "scroll", false);
+    await panel.waitForTimeout(700);
+    expect(await site.evaluate(() => scrollY)).toBe(0);
+  });
+});
