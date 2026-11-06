@@ -2,6 +2,14 @@
 
 Navi is a voice-first Chrome extension. Read README.md for the layout, CHANGELOG.md for what shipped, and ROADMAP.md for what's planned.
 
+## Quality first
+
+The owner's rule: a fast, seamless product that understands everything said and does exactly what was asked beats more features. A feature that "works" but annoys is a failure; it makes browsing worse, not better.
+
+- Spend about two thirds of any session making existing features seamless (speech recognition first: mishearings, delays, dropped or held phrases; then browser actions, the panel and Navi in general), and at most a third on new features.
+- Keep new features small and simple, and finish them properly; no complex machinery the basics don't need yet.
+- Iterate: measure, find the worst problem, fix it, check the fix, repeat, even when the gains are small.
+
 ## Principles for every feature
 
 - **Voice first.** Every feature works by voice, with the side panel closed: a spoken command for it (and a few natural phrasings, plus common mishearings), spoken feedback, and the router told about it (`BUILT_IN_COMMANDS` in `src/lib/router.ts`). Buttons are a second way in, never the only one.
