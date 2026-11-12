@@ -279,9 +279,17 @@ export class Helpers {
     return this.running().map(({ id, task, step, costUsd, started, activity }) => ({ id, task, step, costUsd, started, activity }));
   }
 
+  /** Which helpers were last saved as running (saved again only when that changes, not every step). */
+  private saved = "";
+
   private changed() {
     this.deps.onChange(this.summaries());
-    void saveRunning(this.running()).catch(() => undefined);
+    const running = this.running();
+    const ids = running.map((h) => `${h.id}:${h.window ?? ""}`).join(",");
+    if (ids !== this.saved) {
+      this.saved = ids;
+      void saveRunning(running).catch(() => undefined);
+    }
   }
 }
 

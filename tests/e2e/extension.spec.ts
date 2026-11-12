@@ -1453,6 +1453,18 @@ test("moving through a page by its structure, without seeing it: headings, secti
   await expect(said.last()).toHaveText("5 links: 1, Desk Shop. 2, Desks. 3, Chairs. 4, Help. 5, Privacy.");
   await run(panel, "go to the shipping section");
   await expect(said.last()).toContainText("There's no heading called “shipping” on this page.");
+
+  // The last section, read aloud: its words, never the page's code.
+  await run(panel, "go to the order section");
+  await run(panel, "read this section");
+  await expect(said.last()).toContainText("Gift wrap");
+  await expect(said.last()).not.toContainText("addEventListener");
+
+  // Scrolled back to the top by hand: "next heading" starts from what's on screen, not where Navi last was.
+  await site.evaluate(() => scrollTo(0, 0));
+  await site.locator("body").click({ position: { x: 5, y: 5 } });
+  await run(panel, "next heading");
+  await expect(said.last()).toHaveText("Standing desks, heading level 1 (1 of 5)");
 });
 
 test("hovering by voice opens a menu that opens under the mouse; with “increase contrast” on, Navi's tags and caption are high contrast", async ({ panel, site, baseUrl }) => {

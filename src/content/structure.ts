@@ -23,6 +23,9 @@ const SINGULAR: Record<StructureKind, string> = { heading: "heading", link: "lin
 
 /** Where the user is: the last thing moved to, else what has focus, else the top of what's on screen. */
 let cursor: Element | null = null;
+/** What had focus, and how far the page was scrolled, right after the last move. */
+let movedFocus: Element | null = null;
+let movedScrollY = 0;
 
 function shown(el: Element): boolean {
   if (el.closest("[aria-hidden=true], [hidden], #navi-overlay, #navi-pill")) return false;
@@ -46,10 +49,12 @@ function headingLevel(el: Element): number {
 
 /** Where the user is now, in document order. */
 function here(): Element | null {
-  if (cursor?.isConnected) return cursor;
   const focused = document.activeElement;
-  if (focused && focused !== document.body && focused !== document.documentElement) return focused;
-  return null;
+  const hasFocus = !!focused && focused !== document.body && focused !== document.documentElement;
+  // The user moved on since (clicked into something else, or scrolled well away): start from there.
+  if (cursor?.isConnected && (hasFocus ? focused === movedFocus : true) && Math.abs(scrollY - movedScrollY) < innerHeight / 2) return cursor;
+  cursor = null;
+  return hasFocus ? focused : null;
 }
 
 const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -147,6 +152,8 @@ function moveTo(el: Element, kind: StructureKind, items: Element[]): string {
   el.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
   // Links, fields and buttons take focus, so the next "type …" or "press enter" goes there.
   if (kind !== "heading" && kind !== "landmark") (el as HTMLElement).focus?.({ preventScroll: true });
+  movedFocus = document.activeElement;
+  movedScrollY = scrollY;
   highlight(el);
   return describe(el, kind, items.indexOf(el), items.length);
 }
@@ -169,11 +176,20 @@ function sectionText(maxChars: number): string {
   if (!start) throw new Error("This page has no headings, so it has no sections to read. Say “read this page” instead.");
   const level = headingLevel(start);
   const end = headings.slice(headings.indexOf(start) + 1).find((h) => headingLevel(h) <= level);
-  const range = document.createRange();
-  range.setStartBefore(start);
-  if (end) range.setEndBefore(end);
-  else range.setEndAfter(document.body.lastChild ?? document.body);
-  const text = range.toString().replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+/g, " ").trim();
+  // The words on the page from the heading to the end of the section: never script or style code, or hidden text.
+  const parts: string[] = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  walker.currentNode = start;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (end && !before(node as unknown as Element, end) && !end.contains(node)) break;
+    if (end?.contains(node)) break;
+    const parent = node.parentElement;
+    if (!parent || parent.closest("script, style, noscript, template, [hidden], [aria-hidden=true], #navi-structure-outline")) continue;
+    if (!parent.checkVisibility?.()) continue;
+    const words = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (words) parts.push(/^(?:P|LI|H[1-6]|TD|DT|DD|DIV)$/.test(parent.tagName) ? `\n${words}` : words);
+  }
+  const text = parts.join(" ").replace(/ ?\n ?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   cursor = start;
   return text.length > maxChars ? `${text.slice(0, maxChars)}\n[truncated]` : text;
 }
