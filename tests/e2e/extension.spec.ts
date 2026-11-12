@@ -1169,6 +1169,13 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   const final = (text: string) =>
     panel.evaluate((t) => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal(t), text);
   await final("hey navi");
+  // The sounds Navi plays, as its background page is asked to play them.
+  const ears = context.pages().find((p) => p.url().endsWith("/offscreen.html")) ?? (await context.waitForEvent("page", { predicate: (p) => p.url().endsWith("/offscreen.html") }));
+  await ears.evaluate(() => {
+    const w = window as unknown as { __sounds: string[] };
+    w.__sounds = [];
+    chrome.runtime.onMessage.addListener((m: { type?: string; name?: string }) => void (m.type === "ears:sound" && w.__sounds.push(m.name ?? "")));
+  });
   // Keyboard clatter and someone talking nearby: no hardcoded list, the quick model judges both,
   // and the main model is never called.
   await final("tiktok tiktok tiktok");
@@ -1176,8 +1183,9 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   await final("and then she told me the car was still in the shop");
   await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “and then she told me" })).toHaveCount(1);
   expect(models).toEqual(["claude-sonnet-5-5", "claude-sonnet-5-5"]);
-  // Nothing was spoken or shown as an error.
+  // Nothing was spoken or shown as an error, and no "didn't understand" sound each time someone talks nearby.
   await expect(panel.locator("#log li.error")).toHaveCount(0);
+  expect(await ears.evaluate(() => (window as unknown as { __sounds: string[] }).__sounds)).not.toContain("unknown");
 });
 
 /** A fake OpenAI Responses API reply. */

@@ -541,8 +541,8 @@ export class Controller {
         });
         if (fastPath) return { ...fastPath, routerMs, routerCostUsd };
       } else if (decision.route === "ignore") {
+        // Someone else talking, a TV: no sound, or chatter nearby would set Navi off every few seconds.
         this.ui.log("step", `Ignored “${command}” · ${routerMs} ms`);
-        this.speaker.sound("unknown");
         return { intent: "ignored", routerMs, routerCostUsd };
       }
     }

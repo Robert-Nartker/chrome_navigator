@@ -240,6 +240,7 @@ Real usage is logged too: **Settings → Usage log** shows the running AI cost. 
 - [CHANGELOG.md](CHANGELOG.md): what's changed, newest first.
 - [ROADMAP.md](ROADMAP.md): what's planned next (speech recognition that just works, Voice ID, more helpers and background windows) with requirements and open questions.
 - [docs/accessibility.md](docs/accessibility.md): who Navi is for, what each group needs, and the gaps.
+- [docs/test-checklist.md](docs/test-checklist.md): what to try in real Chrome after a round of changes, and what to send back.
 - [docs/research/](docs/research/): the research behind Navi's choices: speech recognition, wake words and voice ID, the AI stack, and the cost of computer-use models ([interactive chart](docs/research/computer-use-cost.html)).
 
 ## License
