@@ -281,7 +281,29 @@ export class Helpers {
 
   private changed() {
     this.deps.onChange(this.summaries());
+    void saveRunning(this.running()).catch(() => undefined);
   }
+}
+
+/** Running helpers, kept for this Chrome session in case Chrome restarts Navi's background worker. */
+const RUNNING_KEY = "helpersRunning";
+export type LeftHelper = Pick<HelperInfo, "id" | "task" | "thread" | "window" | "keepOpen">;
+
+export async function saveRunning(running: HelperInfo[]) {
+  const left: LeftHelper[] = running.map(({ id, task, thread, window, keepOpen }) => ({ id, task, thread, window, keepOpen }));
+  await chrome.storage.session.set({ [RUNNING_KEY]: left });
+}
+
+/**
+ * Helpers that were running when Chrome restarted Navi's background worker (an update, a reload) ended
+ * with it: their windows are closed, so none is left open with nothing driving it. Returns them, to say so.
+ */
+export async function cleanUpLeftHelpers(): Promise<LeftHelper[]> {
+  const left = ((await chrome.storage.session.get(RUNNING_KEY))[RUNNING_KEY] as LeftHelper[] | undefined) ?? [];
+  if (!left.length) return [];
+  await chrome.storage.session.remove(RUNNING_KEY);
+  for (const h of left) if (h.window !== undefined) await chrome.windows.remove(h.window).catch(() => undefined);
+  return left;
 }
 
 /** Waits for a new window's first page to load (up to 15 s). */

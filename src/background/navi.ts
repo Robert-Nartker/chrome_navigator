@@ -28,7 +28,7 @@ import type { Voice } from "../lib/voice-output";
 import { Controller, HELP_TEXT, type LogPlace } from "../sidepanel/controller";
 import { ThreadBook } from "../lib/threads";
 import { WindowPin } from "../lib/window-pin";
-import { Helpers, describeHelper } from "../lib/helpers";
+import { Helpers, cleanUpLeftHelpers, describeHelper } from "../lib/helpers";
 
 let settings: Settings = DEFAULT_SETTINGS;
 let settingsLoaded: Promise<void> = Promise.resolve();
@@ -691,6 +691,13 @@ export function startNavi() {
     await resume();
     if (!worker.listening && (await earsExist())) await earsOrProblem();
     void updateBadge();
+    // Helpers running when Chrome restarted this worker ended with it: their windows close, and Navi says so.
+    for (const h of await cleanUpLeftHelpers().catch(() => [])) {
+      log("info", `Helper ${h.id} (“${h.task.slice(0, 80)}”) stopped when Chrome restarted Navi, so its window was closed. Ask again to start it over.`, undefined, false, {
+        thread: h.thread,
+        solo: true,
+      });
+    }
     // Chrome may have stopped this worker before a memory update ran: it runs once Navi is idle again.
     if ((await loadInbox()).length) scheduleMemoryUpdate(MEMORY_IDLE_MS);
   })();

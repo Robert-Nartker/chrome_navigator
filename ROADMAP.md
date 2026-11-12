@@ -25,7 +25,7 @@ Shipped on 2026-10-02: the main AI can start helpers (4a without a browser, 4b i
 - **Web research without a browser (4a):** the provider's own web search tool would let a helper research without opening sites. Before turning it on, check that it meets Navi's rule that every AI service is data private (zero retention).
 - **Questions from helpers:** today a helper that needs the user's OK stops and reports what's ready; a question queue (the panel shows it, Navi asks at a quiet moment, the helper continues) would let it finish the job.
 - **Minimized helper windows:** helpers open normal windows behind the user's. Chrome slows down pages it isn't showing, so minimized windows need measuring first: timers slow down, lazy-loading lists and video don't progress, screenshots don't work, and long-hidden tabs can be frozen.
-- **Surviving a restart:** helpers live in Navi's background worker; if Chrome stops it, running helpers end (their windows stay open).
+- **Surviving a restart:** helpers live in Navi's background worker; if Chrome stops it, running helpers end. Since 2026-11-12 their windows are closed and Navi says which helpers stopped; picking up where they left off is still open.
 
 ## 5. Talk to a background window while you work — *Partly shipped*
 
