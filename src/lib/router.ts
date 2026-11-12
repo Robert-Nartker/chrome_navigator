@@ -25,7 +25,7 @@ export const BUILT_IN_COMMANDS = `scroll down / up / to the top / to the bottom 
 start scrolling (auto-scroll); stop scrolling; scroll faster; scroll slower
 go back; go back <n> pages; go forward; refresh; go home (site home page); next page (pagination)
 new tab; new window; close tab (the current one); close <site or title> tab; close other tabs; duplicate tab; pin tab; next tab; previous tab; first tab; last tab; switch back; reopen closed tab; switch to tab <n>; switch to <site or title>; what tabs are open
-find <text> (on this page); find next; select all; undo; clear it; new line; print
+find <text> (on this page); find next; select all; undo; clear it; new line; delete that (what Navi just typed); delete the last word; delete the last <n> words; print
 what did you say; what did you hear (what the recognizer wrote down); that's not what I said (marks the last command misheard); talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
 open <site or URL> (opens it in a new tab); go to <site or URL> (in this tab); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
 flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>

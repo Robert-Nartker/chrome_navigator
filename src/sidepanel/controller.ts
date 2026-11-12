@@ -1430,7 +1430,7 @@ export class Controller {
         return;
       }
       case "edit": {
-        const res = await pageRequest(tab, { kind: "edit", action: intent.action });
+        const res = await pageRequest(tab, { kind: "edit", action: intent.action, count: intent.count });
         await this.confirm(res.detail ?? "Done");
         return;
       }

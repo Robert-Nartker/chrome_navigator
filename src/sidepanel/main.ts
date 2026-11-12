@@ -65,6 +65,8 @@ let entries: LogEntry[] = [];
 let threads: ThreadsState = { current: "", threads: [] };
 
 const toWorker = <T = unknown>(request: WorkerRequest) => chrome.runtime.sendMessage(request) as Promise<T>;
+/** Live news that arrived while the worker's opening snapshot (navi:hello) was on its way. */
+let updatedSinceHello = { worker: false, ears: false };
 
 function renderStatus() {
   let state = "off";
@@ -378,6 +380,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
       break;
     case "view:worker":
       worker = msg.state;
+      updatedSinceHello.worker = true;
       renderStatus();
       renderPin();
       renderHelpers();
@@ -388,6 +391,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
       break;
     case "ears:state":
       ears = msg.state;
+      updatedSinceHello.ears = true;
       renderStatus();
       break;
     case "ears:interim":
@@ -662,15 +666,18 @@ async function init() {
   }
   applySettings(await loadSettings());
   onSettingsChanged(applySettings);
+  updatedSinceHello = { worker: false, ears: false };
   const hello = await toWorker<WorkerHello>({ type: "navi:hello" }).catch(() => undefined);
   if (hello) {
-    worker = hello.worker;
+    // The reply is a snapshot from when it was asked for: news that came in meanwhile is newer, so it stays.
+    if (!updatedSinceHello.worker) worker = hello.worker;
     renderPin();
     renderHelpers();
     renderTutorial();
-    ears = hello.ears;
+    if (!updatedSinceHello.ears) ears = hello.ears;
     for (const m of hello.metrics) addMetric(m);
-    entries = hello.log;
+    const known = new Set(hello.log.map((e) => `${e.t}:${e.text}`));
+    entries = [...hello.log, ...entries.filter((e) => !known.has(`${e.t}:${e.text}`))].slice(-500);
     showThreads(hello.threads, true);
   }
   void loadSpentToday();

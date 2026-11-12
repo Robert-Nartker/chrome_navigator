@@ -37,7 +37,8 @@ export type MediaAction =
   | "volume"
   | "restart";
 
-export type EditAction = "selectAll" | "undo" | "clear" | "newline";
+/** "deleteLast": what Navi last typed there; "deleteWords": the last `count` words. */
+export type EditAction = "selectAll" | "undo" | "clear" | "newline" | "deleteLast" | "deleteWords";
 
 /** What "next heading", "list links" and the like move through. */
 export type StructureKind = "heading" | "link" | "field" | "button" | "landmark";
@@ -69,7 +70,7 @@ export type ContentRequest =
   | { kind: "clickAt"; x: number; y: number }
   | { kind: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
   | { kind: "find"; text?: string }
-  | { kind: "edit"; action: EditAction }
+  | { kind: "edit"; action: EditAction; count?: number }
   | { kind: "print" }
   | { kind: "structure"; what: StructureKind; action: StructureAction; name?: string };
 

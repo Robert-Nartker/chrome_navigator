@@ -1,5 +1,6 @@
 // Performs actions on page elements the way a user's mouse and keyboard would.
 
+import { spaced, withoutLastWords } from "../lib/typing";
 import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from "../lib/protocol";
 import { deepActiveElement } from "./snapshot";
 import { flash } from "./overlay";
@@ -58,6 +59,19 @@ function findEditableWithin(el: Element): Element | null {
   return el.querySelector("input:not([type=hidden]), textarea, [contenteditable=''], [contenteditable='true']");
 }
 
+/** What Navi typed last, and where: "delete that" takes it back out. */
+let lastTyped: { el: Element; text: string } | null = null;
+
+
+function textBeforeCaret(el: Element): string {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount || !el.contains(sel.anchorNode)) return el.textContent ?? "";
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.setEnd(sel.anchorNode!, sel.anchorOffset);
+  return range.toString();
+}
+
 export function typeText(target: Element | null, text: string, submit: boolean, clear: boolean): string {
   // No box named and none focused: type on the page itself (pages that listen to the keyboard).
   const focused = deepActiveElement();
@@ -76,14 +90,18 @@ export function typeText(target: Element | null, text: string, submit: boolean, 
   (el as HTMLElement).focus();
 
   if (isTextField(el)) {
-    const next = clear ? text : el.value + text;
+    const added = clear ? text : spaced(el.value, text);
+    const next = clear ? text : el.value + added;
     setNativeValue(el, next);
-    el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
+    el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: added }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    lastTyped = { el, text: added };
   } else if ((el as HTMLElement).isContentEditable) {
     if (clear) document.execCommand("selectAll", false);
-    const inserted = document.execCommand("insertText", false, text);
-    if (!inserted) (el as HTMLElement).textContent = clear ? text : (el.textContent ?? "") + text;
+    const added = clear ? text : spaced(textBeforeCaret(el), text);
+    const inserted = document.execCommand("insertText", false, added);
+    if (!inserted) (el as HTMLElement).textContent = clear ? text : (el.textContent ?? "") + added;
+    lastTyped = { el, text: added };
   } else {
     throw new Error("That element isn't a text field.");
   }
@@ -436,9 +454,36 @@ export function findOnPage(text?: string): string {
 }
 
 // ---- Editing the focused field ----
-export function edit(action: EditAction): string {
+export function edit(action: EditAction, count = 1): string {
   const el = deepActiveElement();
   switch (action) {
+    case "deleteLast": {
+      const last = lastTyped;
+      if (!last?.el.isConnected) throw new Error("I haven't typed anything here to delete.");
+      if (isTextField(last.el)) {
+        if (!last.el.value.endsWith(last.text)) throw new Error("What I typed has changed since, so I left it alone.");
+        setNativeValue(last.el, last.el.value.slice(0, -last.text.length));
+        last.el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "deleteContentBackward" }));
+      } else {
+        (last.el as HTMLElement).focus();
+        if (!textBeforeCaret(last.el).endsWith(last.text)) throw new Error("What I typed has changed since, so I left it alone.");
+        for (let i = 0; i < last.text.length; i++) document.execCommand("delete");
+      }
+      lastTyped = null;
+      return `deleted “${last.text.trim()}”`;
+    }
+    case "deleteWords": {
+      if (isTextField(el)) {
+        setNativeValue(el, withoutLastWords(el.value, count));
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "deleteWordBackward" }));
+      } else if ((el as HTMLElement | null)?.isContentEditable) {
+        const sel = window.getSelection();
+        for (let i = 0; i < count; i++) sel?.modify("extend", "backward", "word");
+        document.execCommand("delete");
+      } else throw new Error("There's no text field selected.");
+      lastTyped = null;
+      return count === 1 ? "deleted the last word" : `deleted the last ${count} words`;
+    }
     case "selectAll":
       if (isTextField(el)) el.select();
       else document.execCommand("selectAll");

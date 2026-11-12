@@ -72,7 +72,7 @@ export type Intent =
   | { type: "pinTab"; pinned: boolean }
   | { type: "switchBack" }
   | { type: "find"; text?: string }
-  | { type: "edit"; action: EditAction }
+  | { type: "edit"; action: EditAction; count?: number }
   | { type: "print" }
   | { type: "time" }
   | { type: "date" }
@@ -420,6 +420,13 @@ const RULES: Rule[] = [
   [/^(?:find (?:the )?next(?: one)?|next match|next result)$/, () => ({ type: "find" })],
   [/^select (?:all|everything)$/, () => ({ type: "edit", action: "selectAll" })],
   [/^undo(?: that)?$/, () => ({ type: "edit", action: "undo" })],
+  // Correcting dictation: what Navi just typed, or the last few words.
+  [/^(?:delete|remove|erase) (?:that|what (?:you|i) (?:just )?typed|the last thing (?:you|i) typed)$/, () => ({ type: "edit", action: "deleteLast" })],
+  [new RegExp(`^(?:delete|remove|erase) (?:the )?(?:last|previous) (?:${N} )?words?$|^(?:delete|remove|erase) ${N} words?$`), (m) => {
+    const said = m[1] ?? m[2];
+    const count = said ? parseNumber(said) : 1;
+    return count && count > 0 && count <= 50 ? { type: "edit", action: "deleteWords", count } : null;
+  }],
   [/^(?:clear|erase|empty) (?:the |this )?(?:box|field|text|input|search|it)$|^clear it$/, () => ({ type: "edit", action: "clear" })],
   [/^(?:new|next) (?:line|paragraph)$/, () => ({ type: "edit", action: "newline" })],
   [/^print(?: (?:this|the) page)?$/, () => ({ type: "print" })],
@@ -675,7 +682,24 @@ export function parseExact(text: string): Intent | null {
     const base = matchRules(t.slice(0, newTab.index));
     if (base?.type === "search") return { ...base, newTab: true };
   }
-  return matchRules(t) ?? (target !== t ? matchRules(target) : null);
+  const intent = matchRules(t) ?? (target !== t ? matchRules(target) : null);
+  return intent?.type === "type" ? { ...intent, text: dictated(text, intent) } : intent;
+}
+
+const SAID_TYPE = /^[\s,]*(?:(?:ok(?:ay)?|hey|so|um+|uh+|please|now|and|then|alright|all right|can you|could you|would you|will you|just)[\s,]+)*(?:type|dictate)(?:\s+in)?[\s,:]+([\s\S]+?)\s*$/i;
+
+/**
+ * What to type, as it was said: capitals, commas and every word kept ("Dear Sarah, thanks!"), only the
+ * command around it taken off. Chrome ends phrases with a period by itself, so a single one is dropped.
+ */
+function dictated(said: string, intent: Extract<Intent, { type: "type" }>): string {
+  const m = SAID_TYPE.exec(said);
+  if (!m) return intent.text;
+  let text = m[1];
+  if (intent.submit) text = text.replace(/[\s,]+and\s+(?:then\s+)?(?:press enter|hit enter|submit|search|send)[.!]?$/i, "");
+  if (intent.target !== undefined) text = text.replace(/\s+(?:in|into|on)\s+(?:number\s+|box\s+|field\s+)?\S+[.!]?$/i, "");
+  text = text.replace(/(?<!\.)\.$/, "").trim();
+  return text || intent.text;
 }
 
 /** Parts of a command that are the user's own words: more may be coming ("type hello…", "search for…"). */

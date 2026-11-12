@@ -1371,6 +1371,35 @@ test.describe("tutorial", () => {
   });
 });
 
+test("dictating in pieces: spaces between them, and “delete that” / “delete the last 2 words” to fix it", async ({ panel, site }) => {
+  await site.bringToFront();
+  const box = site.getByLabel("Search the site");
+  await box.focus();
+  await run(panel, "type hello");
+  await run(panel, "type world");
+  await expect(box).toHaveValue("hello world");
+  await run(panel, "delete that");
+  await expect(box).toHaveValue("hello");
+  await run(panel, "type big wide world");
+  await run(panel, "delete the last 2 words");
+  await expect(box).toHaveValue("hello big");
+  // Typed as said: capitals, commas and every word.
+  await run(panel, "Type Dear Sarah, thanks!");
+  await expect(box).toHaveValue("hello big Dear Sarah, thanks!");
+
+  // A rich text editor (like an email body) works the same way.
+  await site.evaluate(() => document.body.insertAdjacentHTML("beforeend", '<div id="editor" contenteditable="true" aria-label="Message"></div>'));
+  const editor = site.locator("#editor");
+  await editor.focus();
+  await run(panel, "type see you");
+  await run(panel, "type tomorrow");
+  await expect(editor).toHaveText("see you tomorrow");
+  await run(panel, "delete that");
+  await expect(editor).toHaveText("see you");
+  await run(panel, "delete the last word");
+  await expect(editor).toHaveText("see");
+});
+
 test("moving through a page by its structure, without seeing it: headings, sections, fields, regions, links", async ({ panel, site, baseUrl }) => {
   await site.goto(`${baseUrl}/structure.html`);
   await site.bringToFront();
@@ -2269,6 +2298,33 @@ test.describe("where Chrome can't recognize speech on-device", () => {
     await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
     await expect(panel.locator("#log li.error")).toContainText("Chrome can't recognize en-US on this computer yet.");
     await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
+  });
+});
+
+test.describe("the panel opening while things change", () => {
+  test.use({ fakeMic: true, fakeSpeech: "unavailable" });
+
+  test("news that arrives while the panel opens isn't undone by the worker's older snapshot", async ({ context, extensionId, site }) => {
+    // The worker's opening snapshot takes a while to arrive, as it can when Chrome is busy.
+    await context.addInitScript(() => {
+      if (!location.pathname.endsWith("/sidepanel.html")) return;
+      const send = chrome.runtime.sendMessage.bind(chrome.runtime) as (m: unknown) => Promise<unknown>;
+      (chrome.runtime as unknown as { sendMessage: (m: { type?: string }) => Promise<unknown> }).sendMessage = async (m) => {
+        const reply = await send(m);
+        if (m?.type === "navi:hello") await new Promise((resolve) => setTimeout(resolve, 1500));
+        return reply;
+      };
+    });
+    await site.bringToFront();
+    const panel = await context.newPage();
+    await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+    await panel.waitForFunction(() => "navi" in window);
+    type Listen = { navi: { startListening(): Promise<void> } };
+    await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
+    await expect(panel.locator("#log li.error")).toContainText("Chrome can't recognize en-US on this computer yet.");
+    await panel.waitForTimeout(1800);
+    await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
+    await expect(panel.locator("#log li.error")).toContainText("Chrome can't recognize en-US on this computer yet.");
   });
 });
 

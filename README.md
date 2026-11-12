@@ -94,7 +94,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Windows | "stay in this window", "follow me", "move this tab to a new window", "open YouTube in a new window" |
 | Click | "flags", then "12" (or "click 12"); or "click sign in" |
 | Mouse grid | "grid", then a block number (1–9, laid out like a phone keypad) to zoom in, or several at once ("5 3"). "click", "click 7", "click 5 3", "double click", "right click". "back" zooms out, "grid off" closes it |
-| Type | "type hello world", "type cats into 5 and press enter", "press enter", "escape" |
+| Type | "type hello world", "type cats into 5 and press enter", "press enter", "escape"; typing again adds a space between words. Fix it with "delete that" (what Navi just typed), "delete the last word", "delete the last 3 words" |
 | Media | "pause", "play", "skip ahead 30 seconds", "mute" |
 | Reading | "read this page", "describe the screen", "where am I", "zoom in" |
 | Page structure | "next heading", "previous link", "next field", "next button", "next region", "list the headings", "what links are on this page", "go to the pricing section", "go to the email field", "go to main content", "read this section". Navi says what it lands on ("Pricing, heading level 2, 3 of 8"); fields and buttons get the focus, so "type …" and "press enter" go there |

@@ -68,7 +68,7 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
     case "find":
       return { ok: true, detail: findOnPage(req.text) };
     case "edit":
-      return { ok: true, detail: edit(req.action) };
+      return { ok: true, detail: edit(req.action, req.count) };
     case "print":
       window.setTimeout(() => window.print(), 50);
       return { ok: true, detail: "printing" };
