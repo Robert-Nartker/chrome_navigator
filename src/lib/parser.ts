@@ -59,6 +59,8 @@ export type Intent =
   | { type: "whatHeard" }
   /** Moving through the page's structure, as screen reader users do: "next heading", "list links", "go to the email field". */
   | { type: "structure"; what: StructureKind; action: StructureAction; name?: string }
+  /** Which recognizer hears: switch ("use Parakeet"), or say which one is on. */
+  | { type: "recognizer"; to?: "chrome" | "parakeet" }
   /** Moving the mouse onto something (menus that open on hover): by flag number or by name. */
   | { type: "hover"; n?: number; text?: string }
   | { type: "ack"; reply?: string }
@@ -244,6 +246,11 @@ const RULES: Rule[] = [
   [/^read (?:this|the|that) (?:section|part)$|^read from here$/, () => ({ type: "structure", what: "heading", action: "readSection" })],
   [/^(?:go|jump|skip|move) to (?:the )?(.+?) (heading|section|link|field|box|button|region)$/, (m) =>
     /^(?:next|previous|first|last|main)$/.test(m[1]) ? null : { type: "structure", what: structureKind(m[2]), action: "jump", name: m[1] }],
+
+  // Which recognizer hears
+  [/^(?:use|switch to|try|turn on)(?: the)? (?:parakeet|para keet|parakeets?)(?: recognizer| speech recognition)?$/, () => ({ type: "recognizer", to: "parakeet" })],
+  [/^(?:use|switch to|switch back to|go back to|try)(?: the)? chrome(?:'s|s)?(?: own)?(?: recognizer| speech recognition| speech)?$/, () => ({ type: "recognizer", to: "chrome" })],
+  [/^(?:which|what) (?:recognizer|speech recognition)(?: are you using| is (?:on|listening)| do you use)?$/, () => ({ type: "recognizer" })],
 
   // Talking with Navi
   [/^(?:no )?(?:that'?s|that is|that was) not what i said$|^(?:no )?you (?:misheard(?: me| that)?|heard (?:me|that) wrong)$|^(?:you )?misheard(?: me)?$|^wrong command$/, () => ({ type: "misheard" })],

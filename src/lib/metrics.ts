@@ -8,8 +8,10 @@ export interface Hearing {
   /** Its other guesses, best first. */
   alternatives?: string[];
   confidence?: number;
-  /** Who ended the phrase: Chrome finished it, Navi ran words Chrome held unfinished, or the session ended. */
-  ending?: "chrome" | "held" | "ended";
+  /** Which recognizer heard it. */
+  recognizer?: "chrome" | "parakeet";
+  /** Who ended the phrase: Chrome finished it, Navi ran words Chrome held unfinished, the session ended, or (Parakeet) a pause. */
+  ending?: "chrome" | "held" | "ended" | "pause";
   /** From the first word to the last change of words. */
   speechMs?: number;
   /** From the last change of words to running it. */
@@ -38,6 +40,7 @@ export interface CommandMetric {
   error?: string;
   /** Spoken commands: what the recognizer heard (see Hearing). */
   heard?: string;
+  recognizer?: Hearing["recognizer"];
   alternatives?: string;
   confidence?: number;
   ending?: Hearing["ending"];
@@ -52,6 +55,7 @@ export function hearingColumns(hearing: Hearing | undefined): Partial<CommandMet
   if (!hearing) return {};
   return {
     heard: hearing.heard,
+    recognizer: hearing.recognizer,
     alternatives: hearing.alternatives?.length ? hearing.alternatives.join(" | ") : undefined,
     confidence: hearing.confidence ? Math.round(hearing.confidence * 100) / 100 : undefined,
     ending: hearing.ending,
@@ -102,7 +106,7 @@ export async function clearMetrics() {
 export function toCsv(rows: CommandMetric[]): string {
   const cols: (keyof CommandMetric)[] = [
     "t", "command", "path", "intent", "ms", "routerMs", "modelMs", "steps", "model", "costUsd", "tokensIn", "tokensOut", "error",
-    "heard", "alternatives", "confidence", "ending", "speechMs", "waitMs", "misheard",
+    "heard", "recognizer", "alternatives", "confidence", "ending", "speechMs", "waitMs", "misheard",
   ];
   const cell = (v: unknown) => {
     const s = v === undefined ? "" : String(v);

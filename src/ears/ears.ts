@@ -240,6 +240,7 @@ export class Ears {
       const strays = heard !== transcript.trim();
       this.out.command(decision.command, confidence, others, {
         heard,
+        recognizer: this.engine && this.engine === this.parakeet ? "parakeet" : "chrome",
         // Other guesses too; where words before the name were dropped, only guesses that have the name.
         alternatives: alternatives.map((a) => this.session.fromName(a)).filter((a, i) => !strays || a !== alternatives[i].trim()),
         confidence,
@@ -390,7 +391,11 @@ export class Ears {
       });
       if (!this.wantsParakeet() || this.settings.lang !== lang) return engine.dispose();
       this.parakeet = engine;
-      if (noted) this.out.log("info", "Parakeet is ready, and listening from now on.");
+      if (noted) {
+        this.out.log("info", "Parakeet is ready, and listening from now on.");
+        // Said too: someone who switched by voice may not be looking.
+        void this.speaker.say("Parakeet is ready.").catch(() => undefined);
+      }
       // Swap it in for Chrome's recognizer (after any dictation in progress).
       if (this.wantListening && !this.dictating) void this.start();
     } catch (err) {

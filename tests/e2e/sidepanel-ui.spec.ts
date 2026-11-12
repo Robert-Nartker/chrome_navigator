@@ -898,13 +898,27 @@ test.describe("Parakeet recognizer", () => {
     // Hugging Face is out of reach here, so a stub stands in for the model; the mic, the speech detector,
     // live captions and commands are all real. The file: three commands over air-conditioner noise.
     await ears(panel, { action: "fakeParakeet", phrases: ["Scroll down a little.", "Scroll down.", "Go to the top."] });
-    await useParakeet(panel);
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { listenMode: "open" } }));
+    // Switched by voice, as for comparing the two recognizers.
+    await run(panel, "use parakeet");
+    await expect(panel.locator("#log li.navi .text").last()).toContainText("Switching to Parakeet.");
     await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
     await expect(panel.locator("#engine-label")).toContainText("Hears: Parakeet (on-device, test model)");
     const said = panel.locator("#log li.user .text");
-    await expect(said).toHaveText([/Scroll down a little/, /Scroll down\./, /Go to the top/], { timeout: 20_000 });
+    await expect(said.filter({ hasText: /Scroll down a little|Scroll down\.|Go to the top/ })).toHaveText([/Scroll down a little/, /Scroll down\./, /Go to the top/], {
+      timeout: 20_000,
+    });
     await panel.waitForTimeout(1500);
-    await expect(said).toHaveCount(3);
+    await expect(said.filter({ hasText: /Scroll|Go to the top/ })).toHaveCount(3);
+    // The usage log says Parakeet heard them, with how long each was spoken and how long until it ran.
+    type Row = { heard?: string; recognizer?: string; ending?: string; speechMs?: number; waitMs?: number };
+    const rows = (await panel.evaluate(async () => ((await chrome.storage.local.get("metrics")).metrics ?? []) as Row[])).filter((r) => r.heard);
+    expect(rows).toHaveLength(3);
+    for (const r of rows) {
+      expect(r).toMatchObject({ recognizer: "parakeet", ending: "pause" });
+      expect(r.speechMs).toBeGreaterThan(0);
+      expect(r.waitMs).toBeGreaterThanOrEqual(350);
+    }
   });
 
   test("while Parakeet can't download, Chrome's recognizer keeps listening", async ({ panel, context }) => {

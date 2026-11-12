@@ -160,3 +160,13 @@ describe("hovering by voice", () => {
     expect(parseCommand("mouse click on sign in")?.type).not.toBe("hover");
   });
 });
+
+describe("switching recognizers by voice", () => {
+  it("understands the ways people ask", () => {
+    expect(parseCommand("use parakeet")).toEqual({ type: "recognizer", to: "parakeet" });
+    expect(parseCommand("switch to Parakeet")).toEqual({ type: "recognizer", to: "parakeet" });
+    expect(parseCommand("switch back to chrome's recognizer")).toEqual({ type: "recognizer", to: "chrome" });
+    expect(parseCommand("use chrome")).toEqual({ type: "recognizer", to: "chrome" });
+    expect(parseCommand("which recognizer are you using")).toEqual({ type: "recognizer" });
+  });
+});

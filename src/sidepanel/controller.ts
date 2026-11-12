@@ -1336,6 +1336,22 @@ export class Controller {
       }
       case "stop":
         return;
+      case "recognizer": {
+        const now = this.getSettings().recognizer;
+        let text: string;
+        if (!intent.to) text = now === "parakeet" ? "Parakeet is hearing you." : "Chrome's recognizer is hearing you.";
+        else if (intent.to === now) text = `${now === "parakeet" ? "Parakeet is" : "Chrome's recognizer is"} already hearing you.`;
+        else {
+          await saveSettings({ recognizer: intent.to });
+          text =
+            intent.to === "parakeet"
+              ? "Switching to Parakeet. The first time, it downloads once; Chrome's recognizer listens until it's ready, and I'll tell you when it is."
+              : "Switching to Chrome's recognizer.";
+        }
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
       case "misheard": {
         const row = await markLastMisheard();
         const text = row?.heard ? `Sorry. I heard “${row.heard}”. I've noted it, so it can be fixed.` : "I haven't heard a spoken command yet.";

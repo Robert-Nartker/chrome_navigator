@@ -15,7 +15,8 @@ export interface SpeechCallbacks {
 
 /** How a phrase came in: who ended it, how long it was spoken, and how long Navi waited after the last word. */
 export interface PhraseTiming {
-  ending: "chrome" | "held" | "ended";
+  /** Chrome: it finished the phrase, Navi ran words it held, or its session ended. Parakeet: a pause ended it. */
+  ending: "chrome" | "held" | "ended" | "pause";
   speechMs: number;
   waitMs: number;
 }

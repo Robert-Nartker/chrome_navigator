@@ -6,7 +6,7 @@
 
 import { type SpeechCallbacks, type SpeechEngine, openMicrophone } from "../lib/speech";
 import type { AsrReply, AsrRequest } from "../asr-lab/worker";
-import { PhraseDetector, RATE, loudness } from "./phrases";
+import { DEFAULT_TUNING, PhraseDetector, RATE, loudness } from "./phrases";
 import { type Vad, loadVad } from "./vad";
 import { hasWebGpu } from "./gpu";
 import { parakeetModelFor } from "./parakeet-langs";
@@ -111,7 +111,11 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
         callbacks.onError("Parakeet is too slow on this computer", true);
         return;
       }
-      if (text && wanted) callbacks.onFinal(text, 0);
+      // The phrase's audio includes a moment before the speech and the pause that ended it.
+      const audioMs = (pcm.length / RATE) * 1000;
+      const { hangMs, prerollMs } = DEFAULT_TUNING;
+      const waitMs = hangMs + Math.round(seconds * 1000);
+      if (text && wanted) callbacks.onFinal(text, 0, undefined, { ending: "pause", speechMs: Math.max(0, Math.round(audioMs - hangMs - prerollMs)), waitMs });
     } catch (err) {
       callbacks.onError(`Parakeet: ${err instanceof Error ? err.message : String(err)}`, false);
     }
