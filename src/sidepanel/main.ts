@@ -27,7 +27,7 @@ import {
   providersWithKeys,
   saveSettings,
 } from "../lib/settings";
-import { installOnDevice, onDeviceStatus } from "../lib/speech";
+import { SPEECH_NOT_DOWNLOADED, installOnDevice, onDeviceStatus } from "../lib/speech";
 import type { ThreadsState } from "../lib/threads";
 import { Feed } from "./feed";
 
@@ -75,7 +75,7 @@ function renderStatus() {
   const problem = worker.listening && (ears.micError || worker.problem);
   if (problem) {
     state = "error";
-    text = "Mic unavailable";
+    text = problem === SPEECH_NOT_DOWNLOADED ? "Download needed" : "Mic unavailable";
   } else if (ears.dictating) {
     state = "awake";
     text = "Dictating into the chat box…";
@@ -149,7 +149,7 @@ function showStatus(state: string, text: string, detail?: string) {
   feed.setWorking(worker.working, detail, worker.turn);
   ui.status.dataset.state = state;
   voiceCard.dataset.state = state;
-  setText(ui.statusText, STATUS_LABELS[state] ?? text);
+  setText(ui.statusText, state === "error" ? text : (STATUS_LABELS[state] ?? text));
   const hint =
     state === "off"
       ? `Navi is off and stays off, even after Chrome restarts. Click the mic${talkShortcut ? ` or press ${talkShortcut}` : ""} to turn it on.`

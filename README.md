@@ -37,7 +37,7 @@ npm run build          # outputs the extension to dist/
 The side panel is optional. Once the mic is allowed, Navi keeps listening for "Hey Navi" with the panel closed:
 - **Caption:** a small caption at the bottom of the page shows what Navi hears, what it's doing, and its reply.
 - **Toolbar badge:** shows Navi's state: **zz** asleep, **ON** awake, **…** working, **!** a problem.
-- **Talk now:** press **Alt+Shift+M** (Option+Shift+M on a Mac) to wake Navi without saying its name, or to put it back to sleep.
+- **Talk now:** press **Ctrl+Space** (Control+Space on a Mac; change it in Chrome's shortcut settings) to talk to Navi without saying its name, and again to stop.
 - **Type from the address bar:** type `navi`, a space, and a command or question. The answer shows in the caption on the page.
 
 ### Navi Free and Navi Pro
@@ -161,7 +161,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Speech stays on your computer.** Speech recognition and Navi's voice both run locally. The AI runs on-device with Gemini Nano (Free), or through OpenAI or Anthropic with your own key (Pro). ElevenLabs was removed because zero data retention needs its Enterprise plan.
 - **Navi's own voice** is kept out of the mic by echo cancellation, plus a check that ignores words Navi is saying. You can still talk over Navi to cut it short.
 - **In Hey Navi mode, nothing is acted on until the wake word.** Speech before "Hey Navi" (or "Hey Navigator") is ignored and never stored, shown or sent to the AI. In Open mic mode, everything said while the mic is on is a command; it lasts until Chrome closes, and each new Chrome session starts in Hey Navi mode.
-- **On by default, off means off.** Once the mic is allowed, Navi listens for its name from the moment Chrome starts, with nothing to click. Turned off (the mic button, Alt+Shift+M, or saying "turn off"), the mic stays closed, across Chrome restarts and opening the panel, until you turn Navi on again.
+- **On by default, off means off.** Once the mic is allowed, Navi listens for its name from the moment Chrome starts, with nothing to click. Turned off (the mic button, or saying "turn off"), the mic stays closed, across Chrome restarts and opening the panel, until you turn Navi on again.
 - **The AI sees labels, not content.** By default the AI receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
 - **"Read this page" is local.** Reading aloud never involves the AI.
 - **Blocked sites:** list sites (your bank, health portal) where the AI is never used.

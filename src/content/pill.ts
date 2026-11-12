@@ -26,6 +26,9 @@ const STYLE = `
     opacity: 0; transition: opacity .18s ease, transform .18s ease;
   }
   .pill[data-shown="true"] { opacity: 1; transform: translate(-50%, 0); }
+  /* Moved up while the field the user is typing in sits where the pill would cover it. */
+  .pill[data-place="top"] { bottom: auto; top: 20px; transform: translate(-50%, -8px); }
+  .pill[data-place="top"][data-shown="true"] { transform: translate(-50%, 0); }
   /* Just the listening bars: see-through, so it never hides what's under it. */
   .pill[data-compact="true"] { padding: 9px 12px; background: rgba(24, 24, 27, .5); }
   .text {
@@ -116,6 +119,7 @@ function render() {
     icon!.dataset.icon = look.icon;
     icon!.innerHTML = look.icon === "bars" ? '<span class="bars"><i></i><i></i><i></i></span>' : `<span class="${look.icon}"></span>`;
   }
+  el.dataset.place = coversFocus(el) ? "top" : "bottom";
   // A long caption keeps its newest words in view.
   const shown = look.kind === "hear" && look.text.length > 140 ? `…${look.text.slice(-140)}` : look.text;
   if (text!.textContent !== shown) text!.textContent = shown;
@@ -124,17 +128,37 @@ function render() {
   showFrame = requestAnimationFrame(() => (el.dataset.shown = "true"));
 }
 
+/** The element with focus, inside shadow roots and same-page frames too. */
+function focusedElement(): Element | null {
+  let el: Element | null = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return el && el !== document.body && el !== document.documentElement ? el : null;
+}
+
+/** Whether the pill, at the bottom, would sit over the field the user is typing in. */
+function coversFocus(el: HTMLDivElement): boolean {
+  const focused = focusedElement();
+  if (!focused || !focused.matches("input, textarea, select, [contenteditable], [contenteditable] *, [role=textbox], [role=combobox], [role=searchbox]")) return false;
+  const rect = focused.getBoundingClientRect();
+  const pillTop = innerHeight - 20 - Math.max(el.offsetHeight, 48) - 16;
+  return rect.bottom > pillTop && rect.top < innerHeight;
+}
+
 export function updatePill(update: PillUpdate) {
   last = update;
   render();
 }
 
 const onVisibility = () => render();
+/** Focus moved: the pill may need to move out of the way (or back). */
+const onFocus = () => pill?.dataset.shown === "true" && render();
 
 /** Shows the pill in this page (top frame only) and asks for Navi's current state. */
 export function startPill() {
   if (window !== window.top) return;
   document.addEventListener("visibilitychange", onVisibility);
+  document.addEventListener("focusin", onFocus);
+  document.addEventListener("focusout", onFocus);
   if (document.visibilityState === "visible") {
     void chrome.runtime
       .sendMessage({ type: "pill:hello" })
@@ -145,6 +169,8 @@ export function startPill() {
 
 export function destroyPill() {
   document.removeEventListener("visibilitychange", onVisibility);
+  document.removeEventListener("focusin", onFocus);
+  document.removeEventListener("focusout", onFocus);
   host?.remove();
   host = pill = icon = text = null;
   last = null;

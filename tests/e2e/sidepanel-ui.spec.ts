@@ -670,7 +670,7 @@ test.describe("live caption", () => {
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
     await run(panel, "turn off");
     await expect(panel.locator("#status-text")).toHaveText("Off");
-    await expect(panel.locator("#log li.navi .text").last()).toContainText("Press Alt+Shift+M or click the mic");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(/Press (?:Ctrl\+Space|the push-to-talk shortcut) or click the mic to turn it back on\.$/);
     expect(await lastSaid(panel)).toContain("turn it back on");
     expect(await panel.evaluate(async () => (await chrome.storage.local.get("naviOff")).naviOff)).toBe(true);
     await expect(panel.locator("#caption-hint")).toContainText("stays off, even after Chrome restarts");

@@ -139,12 +139,15 @@ export interface WebSpeechOptions {
   endOfPhraseMs?: (text: string, finished: boolean) => number;
 }
 
+/** The one-time setup step left: the views show it with a download button, so it isn't logged as an error. */
+export const SPEECH_NOT_DOWNLOADED = "On-device speech isn't downloaded yet. Download it once and Navi can hear you.";
+
 /** Why Chrome's on-device recognizer can't run, for the user. */
 export function onDeviceProblem(status: OnDeviceStatus, lang: string): string {
   switch (status) {
     case "downloadable":
     case "downloading":
-      return "On-device speech isn't downloaded yet. Download it once and Navi can hear you.";
+      return SPEECH_NOT_DOWNLOADED;
     case "unavailable":
       return `Chrome can't recognize ${lang} on this computer yet.`;
     default:

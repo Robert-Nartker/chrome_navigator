@@ -1039,7 +1039,8 @@ export class Controller {
         return;
       case "turnOff": {
         // Said before the mic goes off, so someone who can't see the screen knows how to turn it back on.
-        const text = "Navi is off and isn't listening. Press Alt+Shift+M or click the mic to turn it back on.";
+        const key = (await chrome.commands.getAll().catch(() => [])).find((c) => c.name === "wake-navi")?.shortcut;
+        const text = `Navi is off and isn't listening. ${key ? `Press ${key}` : "Press the push-to-talk shortcut"} or click the mic to turn it back on.`;
         this.navi(text);
         await this.say(text);
         this.hooks.onTurnOff();

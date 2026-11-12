@@ -1431,6 +1431,10 @@ test("moving through a page by its structure, without seeing it: headings, secti
   await run(panel, "next field");
   await expect(said.last()).toHaveText("Email, text field, empty (1 of 3)");
   expect(await focused()).toBe("email");
+  // The field is near the bottom of the screen: the caption moves up so it doesn't cover it.
+  const pillPlace = () => site.evaluate(() => (document.querySelector("navi-pill")?.shadowRoot?.querySelector(".pill") as HTMLElement | null)?.dataset.place);
+  expect(await site.evaluate(() => document.querySelector("[name=email]")!.getBoundingClientRect().bottom > innerHeight - 120)).toBe(true);
+  await expect.poll(pillPlace).toBe("top");
   await run(panel, "type sam@example.com");
   await expect.poll(() => site.evaluate(() => (document.querySelector("[name=email]") as HTMLInputElement).value)).toBe("sam@example.com");
   await run(panel, "next field");
@@ -2339,8 +2343,11 @@ test.describe("On-device speech download", () => {
     type Listen = { navi: { startListening(): Promise<void> } };
     await expect(panel.locator("#speech-banner")).toBeVisible();
     await panel.evaluate(() => (window as unknown as Listen).navi.startListening());
-    await expect(panel.locator("#log li.error")).toContainText("On-device speech isn't downloaded yet");
+    // A setup step, said once in the voice card (with the banner's button), not logged as an error.
+    await expect(panel.locator("#voice")).toContainText("On-device speech isn't downloaded yet");
     await expect(panel.locator("#status")).toHaveAttribute("data-state", "error");
+    await expect(panel.locator("#status-text")).toHaveText("Download needed");
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
 
     await panel.locator("#download-speech").click();
     await expect(panel.locator("#speech-banner")).toBeHidden();

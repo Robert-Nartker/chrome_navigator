@@ -7,7 +7,7 @@ import type { EarsState, LogKind } from "../lib/messages";
 import { WakeSession } from "../lib/session";
 import { DEFAULT_SETTINGS, type Settings, naviVoiceOf } from "../lib/settings";
 import type { Hearing } from "../lib/metrics";
-import { PHRASE_END_MS, type PhraseTiming, STALL_MS, type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
+import { PHRASE_END_MS, type PhraseTiming, SPEECH_NOT_DOWNLOADED, STALL_MS, type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import type * as ParakeetModule from "../voice/parakeet";
 import { parakeetModelFor } from "../voice/parakeet-langs";
@@ -452,7 +452,8 @@ export class Ears {
       /microphone access is blocked/i.test(message) && (await micGranted())
         ? "This version of Chrome can't listen in the background. Update Chrome."
         : message;
-    this.out.log("error", this.micError);
+    // A setup step, not an error: the panel and setup page show it with a download button.
+    if (this.micError !== SPEECH_NOT_DOWNLOADED) this.out.log("error", this.micError);
     this.emit();
   }
 
