@@ -91,6 +91,13 @@ export function tutorialSteps(c: TutorialContext): TutorialStep[] {
       done: is("describeScreen", "whereAmI", "readPage"),
       praise: "To click something, say click and its name, like “click search”. “Where am I” tells you the page you're on.",
     });
+    steps.push({
+      id: "headings",
+      title: "Move by headings",
+      say: "To move through a page, say “next heading”. It works for links, fields and buttons too, and “list the headings” reads them all. Try: next heading.",
+      done: is("structure"),
+      praise: "In a form, say “next field”, then type. “Read this section” reads from the heading you're on.",
+    });
   } else {
     steps.push({
       id: "click",

@@ -8,7 +8,7 @@ const ids = (c: Partial<typeof base> = {}) => tutorialSteps({ ...base, ...c }).m
 describe("the tutorial", () => {
   it("teaches what fits: numbers for people who see the screen, describing it for those who don't, the AI only when there is one", () => {
     expect(ids()).toEqual(["intro", "wake", "scroll", "click", "search", "back", "stop", "ask", "finish"]);
-    expect(ids({ screenFree: true })).toEqual(["intro", "wake", "scroll", "describe", "search", "back", "stop", "ask", "finish"]);
+    expect(ids({ screenFree: true })).toEqual(["intro", "wake", "scroll", "describe", "headings", "search", "back", "stop", "ask", "finish"]);
     expect(ids({ ai: false })).not.toContain("ask");
   });
 
@@ -60,7 +60,8 @@ describe("the tutorial", () => {
     expect(t.advance()?.id).toBe("wake");
     expect(t.advance()?.id).toBe("scroll");
     expect(t.advance()?.id).toBe("describe");
-    expect(t.view()).toMatchObject({ step: 4, total: 9, question: false });
+    expect(t.view()).toMatchObject({ step: 4, total: 10, question: false });
+    expect(t.advance()?.id).toBe("headings");
     while (t.advance());
     expect(t.active).toBe(false);
     expect(t.view()).toBeUndefined();

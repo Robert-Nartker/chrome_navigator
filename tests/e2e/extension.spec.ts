@@ -1331,23 +1331,27 @@ test.describe("tutorial", () => {
   test("for someone who can't see the screen: spoken feedback, describing the screen, and the panel's buttons", async ({ panel }) => {
     await run(panel, "start the tutorial");
     await panel.locator("#tutorial-yes").click();
-    await expectStep(panel, 2, 8, "Wake me up");
+    await expectStep(panel, 2, 9, "Wake me up");
     await expect(lastNavi(panel)).toContainText("Okay, I'll say out loud what I do.");
     await expect.poll(async () => (await settingsOf(panel)).feedback).toBe("spoken");
     await run(panel, "next");
-    await expectStep(panel, 3, 8, "Scroll");
+    await expectStep(panel, 3, 9, "Scroll");
     await panel.locator("#tutorial-next").click();
-    await expectStep(panel, 4, 8, "Hear what's on screen");
+    await expectStep(panel, 4, 9, "Hear what's on screen");
     // Without an AI, Navi says what it can tell from the page.
     await run(panel, "describe the screen");
-    await expectStep(panel, 5, 8, "Search");
+    await expectStep(panel, 5, 9, "Move by headings");
     await expect(panel.locator("#log li.navi .text").filter({ hasText: "You're on Navi Test Page, at localhost. On screen there are" })).toHaveCount(1);
+    // Moving by structure, by voice.
+    await run(panel, "next heading");
+    await expectStep(panel, 6, 9, "Search");
     await run(panel, "end tutorial");
     await expect(card(panel)).toBeHidden();
     await expect(lastNavi(panel)).toHaveText("Okay, the tutorial is over. Say “start the tutorial” any time to take it again.");
     // It can be taken again, and ended from the panel.
+    // Again, already tailored to spoken feedback.
     await run(panel, "take the tour");
-    await expectStep(panel, 1, 8, "Welcome");
+    await expectStep(panel, 1, 9, "Welcome");
     await panel.locator("#tutorial-end").click();
     await expect(card(panel)).toBeHidden();
   });
