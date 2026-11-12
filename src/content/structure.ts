@@ -196,8 +196,27 @@ function sectionText(maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, maxChars)}\n[truncated]` : text;
 }
 
+/** The page's shape in a sentence or two: its main heading, its sections, and whether it has a form. */
+function pageOutline(): string {
+  const headings = collect("heading");
+  const name = (el: Element) => accessibleName(el).slice(0, 60);
+  const main = headings.find((h) => headingLevel(h) === 1) ?? headings[0];
+  const rest = headings.filter((h) => h !== main);
+  const top = rest.length ? Math.min(...rest.map(headingLevel)) : 0;
+  const sections = rest.filter((h) => headingLevel(h) === top).map(name).filter(Boolean);
+  const fields = collect("field").length;
+  return [
+    main ? `The main heading is “${name(main)}”.` : "",
+    sections.length ? `Sections: ${sections.slice(0, 6).join(", ")}${sections.length > 6 ? `, and ${sections.length - 6} more` : ""}.` : "",
+    fields ? `There's a form with ${fields} ${fields === 1 ? "field" : "fields"}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function structure(kind: StructureKind, action: StructureAction, name?: string): { detail?: string; text?: string } {
   if (action === "readSection") return { text: sectionText(6000) };
+  if (action === "outline") return { detail: pageOutline() };
   const items = collect(kind);
   if (!items.length) throw new Error(`There are no ${PLURAL[kind]} on this page.`);
   switch (action) {

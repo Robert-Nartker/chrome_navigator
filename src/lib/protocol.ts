@@ -42,8 +42,11 @@ export type EditAction = "selectAll" | "undo" | "clear" | "newline" | "deleteLas
 
 /** What "next heading", "list links" and the like move through. */
 export type StructureKind = "heading" | "link" | "field" | "button" | "landmark";
-/** "jump": to the one with a name ("go to the pricing section"); "readSection": read the section the user is in. */
-export type StructureAction = "next" | "previous" | "first" | "last" | "list" | "jump" | "readSection";
+/**
+ * "jump": to the one with a name ("go to the pricing section"); "readSection": read the section the user is
+ * in; "outline": a sentence or two about the page's shape, for "describe the screen" without an AI.
+ */
+export type StructureAction = "next" | "previous" | "first" | "last" | "list" | "jump" | "readSection" | "outline";
 
 /** How the mouse grid presses the mouse at the chosen spot. */
 export type GridClick = "click" | "doubleClick" | "rightClick";

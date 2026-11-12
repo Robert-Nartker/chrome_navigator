@@ -831,7 +831,10 @@ export class Controller {
       count(["textbox", "searchbox", "combobox"], "text field", "text fields"),
     ].filter(Boolean);
     const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "nothing to click");
-    return `${where} On screen there ${parts.length && !/^1 /.test(parts[0]) ? "are" : "is"} ${list}. Say “read this page” to hear its text. With an AI set up in settings, I can describe it fully.`;
+    const shape = await pageRequest(tab, { kind: "structure", what: "heading", action: "outline" })
+      .then((res) => res.detail ?? "")
+      .catch(() => "");
+    return `${where}${shape ? ` ${shape}` : ""} On screen there ${parts.length && !/^1 /.test(parts[0]) ? "are" : "is"} ${list}. Say “read this page” to hear its text${shape ? ", or “next heading” to move through it" : ""}. With an AI set up in settings, I can describe it fully.`;
   }
 
   /** What was said earlier in the thread of the command running now. */

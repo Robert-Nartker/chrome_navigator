@@ -1349,7 +1349,7 @@ test.describe("tutorial", () => {
     // Without an AI, Navi says what it can tell from the page.
     await run(panel, "describe the screen");
     await expectStep(panel, 5, 9, "Move by headings");
-    await expect(panel.locator("#log li.navi .text").filter({ hasText: "You're on Navi Test Page, at localhost. On screen there are" })).toHaveCount(1);
+    await expect(panel.locator("#log li.navi .text").filter({ hasText: /^You're on Navi Test Page, at localhost\. The main heading is “Navi Test Page”\. .*On screen there are/ })).toHaveCount(1);
     // Moving by structure, by voice.
     await run(panel, "next heading");
     await expectStep(panel, 6, 9, "Search");
@@ -1418,6 +1418,9 @@ test("moving through a page by its structure, without seeing it: headings, secti
   const said = panel.locator("#log li.navi .text");
   const focused = () => site.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name ?? "");
 
+  // Without an AI, "describe the screen" gives the page's shape.
+  await run(panel, "describe the screen");
+  await expect(said.last()).toContainText("The main heading is “Standing desks”. Sections: Pricing, Reviews, Order. There's a form with 3 fields.");
   await run(panel, "list the headings");
   await expect(said.last()).toHaveText("5 headings: 1, Standing desks. 2, Pricing. 3, Delivery. 4, Reviews. 5, Order.");
   await run(panel, "next heading");
