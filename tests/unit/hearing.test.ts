@@ -124,3 +124,28 @@ describe("hearing: the wake name", async () => {
     for (const t of talk) expect(woke(t), `"${t}"`).toBe(false);
   });
 });
+
+describe("moving through a page by its structure", () => {
+  const cases: Record<string, object> = {
+    "next heading": { type: "structure", what: "heading", action: "next" },
+    "prev heading": { type: "structure", what: "heading", action: "previous" },
+    "next text box": { type: "structure", what: "field", action: "next" },
+    "last link": { type: "structure", what: "link", action: "last" },
+    "next region": { type: "structure", what: "landmark", action: "next" },
+    "what links are on this page": { type: "structure", what: "link", action: "list" },
+    "read the headings": { type: "structure", what: "heading", action: "list" },
+    "go to the pricing section": { type: "structure", what: "heading", action: "jump", name: "pricing" },
+    "go to the email field": { type: "structure", what: "field", action: "jump", name: "email" },
+    "skip to content": { type: "structure", what: "landmark", action: "jump", name: "main" },
+    "read this section": { type: "structure", what: "heading", action: "readSection" },
+  };
+  it("understands the ways people ask", () => {
+    for (const [said, want] of Object.entries(cases)) expect(parseCommand(said), `"${said}"`).toEqual(want);
+  });
+  it("leaves the commands it looks like alone", () => {
+    expect(parseCommand("next tab")).toEqual({ type: "nextTab" });
+    expect(parseCommand("next page")).toEqual({ type: "nextPage" });
+    expect(parseCommand("read this page")).toEqual({ type: "readPage" });
+    expect(parseCommand("go to youtube")).toMatchObject({ type: "open" });
+  });
+});

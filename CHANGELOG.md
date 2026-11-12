@@ -2,6 +2,12 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-12
+
+- **Move through a page by its structure**, the way screen reader users do: "next heading", "previous link", "next field", "next button", "next region", "list the headings", "what links are on this page", "go to the pricing section", "go to the email field", "go to main content", and "read this section" (from its heading to the next one at its level). Navi says what it lands on ("Pricing, heading level 2, 3 of 8"; "Email, text field, empty"; never a password), scrolls it into view and outlines it for a moment; fields and buttons get the focus, so "type …" and "press enter" go there.
+- **Fixes from a careful review of the last round:** matching the name by sound no longer wakes Navi on everyday talk ("take a nap", "I need a knife"); the usage log never keeps words said before the name; splitting run-together words no longer changes your own words ("search for closeup photos"); "type out of office" types all of it; "scroll through the comments" scrolls again; usage-log writes can't overlap and drop a row; "what did I say" goes to the AI again.
+- **Talking over Navi:** a command said while Navi talks ("go to sleep" while it says "…go to the top…") was sometimes taken for Navi hearing itself; little words no longer count toward that.
+
 ## 2026-11-06
 
 Quality first: these make what's there work better, not add more.

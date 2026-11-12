@@ -1371,6 +1371,53 @@ test.describe("tutorial", () => {
   });
 });
 
+test("moving through a page by its structure, without seeing it: headings, sections, fields, regions, links", async ({ panel, site, baseUrl }) => {
+  await site.goto(`${baseUrl}/structure.html`);
+  await site.bringToFront();
+  const said = panel.locator("#log li.navi .text");
+  const focused = () => site.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name ?? "");
+
+  await run(panel, "list the headings");
+  await expect(said.last()).toHaveText("5 headings: 1, Standing desks. 2, Pricing. 3, Delivery. 4, Reviews. 5, Order.");
+  await run(panel, "next heading");
+  await expect(said.last()).toHaveText("Standing desks, heading level 1 (1 of 5)");
+  await run(panel, "next heading");
+  await expect(said.last()).toHaveText("Pricing, heading level 2 (2 of 5)");
+  await run(panel, "previous heading");
+  await expect(said.last()).toHaveText("Standing desks, heading level 1 (1 of 5)");
+
+  // By name, then the section read aloud: up to the next heading at its level, no further.
+  await run(panel, "go to the reviews section");
+  await expect(said.last()).toHaveText("Reviews, heading level 2 (4 of 5)");
+  await expect.poll(() => site.evaluate(() => scrollY)).toBeGreaterThan(300);
+  await run(panel, "read this section");
+  await expect(said.last()).toContainText("People love the quiet motor.");
+  await expect(said.last()).not.toContainText("Order");
+
+  // Fields take the focus, so typing goes there; a password is never read out.
+  await run(panel, "next field");
+  await expect(said.last()).toHaveText("Email, text field, empty (1 of 3)");
+  expect(await focused()).toBe("email");
+  await run(panel, "type sam@example.com");
+  await expect.poll(() => site.evaluate(() => (document.querySelector("[name=email]") as HTMLInputElement).value)).toBe("sam@example.com");
+  await run(panel, "next field");
+  await expect(said.last()).toHaveText("Password, password field, filled in (2 of 3)");
+  await run(panel, "next field");
+  await expect(said.last()).toHaveText("Gift wrap, checkbox, checked (3 of 3)");
+  await run(panel, "next field");
+  await expect(said.last()).toHaveText("No more form fields after this point.");
+  await run(panel, "next button");
+  await expect(said.last()).toHaveText("Place order, button (1 of 1)");
+
+  // Regions, and links.
+  await run(panel, "go to main content");
+  await expect(said.last()).toHaveText("Main content (3 of 6)");
+  await run(panel, "what links are on this page");
+  await expect(said.last()).toHaveText("5 links: 1, Desk Shop. 2, Desks. 3, Chairs. 4, Help. 5, Privacy.");
+  await run(panel, "go to the shipping section");
+  await expect(said.last()).toContainText("There's no heading called “shipping” on this page.");
+});
+
 test("describe the screen: the AI looks and describes it for someone who can't see it", async ({ panel, context }) => {
   const bodies: { input: { role?: string; content?: unknown }[] }[] = [];
   await context.route("https://api.openai.com/v1/responses", (route) => {
@@ -1390,10 +1437,9 @@ test("describe the screen: the AI looks and describes it for someone who can't s
 });
 
 test("open settings, by voice", async ({ panel, context }) => {
-  const opened = context.waitForEvent("page");
+  const opened = openedPage(context, (url) => url.includes("/options.html"));
   await run(panel, "open settings");
-  // Newer Chrome reports the tab before its address is set.
-  await (await opened).waitForURL(/\/options\.html/);
+  await opened;
   await expect(panel.locator("#log li.navi .text").last()).toHaveText("Opened Navi's settings");
 });
 

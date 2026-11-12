@@ -34,6 +34,7 @@ type <text>; type <text> and press enter; press enter; escape
 pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; volume <0-100>; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
+next heading / link / field / button / region; previous heading (and so on); first heading; last link; list the headings (links, fields, buttons, regions); go to the <name> heading / section / link / field / button; go to main content; read this section
 new thread (a separate conversation; optionally "new thread about <topic>"); switch to the <name> thread; previous thread; list threads; rename this thread to <name>
 pin Navi to this window (also "stay in this window"; Navi then works only there, even while the user uses another window); unpin Navi (also "follow me")
 move this tab to a new window; move this tab to the other window; open youtube in a new window

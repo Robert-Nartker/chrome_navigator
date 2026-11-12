@@ -97,6 +97,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Type | "type hello world", "type cats into 5 and press enter", "press enter", "escape" |
 | Media | "pause", "play", "skip ahead 30 seconds", "mute" |
 | Reading | "read this page", "describe the screen", "where am I", "zoom in" |
+| Page structure | "next heading", "previous link", "next field", "next button", "next region", "list the headings", "what links are on this page", "go to the pricing section", "go to the email field", "go to main content", "read this section". Navi says what it lands on ("Pricing, heading level 2, 3 of 8"); fields and buttons get the focus, so "type …" and "press enter" go there |
 | Anything else (AI) | "open the first video", "reply to this email saying thanks", "what's this article about?", "add this to my cart" |
 | Your own commands | "add a command open wordle", "make study mode open Canvas and play lofi on YouTube", "what are my commands", "delete the wordle command" |
 | Control | "stop" (interrupts speech or a running task), "what can I say", "open the panel", "close the panel", "open settings", "start the tutorial" |

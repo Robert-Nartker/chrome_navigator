@@ -74,7 +74,7 @@ export interface ControllerUi {
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, describe the screen, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely. For a spoken tour, say start the tutorial.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, describe the screen, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. To move through a page without seeing it, say next heading, next link, next field, or list the headings. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely. For a spoken tour, say start the tutorial.";
 
 /** What the AI is asked for "describe the screen". */
 const DESCRIBE_SCREEN =
@@ -1278,6 +1278,31 @@ export class Controller {
         const res = await pageRequest(tab, { kind: "readPage", maxChars: 6000 });
         const text = res.text?.trim() || "There's no text to read on this page.";
         this.navi(text.length > 280 ? `${text.slice(0, 280)}…` : text, "Reading aloud · say stop to interrupt");
+        await this.say(text);
+        return;
+      }
+      case "structure": {
+        let res: Awaited<ReturnType<typeof pageRequest>>;
+        try {
+          res = await pageRequest(tab, { kind: "structure", what: intent.what, action: intent.action, name: intent.name });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          // Not by that name: Navi Pro's AI may still find what they meant ("the part about prices").
+          const settings = this.getSettings();
+          if (intent.action === "jump" && settings.model !== FREE_MODEL && keyFor(settings, settings.model)) throw new Unhandled(message);
+          this.navi(message);
+          await this.say(message);
+          return;
+        }
+        if (intent.action === "readSection") {
+          const text = res.text?.trim() || "This section has no text.";
+          this.navi(text.length > 280 ? `${text.slice(0, 280)}…` : text, "Reading aloud · say stop to interrupt");
+          await this.say(text);
+          return;
+        }
+        // Said every time: for someone who can't see the page, this is the point.
+        const text = res.detail ?? "Done.";
+        this.navi(text);
         await this.say(text);
         return;
       }

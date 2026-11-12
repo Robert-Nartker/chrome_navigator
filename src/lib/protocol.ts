@@ -39,6 +39,11 @@ export type MediaAction =
 
 export type EditAction = "selectAll" | "undo" | "clear" | "newline";
 
+/** What "next heading", "list links" and the like move through. */
+export type StructureKind = "heading" | "link" | "field" | "button" | "landmark";
+/** "jump": to the one with a name ("go to the pricing section"); "readSection": read the section the user is in. */
+export type StructureAction = "next" | "previous" | "first" | "last" | "list" | "jump" | "readSection";
+
 /** How the mouse grid presses the mouse at the chosen spot. */
 export type GridClick = "click" | "doubleClick" | "rightClick";
 export type GridAction = "show" | "zoom" | "back" | "hide" | GridClick;
@@ -65,7 +70,8 @@ export type ContentRequest =
   | { kind: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
   | { kind: "find"; text?: string }
   | { kind: "edit"; action: EditAction }
-  | { kind: "print" };
+  | { kind: "print" }
+  | { kind: "structure"; what: StructureKind; action: StructureAction; name?: string };
 
 export interface ElementInfo {
   /** Number shown on the badge; valid for the snapshot generation it came from. */

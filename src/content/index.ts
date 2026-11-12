@@ -8,6 +8,7 @@ import { clickAtPoint, gridActive, hideGrid, runGrid } from "./grid";
 import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
 import { destroyPill, startPill, updatePill } from "./pill";
 import { accessibleName, resolveElement, takeSnapshot } from "./snapshot";
+import { resetStructure, structure } from "./structure";
 
 function element(id: number, gen?: number): Element {
   // Numbers the user reads off the screen refer to the badges currently shown.
@@ -71,6 +72,8 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
     case "print":
       window.setTimeout(() => window.print(), 50);
       return { ok: true, detail: "printing" };
+    case "structure":
+      return { ok: true, ...structure(req.what, req.action, req.name) };
   }
 }
 
@@ -113,6 +116,7 @@ window.addEventListener(
     destroyPill();
     hideGrid();
     autoScroll("stop");
+    resetStructure();
     try {
       chrome.runtime.onMessage.removeListener(onMessage);
     } catch {

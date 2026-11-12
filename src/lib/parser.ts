@@ -2,7 +2,7 @@
 // feel instant. Anything this doesn't recognize goes to the AI agent.
 
 import { keyDistance, soundKey, soundsClose, soundsLike } from "./sounds-like";
-import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from "./protocol";
+import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection, StructureAction, StructureKind } from "./protocol";
 import { NUMBER_PATTERN, parseNumber } from "./numbers";
 import { SEARCH_ENGINES, resolveSite, searchUrl } from "./sites";
 
@@ -57,6 +57,8 @@ export type Intent =
   | { type: "misheard" }
   /** "What did you hear?": exactly what the recognizer wrote down last time. */
   | { type: "whatHeard" }
+  /** Moving through the page's structure, as screen reader users do: "next heading", "list links", "go to the email field". */
+  | { type: "structure"; what: StructureKind; action: StructureAction; name?: string }
   | { type: "ack"; reply?: string }
   | { type: "voice"; change: "louder" | "quieter" | "faster" | "slower" }
   | { type: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
@@ -210,9 +212,36 @@ const ENGINE_NAMES = Object.keys(SEARCH_ENGINES)
 
 type Rule = [RegExp, (m: RegExpMatchArray) => Intent | null];
 
+/** How people name the parts of a page they move through. */
+const STRUCTURE_WORDS =
+  "headings?|sections? headings?|links?|form fields?|fields?|text (?:boxes|box|fields?)|boxes|box|inputs?|buttons?|landmarks?|regions?";
+function structureKind(word: string): StructureKind {
+  if (/heading|section/.test(word)) return "heading";
+  if (/link/.test(word)) return "link";
+  if (/button/.test(word)) return "button";
+  if (/landmark|region/.test(word)) return "landmark";
+  return "field";
+}
+
 const RULES: Rule[] = [
   [/^(?:stop|cancel|never ?mind|shut up|be quiet|quiet|stop talking|stop reading|hush|silence|wait|hold on|hang on|one sec(?:ond)?|shh+|enough|forget it|scratch that|stop it|stop that)$/, () => ({ type: "stop" })],
   [/^(?:stop|pause|quit) (?:the )?(?:auto ?)?scroll(?:ing)?$/, () => ({ type: "autoScroll", action: "stop" })],
+
+  // Moving through the page's structure (for people who can't see it): headings, links, fields, buttons, regions
+  [new RegExp(`^(?:go to |jump to |move to |skip to )?(?:the )?(next|previous|prev|last|first) (${STRUCTURE_WORDS})$`), (m) => ({
+    type: "structure",
+    what: structureKind(m[2]),
+    action: m[1] === "prev" ? "previous" : (m[1] as StructureAction),
+  })],
+  [/^(?:go|skip|jump|move) to (?:the )?main(?: content| part)?$|^skip to (?:the )?content$/, () => ({ type: "structure", what: "landmark", action: "jump", name: "main" })],
+  [new RegExp(`^(?:list|read(?: out)?|read me|show me|tell me|what are|which are)(?: all)? (?:the |all the )?(${STRUCTURE_WORDS})(?: on (?:the |this )?page)?$|^what (${STRUCTURE_WORDS}) are (?:there|on (?:the |this )?page)$`), (m) => ({
+    type: "structure",
+    what: structureKind(m[1] ?? m[2]),
+    action: "list",
+  })],
+  [/^read (?:this|the|that) (?:section|part)$|^read from here$/, () => ({ type: "structure", what: "heading", action: "readSection" })],
+  [/^(?:go|jump|skip|move) to (?:the )?(.+?) (heading|section|link|field|box|button|region)$/, (m) =>
+    /^(?:next|previous|first|last|main)$/.test(m[1]) ? null : { type: "structure", what: structureKind(m[2]), action: "jump", name: m[1] }],
 
   // Talking with Navi
   [/^(?:no )?(?:that'?s|that is|that was) not what i said$|^(?:no )?you (?:misheard(?: me| that)?|heard (?:me|that) wrong)$|^(?:you )?misheard(?: me)?$|^wrong command$/, () => ({ type: "misheard" })],
