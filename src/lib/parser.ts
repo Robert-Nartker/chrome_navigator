@@ -45,7 +45,14 @@ export type Intent =
   | { type: "openSettings" }
   /** The spoken tour of Navi. */
   | { type: "tutorial" }
-  | { type: "listenMode"; mode: "handsfree" | "open" | "push" }
+  /** Never fall asleep on its own (or do again). */
+  | { type: "stayAwake"; on: boolean }
+  /** When Chrome opens: start asleep, listening for "wake up" (or start off). */
+  | { type: "startOnLaunch"; on: boolean }
+  /** Turn Navi on (said through push to talk, or typed, while it's off). */
+  | { type: "turnOn" }
+  /** Wake up (said through push to talk, or typed; spoken while on, waking is handled before commands). */
+  | { type: "wake" }
   /** Chrome's keyboard shortcut settings (to change push to talk's key). */
   | { type: "shortcuts" }
   /** Navi's side panel. */
@@ -283,10 +290,13 @@ const RULES: Rule[] = [
   [/^(?:thanks?|thank you|thanks navi|got it|ok(?:ay)? thanks|perfect|cool|nice|great|awesome|good job|sounds good)$/, () => ({ type: "ack" })],
   [/^(?:are you (?:there|awake|listening|on)|you there|hello|hi|hey|can you hear me)$/, () => ({ type: "ack", reply: "I'm here." })],
 
-  // Navi itself: listening mode, shortcuts, its panel (before "switch to …" means a tab)
-  [/^(?:switch to |use |turn on |go to |change to |set (?:it )?to )?(?:push to talk|push-to-talk|press to talk|push talk)(?: mode)?$/, () => ({ type: "listenMode", mode: "push" })],
-  [/^(?:switch to |use |turn on |go to |change to )?open (?:mic|mike|microphone) mode$|^(?:switch to |use |turn on |change to )open (?:mic|mike|microphone)$/, () => ({ type: "listenMode", mode: "open" })],
-  [/^(?:switch to |use |turn on |go to |change to )?(?:hey navi|wake word|wake name|hands[- ]?free) mode$/, () => ({ type: "listenMode", mode: "handsfree" })],
+  // Navi itself: staying awake, starting with Chrome, shortcuts, its panel (before "switch to …" means a tab)
+  [/^(?:please )?(?:stay|keep) (?:awake|on|listening)(?: (?:all the time|until i say so|from now on))?$|^(?:don'?t|do not|never) (?:go to sleep|fall asleep|sleep)(?: on (?:me|your own))?$|^(?:turn on |use |switch to |go to )?(?:open (?:mic|mike|microphone)|stay awake|caffeine)(?: mode)?(?: on)?$|^(?:turn|switch) (?:on )?stay awake(?: on)?$|^no sleeping$/, () => ({ type: "stayAwake", on: true })],
+  [/^(?:you can |go ahead and )?(?:fall asleep|sleep|go to sleep) (?:again )?(?:when i'?m (?:quiet|idle|not talking|done)|on your own|by yourself|after a while)$|^(?:stop|quit) (?:staying awake|being awake|keeping awake)$|^(?:turn |switch )?(?:off )?(?:stay awake|open (?:mic|mike|microphone)|caffeine)(?: mode)? off$|^(?:turn|switch) off (?:stay awake|open (?:mic|mike|microphone)|caffeine)(?: mode)?$|^(?:don'?t|do not) stay awake$/, () => ({ type: "stayAwake", on: false })],
+  [/^(?:always )?(?:start|turn on|listen|be on|wake up|start listening|listen for wake up|start asleep)(?: (?:automatically|by itself|on your own))? (?:when|whenever|as soon as) (?:i open |i start )?chrome (?:opens|starts|launches|is opened|starts up)?$|^(?:start|turn on|launch) (?:navi )?(?:with chrome|at startup|on startup|when chrome opens)$|^start asleep(?: when chrome opens)?$/, () => ({ type: "startOnLaunch", on: true })],
+  [/^(?:start|stay|be) off (?:when|whenever) (?:i open |i start )?chrome (?:opens|starts|launches|is opened|starts up)?$|^(?:don'?t|do not|never) (?:start|turn on|listen|launch|start listening)(?: (?:automatically|by itself|on your own))? (?:when|whenever) (?:i open |i start )?chrome (?:opens|starts|launches|is opened|starts up)?$|^(?:don'?t|do not|never) (?:start|launch) (?:navi )?(?:with chrome|at startup|on startup)$|^start off$/, () => ({ type: "startOnLaunch", on: false })],
+  [/^(?:turn (?:yourself |navi |the mic |the microphone )?on|turn on (?:navi|the mic|the microphone|listening)|(?:navi|mic|microphone) on|start listening)$/, () => ({ type: "turnOn" })],
+  [/^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,]+)?(?:wakey wakey|wake up|wake)(?:[\s,]+(?:navi|navy|navigator))?$/, () => ({ type: "wake" })],
   [/^(?:change|set|edit|open|show)(?: the| my| your)? (?:keyboard |push to talk |talk )?(?:shortcuts?|hotkeys?|key ?binds?|keys?)$|^keyboard shortcuts$/, () => ({ type: "shortcuts" })],
   [/^(?:open|show|bring up|pull up|display)(?: me)?(?: the| your| navi'?s)? (?:side ?panel|sidebar|side bar|panel)$|^(?:open|show) (?:navi'?s|the navi) (?:panel|sidebar)$/, () => ({ type: "panel", open: true })],
   [/^(?:close|hide|dismiss|put away)(?: the| your| navi'?s)? (?:side ?panel|sidebar|side bar|panel)$/, () => ({ type: "panel", open: false })],
@@ -359,6 +369,8 @@ const RULES: Rule[] = [
   [/^rewind$/, () => ({ type: "media", action: "rewind", seconds: 10 })],
   [/^(?:play|resume|unpause|keep playing)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "play" })],
   [/^(?:pause|stop)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "pause" })],
+  // How Chrome hears "pause the video" (from real use).
+  [/^(?:paws|pauses|paused|pause|how'?s|house|pos|pods) (?:the |this |a )?video$/, () => ({ type: "media", action: "pause" })],
   [/^(?:make it |go )?full ?screen$/, () => ({ type: "media", action: "fullscreen" })],
   [/^(?:exit|leave|close|get out of) (?:the )?full ?screen$/, () => ({ type: "media", action: "exitFullscreen" })],
   [/^(?:speed (?:it |the video )?up|play (?:it )?faster|faster video)$/, () => ({ type: "media", action: "faster" })],
@@ -757,6 +769,15 @@ export function isWholeCommand(text: string): boolean {
   if (!t || CANONICAL.some((phrase) => phrase.startsWith(`${t} `))) return false;
   const intent = parseCommand(text);
   return !!intent && !FREE_TEXT.some((key) => key in intent);
+}
+
+/**
+ * The first words of a command that aren't one by themselves ("close", "scroll to the"): the rest is
+ * probably coming, after a pause Chrome took for the end of the phrase.
+ */
+export function isCommandStart(text: string): boolean {
+  const t = prepare(text)?.target;
+  return !!t && !parseCommand(text) && CANONICAL.some((phrase) => phrase.startsWith(`${t} `));
 }
 
 /** A command, said in so many words or nearly: looser phrasings, near-misses in spelling, then in sound. */

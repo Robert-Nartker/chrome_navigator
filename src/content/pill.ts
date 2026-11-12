@@ -78,7 +78,6 @@ type Look = { kind: "hear" | "work" | "reply" | "error" | "hint"; icon: "bars" |
 
 /** What the pill should show, or null to hide it. */
 export function pillLook(u: PillUpdate): Look | null {
-  const handsFree = u.mode === "handsfree";
   if (u.interim && u.ears.listening) return { kind: "hear", icon: "bars", text: u.interim };
   if (u.worker.working) return { kind: "work", icon: "spin", text: u.worker.detail ?? "Working…" };
   // The grid shows its own instructions at the top; don't repeat them at the bottom.
@@ -89,8 +88,8 @@ export function pillLook(u: PillUpdate): Look | null {
   // A helper out of sight has a question: shown, never said (it may be mid-conversation here).
   const asking = u.worker.helpers?.find((h) => h.question);
   if (asking) return { kind: "hint", icon: "dot", text: `Helper ${asking.id} has a question. Say “what does the helper want?”` };
-  // Awake after "Hey Navi": show that it's listening. Open mic: a small listening mark only.
-  if (u.ears.awake) return { kind: "hint", icon: "bars", text: handsFree ? "Listening…" : "" };
+  // Awake: show that it's listening (with Stay awake, a small listening mark only). Push to talk says so.
+  if (u.ears.awake) return { kind: "hint", icon: "bars", text: u.ears.once ? "Listening for one command…" : u.stayAwake ? "" : "Listening…" };
   return null;
 }
 

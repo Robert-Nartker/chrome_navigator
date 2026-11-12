@@ -2,7 +2,7 @@
 // panel from the toolbar icon or Alt+Shift+N, takes the "talk now" shortcut and address-bar typing,
 // shows the setup page on first install, and refreshes content scripts on update.
 
-import { runTyped, startNavi, toggleWake } from "./background/navi";
+import { runTyped, startNavi, pushToTalk } from "./background/navi";
 import { loadedDevBuild, reinjectContentScripts, reopenAfterDevRestart } from "./lib/dev-reload";
 import { closePanel, panelOpen, registerPanel } from "./background/panels";
 
@@ -28,7 +28,7 @@ chrome.omnibox.onInputEntered.addListener((text) => runTyped(text));
 // Alt+Shift+N (Option+Shift+N on a Mac) opens the panel, or closes it if it's open.
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command === "wake-navi") {
-    void toggleWake();
+    void pushToTalk();
     return;
   }
   if (command !== "open-navi") return;

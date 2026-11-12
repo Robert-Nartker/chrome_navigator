@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseCommand } from "../../src/lib/parser";
 import { Tutorial, parseTutorialControl, tutorialSteps } from "../../src/lib/tutorial";
 
-const base = { name: "Navi", openMic: false, ai: true, screenFree: false };
+const base = { name: "Navi", stayAwake: false, ai: true, screenFree: false };
 const ids = (c: Partial<typeof base> = {}) => tutorialSteps({ ...base, ...c }).map((s) => s.id);
 
 describe("the tutorial", () => {
@@ -12,15 +12,14 @@ describe("the tutorial", () => {
     expect(ids({ ai: false })).not.toContain("ask");
   });
 
-  it("practices waking Navi by its name (and goes to sleep for it), except in open mic mode", () => {
+  it("practices waking Navi with “wake up” (and goes to sleep for it), except with Stay awake", () => {
     const [, wake] = tutorialSteps(base);
     expect(wake).toMatchObject({ sleepAfter: true });
-    expect(wake.say).toContain("Try: Hey Navi, open Wikipedia.");
-    expect(wake.praise).toContain("“Hey Navigator” works too.");
+    expect(wake.say).toContain("Try: wake up, open Wikipedia.");
+    expect(wake.praise).toContain("“Hey Navi” works too.");
     const custom = tutorialSteps({ ...base, name: "Jarvis" })[1];
-    expect(custom.say).toContain("Hey Jarvis");
-    expect(custom.praise).not.toContain("Navigator");
-    const open = tutorialSteps({ ...base, openMic: true })[1];
+    expect(custom.praise).toContain("Hey Jarvis");
+    const open = tutorialSteps({ ...base, stayAwake: true })[1];
     expect(open.sleepAfter).toBeUndefined();
     expect(open.say).toContain("just say the command");
   });

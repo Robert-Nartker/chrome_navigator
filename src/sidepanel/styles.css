@@ -373,6 +373,90 @@ body {
   display: none;
 }
 
+/* On/off switch: says which it is, so a click is never a guess. */
+.mic.power {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.power .track {
+  position: relative;
+  width: 26px;
+  height: 15px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+  transition: background-color 0.15s;
+}
+
+.power .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--elevated);
+  transition: transform 0.15s;
+}
+
+.power[aria-checked="true"] .track {
+  background: currentColor;
+}
+
+.power[aria-checked="true"] .knob {
+  transform: translateX(11px);
+}
+
+.voice[data-state="awake"] .power[aria-checked="true"] .knob,
+.voice[data-state="working"] .power[aria-checked="true"] .knob {
+  background: var(--accent);
+}
+
+.mic.power:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Stay awake: lit up while on. */
+.chip {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.chip[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+}
+
+.ptt-hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 /* YOLO: acts without asking. Lit up while on, so it's never on by accident. */
 .yolo {
   flex: none;

@@ -22,8 +22,9 @@ const MAX_PHRASE_S = 12;
 /** Processor threads for the model: the rest of the computer keeps the others. */
 const THREADS = 2;
 /**
- * Taking longer than this fraction of a phrase's length to transcribe it, this many times in a row, means
- * this computer can't keep up: Chrome's recognizer takes over rather than letting Parakeet bog it down.
+ * Taking longer than this fraction of a phrase's length to transcribe it, this many times in a row: Navi
+ * says so (once), with the numbers, but keeps Parakeet listening. The user chose it, and the first phrases
+ * on a graphics chip are slow while it warms up; "use Chrome's recognizer" switches back.
  */
 const TOO_SLOW = { ratio: 0.8, times: 3 };
 
@@ -97,6 +98,7 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
     { maxSeconds: MAX_PHRASE_S },
   );
   let slow = 0;
+  let saidSlow = false;
 
   async function finish(pcm: Float32Array) {
     callbacks.onInterim("");
@@ -106,10 +108,11 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
       const text = (await transcribe(pcm, true)).trim();
       const seconds = (performance.now() - started) / 1000;
       slow = seconds > (pcm.length / RATE) * TOO_SLOW.ratio ? slow + 1 : 0;
-      if (slow >= TOO_SLOW.times && !fake) {
-        engine.stop();
-        callbacks.onError("Parakeet is too slow on this computer", true);
-        return;
+      if (slow >= TOO_SLOW.times && !fake && !saidSlow) {
+        saidSlow = true;
+        callbacks.onInfo?.(
+          `Parakeet is slow here: ${seconds.toFixed(1)} s for a ${(pcm.length / RATE).toFixed(1)} s phrase, on the ${detail || (gpu ? "graphics chip" : "processor")}. It keeps listening; say “use Chrome's recognizer” to switch back.`,
+        );
       }
       // The phrase's audio includes a moment before the speech and the pause that ended it.
       const audioMs = (pcm.length / RATE) * 1000;

@@ -60,7 +60,7 @@
         "default": "Ctrl+Space",
         "mac": "MacCtrl+Space"
       },
-      "description": "Push to talk: talk to Navi now (press again to stop)"
+      "description": "Push to talk: Navi hears one command (awake, asleep or off)"
     }
   },
   "omnibox": {

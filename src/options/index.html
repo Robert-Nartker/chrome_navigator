@@ -120,16 +120,13 @@
 
         <fieldset>
           <legend>Listening</legend>
-          <label for="wakeName">Wake name</label>
+          <p class="hint">Navi is <b>off</b> (mic closed, nothing loaded) until you turn it on with the switch in its panel. On, it listens for commands, and falls asleep when you've been quiet for a while; asleep, it waits for “wake up” (or “Hey &lt;name&gt;”).</p>
+          <label class="check"><input id="startOnLaunch" type="checkbox" /> Start when Chrome opens: Navi starts asleep, listening for “wake up”, so it never needs a click</label>
+          <label class="check"><input id="stayAwake" type="checkbox" /> Stay awake: never fall asleep on its own (say “go to sleep” to make it sleep)</label>
+          <p class="hint">Push to talk: <strong id="talk-shortcut">not set</strong> <button id="change-shortcut" type="button" class="link-button">Change</button>. Press it and say one command, whether Navi is awake, asleep or off; it stays as it was. With Navi off, the mic is closed the rest of the time, so a Bluetooth headset (AirPods) keeps its good sound until you talk.</p>
+          <label for="wakeName">Name</label>
           <input id="wakeName" type="text" />
-          <p class="hint">You say “Hey &lt;name&gt;” once to wake Navi. Distinctive names with two or more syllables trigger by accident less often. With the name Navi, “Hey Navigator” works too: speech recognizers rarely mishear it.</p>
-          <label for="listenMode">Mode</label>
-          <select id="listenMode">
-            <option value="handsfree">Hey Navi (say the wake name, then talk)</option>
-            <option value="open">Open mic (every word is a command until you turn the mic off)</option>
-            <option value="push">Push to talk (the mic opens only when you press the shortcut)</option>
-          </select>
-          <p class="hint">Push-to-talk shortcut: <strong id="talk-shortcut">not set</strong> <button id="change-shortcut" type="button" class="link-button">Change</button>. In any mode it means “listen to me now”. Push to talk keeps the mic closed the rest of the time, so a Bluetooth headset (AirPods) keeps its good sound until you talk.</p>
+          <p class="hint">“Hey &lt;name&gt;” wakes Navi too, as does “wake up”. Distinctive names with two or more syllables trigger by accident less often.</p>
           <label for="recognizer">Recognizer</label>
           <select id="recognizer">
             <option value="chrome">Chrome's (default: light, starts instantly)</option>
@@ -139,7 +136,7 @@
           <label for="micDeviceId">Microphone</label>
           <select id="micDeviceId"><option value="">System default</option></select>
           <p class="hint">Listening with a Bluetooth headset's own mic switches the headset to its low-quality call mode, so music and videos sound worse while Navi is on. Choosing another mic here (like your computer's built-in one, or a desk mic) keeps the headset sounding normal.</p>
-          <label for="sessionTimeoutSec">Stay awake for (seconds of silence)</label>
+          <label for="sessionTimeoutSec">Fall asleep after (seconds of quiet)</label>
           <input id="sessionTimeoutSec" type="number" min="10" max="1800" />
           <label for="lang">Language</label>
           <input id="lang" type="text" placeholder="en-US" />

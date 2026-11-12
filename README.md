@@ -1,6 +1,6 @@
 # Navi: voice browser agent
 
-Navigate Chrome with your voice. Say **"Hey Navi"** once, then keep talking: "open YouTube", "search for lofi beats", "scroll down", "click 12", "reply to Sarah saying I'll be late". Navi stays awake while you keep giving commands and goes back to sleep after two quiet minutes, or when you say "go to sleep".
+Navigate Chrome with your voice. Turn Navi on and just talk: "open YouTube", "search for lofi beats", "scroll down", "click 12", "reply to Sarah saying I'll be late". Navi stays awake while you keep giving commands and falls asleep after two quiet minutes, or when you say "go to sleep"; "wake up" wakes it.
 
 Built for two groups:
 - **Accessibility:** people with motor impairments who can't use a mouse and keyboard, and blind or low-vision users, via spoken feedback and "read this page" / "where am I".
@@ -34,10 +34,14 @@ npm run build          # outputs the extension to dist/
    Built-in commands work without a key.
 4. Pin Navi (puzzle-piece menu), then click its icon or press **Alt+Shift+N** to open the side panel.
 
-The side panel is optional. Once the mic is allowed, Navi keeps listening for "Hey Navi" with the panel closed:
+**On, off, awake, asleep.** Navi is **off** when Chrome starts (mic closed, nothing loaded) until you turn it on with the switch in its panel. On, it's **awake**: everything you say is a command. After a quiet spell it falls **asleep** and waits for "wake up" (or "Hey Navi"). Two settings change that, by voice or in Settings → Listening:
+- **Stay awake** ("stay awake" / "you can sleep when I'm quiet"): never falls asleep on its own.
+- **Start when Chrome opens** ("start when Chrome opens" / "start off when Chrome opens"): Navi starts asleep, listening for "wake up", so it never needs a click.
+
+The side panel is optional. While Navi is on, it keeps listening with the panel closed:
 - **Caption:** a small caption at the bottom of the page shows what Navi hears, what it's doing, and its reply.
 - **Toolbar badge:** shows Navi's state: **zz** asleep, **ON** awake, **…** working, **!** a problem.
-- **Talk now:** press **Ctrl+Space** (Control+Space on a Mac; change it in Chrome's shortcut settings) to talk to Navi without saying its name, and again to stop.
+- **Push to talk:** press **Ctrl+Space** (Control+Space on a Mac; change it in Chrome's shortcut settings) and say one command, whether Navi is awake, asleep or off; it stays as it was. Pressed again, it stops waiting. With Navi off, "turn on" or "wake up" this way turns it on.
 - **Type from the address bar:** type `navi`, a space, and a command or question. The answer shows in the caption on the page.
 
 ### Navi Free and Navi Pro
@@ -84,8 +88,8 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 
 | Kind | Examples |
 |---|---|
-| Wake / sleep | "Hey Navi" (or "wake up") … "go to sleep", "that's all"; or press Ctrl+Space (push to talk) |
-| Listening | "push to talk mode", "open mic mode", "wake word mode", "change the shortcut"; "use Parakeet", "use Chrome's recognizer", "which recognizer are you using?" |
+| On / off, wake / sleep | "turn off", "wake up" (or "Hey Navi"), "go to sleep", "that's all"; Ctrl+Space for one command (push to talk), and "turn on" through it |
+| Listening | "stay awake", "you can sleep when I'm quiet", "start when Chrome opens", "start off when Chrome opens", "change the shortcut"; "use Parakeet", "use Chrome's recognizer", "which recognizer are you using?" |
 | Scroll | "scroll down", "scroll up a little", "go to the top", "page down" |
 | Pages | "go back" (the browser's back button), "forward", "refresh" |
 | Sites | "open YouTube", "go to github dot com", "open gmail in a new tab" |
@@ -142,7 +146,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
                                                        spoken reply (voice) ◄┘
 ```
 
-- **Ears** (`src/ears/`, run in an offscreen document, `src/offscreen/`): the mic, speech recognition, the "Hey Navi" session, spoken replies and sounds. Offscreen documents keep running with no Navi window open.
+- **Ears** (`src/ears/`, run in an offscreen document, `src/offscreen/`): the mic, speech recognition, awake and asleep, push to talk, spoken replies and sounds. Offscreen documents keep running with no Navi window open.
 - **Background worker** (`src/background/navi.ts`): runs each command through the fast path, router and AI (`src/sidepanel/controller.ts`), and keeps the activity log.
 - **Views:** the side panel (`src/sidepanel/`), the caption on web pages (`src/content/pill.ts`) and the toolbar badge. They only show state and pass on clicks and typed commands, so closing the panel changes nothing.
 - **Content script** (`src/content/`): builds a "snapshot" of the page's interactive elements named the way a screen reader would name them (ARIA labels, `<label>`, alt text), draws number badges, and performs clicks, typing, scrolling and reading. It also finds clickable `div`s that only have `cursor: pointer`, and scrolls inner panels (Gmail, Slack) as well as the page.
@@ -161,8 +165,8 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Navi's voice** runs on your computer too: Kokoro, a neural voice, on the graphics chip when there is one (WebGPU; 326 MB once) or on the processor otherwise (92 MB once). It downloads from Hugging Face the first time Navi speaks (or from the setup page), and your computer's system voice answers until then. Pick a voice, or the system voices, in Settings. The side panel shows what's hearing and speaking, e.g. "Hears: Chrome (on-device) · Speaks: Kokoro (on-device)".
 - **Speech stays on your computer.** Speech recognition and Navi's voice both run locally. The AI runs on-device with Gemini Nano (Free), or through OpenAI or Anthropic with your own key (Pro). ElevenLabs was removed because zero data retention needs its Enterprise plan.
 - **Navi's own voice** is kept out of the mic by echo cancellation, plus a check that ignores words Navi is saying. You can still talk over Navi to cut it short.
-- **In Hey Navi mode, nothing is acted on until the wake word.** Speech before "Hey Navi" (or "Hey Navigator") is ignored and never stored, shown or sent to the AI. In Open mic mode, everything said while the mic is on is a command; it lasts until Chrome closes, and each new Chrome session starts in Hey Navi mode.
-- **On by default, off means off.** Once the mic is allowed, Navi listens for its name from the moment Chrome starts, with nothing to click. Turned off (the mic button, or saying "turn off"), the mic stays closed, across Chrome restarts and opening the panel, until you turn Navi on again.
+- **Asleep, nothing is acted on until "wake up".** Speech before "wake up" (or "Hey Navi") is ignored and never stored, shown or sent to the AI. Awake, everything said is a command until Navi falls asleep (unless Stay awake is on).
+- **Off by default, and off means off.** Each Chrome start, Navi is off: no mic, nothing loaded, until you turn it on (or press push to talk for one command). With Start when Chrome opens, it starts asleep instead. Turned off (the switch, or saying "turn off"), the mic stays closed until you turn Navi on again.
 - **The AI sees labels, not content.** By default the AI receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
 - **"Read this page" is local.** Reading aloud never involves the AI.
 - **Blocked sites:** list sites (your bank, health portal) where the AI is never used.

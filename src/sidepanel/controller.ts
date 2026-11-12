@@ -74,7 +74,7 @@ export interface ControllerUi {
 }
 
 export const HELP_TEXT =
-  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, describe the screen, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. To move through a page without seeing it, say next heading, next link, next field, or list the headings. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely. For a spoken tour, say start the tutorial.";
+  "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, describe the screen, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. To move through a page without seeing it, say next heading, next link, next field, or list the headings. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done and wake up to wake me, or turn off to stop listening completely. For a spoken tour, say start the tutorial.";
 
 /** A helper's report waits until the user has given no command for this long. */
 const REPORT_QUIET_MS = 4000;
@@ -179,7 +179,7 @@ export class Controller {
       onMetric?(metric: CommandMetric): void;
       /** Something said to the AI and its reply (for memory). */
       onExchange?(said: string, reply: string): void;
-      /** Wake the hands-free session, so the next thing said needs no wake name. */
+      /** Wake Navi (turning it on if it's off), so the next thing said is a command. */
       onWake?(): void;
       /** The tutorial ended (`finished`: the user got to the end). */
       onTutorialEnd?(finished: boolean): void;
@@ -447,10 +447,15 @@ export class Controller {
             ? "ignored (not understood)"
             : this.turnMessage || "done";
     const thread = this.threads.running ?? this.threads.current;
-    this.recentByThread.set(thread, [...this.recent, `${how} "${command}" → ${result.slice(0, 160)}`].slice(-6));
+    // What the recognizer wrote down, when Navi ran something else (a near-miss it matched by sound).
+    const heard = options.hearing?.heard;
+    const misheard = heard && heard.toLowerCase().replace(/[.!?]$/, "") !== command.toLowerCase() ? ` (the recognizer heard "${heard}")` : "";
+    const kind = metric.path === "fast" ? `built-in command${metric.intent ? ` ${metric.intent}` : ""}: ` : metric.path === "ai" ? "AI: " : "";
+    const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    this.recentByThread.set(thread, [...this.recent, `${time} ${how} "${command}"${misheard} → ${kind}${result.slice(0, 160)}`].slice(-10));
     const outcome = { fast: "ran", ai: "AI task", ignored: "ignored", error: "failed", cancelled: "cancelled", background: "background" }[metric.path];
     if (options.source !== "helper") {
-      this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-3);
+      this.recentForRouter = [...this.recentForRouter, { said: command, outcome, reply: this.turnMessage || undefined }].slice(-5);
     }
   }
 
@@ -797,7 +802,7 @@ export class Controller {
       settings.model === FREE_MODEL
         ? (await nanoStatusRemote().catch(() => "unavailable")) === "available"
         : !!keyFor(settings, settings.model);
-    this.tutorial.start({ name: settings.wakeName || "Navi", openMic: settings.listenMode === "open", ai, screenFree: settings.feedback === "spoken" });
+    this.tutorial.start({ name: settings.wakeName || "Navi", stayAwake: settings.stayAwake, ai, screenFree: settings.feedback === "spoken" });
     // The answer to its first question shouldn't need the wake name.
     this.hooks.onWake?.();
     this.tutorialSay();
@@ -1087,7 +1092,7 @@ export class Controller {
       case "turnOff": {
         // Said before the mic goes off, so someone who can't see the screen knows how to turn it back on.
         const key = (await chrome.commands.getAll().catch(() => [])).find((c) => c.name === "wake-navi")?.shortcut;
-        const text = `Navi is off and isn't listening. ${key ? `Press ${key}` : "Press the push-to-talk shortcut"} or click the mic to turn it back on.`;
+        const text = `Navi is off and isn't listening. To turn it back on, click the on button in Navi's panel, or ${key ? `press ${key}` : "press the push-to-talk shortcut"} and say “turn on”.`;
         this.navi(text);
         await this.say(text);
         this.hooks.onTurnOff();
@@ -1104,19 +1109,29 @@ export class Controller {
         await chrome.runtime.openOptionsPage();
         await this.confirm("Opened Navi's settings");
         return;
-      case "listenMode": {
-        await saveSettings({ listenMode: intent.mode });
-        const key = (await chrome.commands.getAll().catch(() => [])).find((c) => c.name === "wake-navi")?.shortcut;
-        const text =
-          intent.mode === "push"
-            ? `Push to talk. The mic is closed until you press ${key || "the push-to-talk shortcut (set one in Chrome's shortcut settings)"}.`
-            : intent.mode === "open"
-              ? "Open mic: everything you say is a command until you turn the mic off."
-              : `Wake word mode: say “Hey ${this.getSettings().wakeName}” before a command.`;
+      case "stayAwake": {
+        await saveSettings({ stayAwake: intent.on });
+        const minutes = Math.max(1, Math.round(this.getSettings().sessionTimeoutSec / 60));
+        const text = intent.on
+          ? "Staying awake: I'll keep listening until you say “go to sleep” or turn me off."
+          : `OK, I'll fall asleep when you've been quiet for ${minutes === 1 ? "a minute" : `${minutes} minutes`}. Say “wake up” to wake me.`;
         this.navi(text);
         await this.say(text);
         return;
       }
+      case "startOnLaunch": {
+        await saveSettings({ startOnLaunch: intent.on });
+        const text = intent.on
+          ? "When Chrome opens, I'll start asleep, listening for “wake up”."
+          : "When Chrome opens, I'll start off, with the mic closed. Turn me on with the on button in my panel.";
+        this.navi(text);
+        await this.say(text);
+        return;
+      }
+      case "turnOn":
+      case "wake":
+        this.hooks.onWake?.();
+        return;
       case "shortcuts":
         await chrome.tabs.create({ url: "chrome://extensions/shortcuts", windowId: await naviWindowId() });
         await this.confirm("Opened Chrome's shortcut settings: Navi's are at the top");

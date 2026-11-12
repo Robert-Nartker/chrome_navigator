@@ -6,7 +6,8 @@ What the automated tests can't show: Chrome's real recognizer, your mic and voic
 
 ## Listening (most important)
 
-- [ ] "Hey Navi" wakes it, a few times, at normal speed and casually. Also "wake up" and the Ctrl+Space key.
+- [ ] Chrome opens with Navi **off**. The switch in the panel turns it on, awake. After two quiet minutes it falls asleep; "wake up" wakes it. "Stay awake" keeps it awake.
+- [ ] Ctrl+Space (push to talk) takes one command while Navi is asleep, and while it's off.
 - [ ] Short commands, said naturally: "scroll down", "scroll up", "go back", "close tab", "new tab", "next tab", "pause". Does each run the right thing? How long after you stop talking?
 - [ ] Numbers: "click 5", "type 8 thousand".
 - [ ] Talk over Navi while it's speaking: "stop", and a command like "go to sleep".

@@ -1,14 +1,14 @@
-// Wake-word session logic. Say "Hey Navi" once to wake it; it then treats
-// everything you say as a command until you've been quiet for the timeout, or
-// you say "go to sleep". No need to repeat the name for every command.
+// Awake or asleep while Navi is on. Turned on (or woken with "wake up" / "Hey Navi"), everything said is
+// a command until you've been quiet for the timeout, or you say "go to sleep". With Stay awake, only
+// "go to sleep" ends it.
 
 import { type WakeWords, stripWakePhrase, wakeAliases } from "./parser";
-import type { ListenMode } from "./settings";
 
 export type SessionState = "sleeping" | "awake";
 
 export interface SessionOptions {
-  mode: ListenMode;
+  /** Never falls asleep on its own. */
+  stayAwake: boolean;
   wakeName: string;
   timeoutSec: number;
 }
@@ -26,8 +26,6 @@ export interface SessionDecision {
 const WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey wakey|wake up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?(?:[\s,.!?]+(.*))?$/i;
 /** The same, said on its own (while awake, "wake" can start an ordinary command). */
 const JUST_WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey wakey|wake up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?[\s,.!?]*$/i;
-/** Push to talk: how long the mic stays open for follow-ups after the last command (or Navi's reply). */
-export const PUSH_TALK_SEC = 8;
 /** After the name is heard mid-phrase, the finished phrase is treated as the one that woke Navi. */
 const SPOKEN_WAKE_MS = 8000;
 
@@ -49,17 +47,16 @@ export class WakeSession {
 
   get current(): SessionState {
     this.expireIfIdle();
-    return this.options.mode === "open" ? "awake" : this.state;
+    return this.state;
   }
 
-  /** Push to talk: the mic closes once the session falls asleep, after this many quiet seconds. */
   private get timeoutSec(): number {
-    return this.options.mode === "push" ? Math.min(PUSH_TALK_SEC, this.options.timeoutSec) : this.options.timeoutSec;
+    return this.options.timeoutSec;
   }
 
-  /** Milliseconds until the session falls asleep (0 when asleep). */
+  /** Milliseconds until the session falls asleep (0 when asleep, or with Stay awake). */
   get remainingMs(): number {
-    if (this.current !== "awake" || this.options.mode === "open") return 0;
+    if (this.current !== "awake" || this.options.stayAwake) return 0;
     return Math.max(0, this.lastActivity + this.timeoutSec * 1000 - this.now());
   }
 
@@ -104,7 +101,7 @@ export class WakeSession {
     // The phrase whose first words already woke Navi: it's handled as the waking one (no second sound).
     const wakingPhrase = this.now() - this.wokeMidPhraseAt < SPOKEN_WAKE_MS;
     this.wokeMidPhraseAt = -Infinity;
-    const asleep = this.options.mode === "handsfree" && this.state === "sleeping";
+    const asleep = this.state === "sleeping";
     let woke: boolean;
     let rest: string;
     const wakeUp = (asleep || wakingPhrase ? WAKE_UP : JUST_WAKE_UP).exec(text);
@@ -114,9 +111,6 @@ export class WakeSession {
     } else {
       // While asleep, stray words before the name are tolerated; once awake, only a leading name is removed.
       ({ woke, rest } = stripWakePhrase(text, this.aliases, asleep || wakingPhrase));
-    }
-    if (this.options.mode === "open") {
-      return { command: rest || null, woke: false, named: woke };
     }
     if (this.state === "sleeping") {
       if (!woke) return { command: null, woke: false };
@@ -142,7 +136,7 @@ export class WakeSession {
   }
 
   private expireIfIdle() {
-    if (this.state === "awake" && this.now() - this.lastActivity > this.timeoutSec * 1000) {
+    if (this.state === "awake" && !this.options.stayAwake && this.now() - this.lastActivity > this.timeoutSec * 1000) {
       this.state = "sleeping";
     }
   }

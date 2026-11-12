@@ -148,7 +148,8 @@ async function fill() {
   field<HTMLInputElement>("apiKey").value = s.apiKey;
   field<HTMLInputElement>("openaiKey").value = s.openaiKey;
   field<HTMLInputElement>("wakeName").value = s.wakeName;
-  field<HTMLSelectElement>("listenMode").value = s.listenMode;
+  field<HTMLInputElement>("startOnLaunch").checked = s.startOnLaunch;
+  field<HTMLInputElement>("stayAwake").checked = s.stayAwake;
   field<HTMLSelectElement>("recognizer").value = s.recognizer;
   void listMicrophones(s.micDeviceId);
   field<HTMLInputElement>("sessionTimeoutSec").value = String(s.sessionTimeoutSec);
@@ -184,7 +185,8 @@ form.addEventListener("submit", async (e) => {
     fastMode: field<HTMLInputElement>("fastMode").checked,
     maxAgentSteps: clamp(field<HTMLInputElement>("maxAgentSteps").value, 1, 30, DEFAULT_SETTINGS.maxAgentSteps),
     wakeName: field<HTMLInputElement>("wakeName").value.trim() || DEFAULT_SETTINGS.wakeName,
-    listenMode: field<HTMLSelectElement>("listenMode").value as Settings["listenMode"],
+    startOnLaunch: field<HTMLInputElement>("startOnLaunch").checked,
+    stayAwake: field<HTMLInputElement>("stayAwake").checked,
     recognizer: field<HTMLSelectElement>("recognizer").value as Settings["recognizer"],
     micDeviceId: field<HTMLSelectElement>("micDeviceId").value,
     autonomy: field<HTMLSelectElement>("autonomy").value as Settings["autonomy"],

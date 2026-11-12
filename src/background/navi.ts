@@ -23,7 +23,7 @@ import {
   type WorkerState,
 } from "../lib/messages";
 import type { CommandMetric } from "../lib/metrics";
-import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, activeSettings, saveSettings } from "../lib/settings";
+import { DEFAULT_SETTINGS, type Settings, loadSettings, onSettingsChanged, activeSettings } from "../lib/settings";
 import type { Voice } from "../lib/voice-output";
 import { Controller, HELP_TEXT, type LogPlace } from "../sidepanel/controller";
 import { ThreadBook } from "../lib/threads";
@@ -126,31 +126,33 @@ async function sendEars<T = unknown>(request: EarsRequest): Promise<T | undefine
 }
 
 /**
- * Set when the user turns Navi off (the mic button, the shortcut, or "turn off"): no mic at all, across
- * Chrome restarts, until they turn it on again. Otherwise Navi is on, listening for its name from the moment
- * Chrome starts.
+ * Whether Navi is off: no mic, nothing loaded. Set by the on/off button or "turn off" / "turn on", and at
+ * each Chrome start by the Start when Chrome opens setting (off unless it's on). A restart of this worker
+ * mid-session keeps it.
  */
 const OFF_KEY = "naviOff";
 /** Set once per Chrome session (session storage clears when Chrome closes). */
 const SESSION_KEY = "naviSession";
 
-/** `byUser`: an explicit on/off, remembered. Otherwise (resuming, a failed start) nothing is remembered. */
+/**
+ * `byUser`: an explicit on/off, remembered, and turned on by the user, Navi is awake (listening for
+ * commands). Otherwise (resuming, Chrome starting) nothing is remembered and Navi starts asleep.
+ */
 async function setListening(on: boolean, byUser = false) {
-  if (byUser) await chrome.storage.local.set({ [OFF_KEY]: !on });
+  if (byUser) {
+    // After the Chrome-start default is written, so it can't undo this.
+    await sessionStarted;
+    await chrome.storage.local.set({ [OFF_KEY]: !on });
+  }
   worker = { ...worker, listening: on };
   broadcastWorker();
-  // Push to talk: Navi is on, but the mic opens only when the shortcut is pressed.
-  if (on && settings.listenMode === "push") {
-    clearTimeout(closeTimer);
-    if (await earsExist()) await sendEars({ type: "ears:listen", on: false });
-    return;
-  }
   if (on && !(await earsOrProblem())) {
     worker = { ...worker, listening: false };
     broadcastWorker();
     return;
   }
   if (on || (await earsExist())) await sendEars({ type: "ears:listen", on });
+  if (on && byUser) await sendEars({ type: "ears:session", action: "wake" });
   if (on) clearTimeout(closeTimer);
   // Turned off: nothing stays loaded. (A moment's grace: turning it straight back on, as a restart does,
   // keeps what's loaded.)
@@ -171,7 +173,11 @@ async function micAllowed(): Promise<boolean> {
 }
 
 /** Listens for the wake name, unless the user turned Navi off (or the mic isn't allowed yet). */
+/** Settled once a new Chrome session has set whether Navi starts off (so nothing resumes from last session's state). */
+let sessionStarted: Promise<void> = Promise.resolve();
+
 async function resume() {
+  await sessionStarted;
   if (worker.listening || (await turnedOff()) || !(await micAllowed())) return;
   await setListening(true);
 }
@@ -297,9 +303,7 @@ const controller = new Controller(
   voice,
   {
     onSleep() {
-      // In open-mic mode, "go to sleep" goes back to listening for the name.
-      if (settings.listenMode === "open") void saveSettings({ listenMode: "handsfree" });
-      else void sendEars({ type: "ears:session", action: "sleep" });
+      void sendEars({ type: "ears:session", action: "sleep" });
     },
     onTurnOff() {
       void setListening(false, true);
@@ -308,7 +312,9 @@ const controller = new Controller(
       void sendEars({ type: "ears:session", action: "touch" });
     },
     onWake() {
-      if (settings.listenMode !== "open") void sendEars({ type: "ears:session", action: "wake" });
+      // "Wake up" or "turn on" through push to talk while Navi is off turns it on.
+      if (!worker.listening) void setListening(true, true);
+      else void sendEars({ type: "ears:session", action: "wake" });
     },
     onTutorialEnd() {
       void chrome.storage.local.set({ tutorialOffered: true });
@@ -422,7 +428,7 @@ function pushPill() {
 }
 
 function pillState(): PillUpdate {
-  return { type: "pill:update", ears, worker, interim, reply, wakeName: settings.wakeName, mode: settings.listenMode };
+  return { type: "pill:update", ears, worker, interim, reply, wakeName: settings.wakeName, stayAwake: settings.stayAwake };
 }
 
 async function updateBadge() {
@@ -454,12 +460,7 @@ async function offerTutorialOnce() {
   if ((await chrome.storage.local.get("tutorialOffered")).tutorialOffered) return;
   await chrome.storage.local.set({ tutorialOffered: true });
   const name = settings.wakeName || "Navi";
-  const how =
-    settings.listenMode === "open"
-      ? "say: start the tutorial"
-      : settings.listenMode === "push"
-        ? "press the push-to-talk shortcut and say: start the tutorial"
-        : `say: Hey ${name}, start the tutorial`;
+  const how = ears.awake ? "say: start the tutorial" : "say: wake up, start the tutorial";
   controller.announce(`Hi, I'm ${name}, and I'm listening. For a two-minute tour of what I can do, ${how}.`);
 }
 
@@ -560,9 +561,9 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       );
       return true;
     case "navi:mic-granted":
-      // Setup just allowed the mic: start listening for the name, and once Navi hears, offer the tour.
+      // Setup just allowed the mic: Navi turns on, and once it hears, offers the tour.
       offerTutorial = true;
-      void resume().then(maybeOfferTutorial);
+      void (worker.listening ? Promise.resolve() : setListening(true, true)).then(maybeOfferTutorial);
       return false;
     case "navi:tutorial":
       void controller.tutorialAction(msg.action).finally(() => sendResponse(true));
@@ -580,21 +581,14 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
 }
 
 /**
- * The "talk to Navi" shortcut: wakes Navi (turning the mic on if needed) so the next thing said is a
- * command, or puts it back to sleep. In open-mic mode it turns the mic on or off.
+ * The push-to-talk shortcut: Navi hears one command now, whether it's awake, asleep or off, and stays as
+ * it was (off: the mic closes again). Pressed again while it waits, it stops waiting.
  */
-export async function toggleWake() {
-  if (settings.listenMode === "open") return setListening(!worker.listening, true);
-  if (settings.listenMode === "push") {
-    // Push to talk: open the mic and listen for a command now; pressed again while listening, close it.
-    if (!worker.listening) await setListening(true, true);
-    if (!(await earsOrProblem())) return;
-    await sendEars({ type: "ears:session", action: ears.listening ? "sleep" : "wake" });
-    return;
-  }
-  if (!worker.listening) await setListening(true, true);
-  if (!worker.listening) return; // the mic couldn't start (the reason is logged)
-  await sendEars({ type: "ears:session", action: ears.awake ? "sleep" : "wake" });
+export async function pushToTalk() {
+  if (!(await earsOrProblem())) return;
+  await sendEars({ type: "ears:session", action: "once" });
+  // Off: nothing stays loaded once it's done.
+  if (!worker.listening) closeEarsWhenIdle(60_000);
 }
 
 /** A message typed without the panel (the address bar's "navi" keyword): replies show on the page. */
@@ -604,13 +598,7 @@ export function runTyped(text: string) {
 
 /** The first note in a fresh log. */
 function greeting(): string {
-  const start =
-    settings.listenMode === "handsfree"
-      ? `Say “Hey ${settings.wakeName}”, then a command.`
-      : settings.listenMode === "push"
-        ? "Press the push-to-talk shortcut (Ctrl+Space unless you changed it), then say a command."
-        : "Click the mic and say a command.";
-  return `${start} Or type below to ask Navi anything. Navi keeps listening when this panel is closed.`;
+  return "Turn Navi on with the button above and just talk. It falls asleep when you've been quiet for a while: say “wake up” to wake it. Or press the push-to-talk shortcut (Ctrl+Space unless you changed it) for one command. Or type below to ask Navi anything. Navi keeps listening when this panel is closed.";
 }
 
 /** Hooks for automated tests and the benchmark (through the side panel's window.navi). */
@@ -626,7 +614,12 @@ async function test(msg: Extract<WorkerRequest, { type: "navi:test" }>): Promise
       setFocusedWindowForTests(msg.window);
       return true;
     case "wake":
-      await toggleWake();
+      await pushToTalk();
+      return true;
+    case "asleep":
+      await chrome.storage.local.set({ [OFF_KEY]: false });
+      await resume();
+      await sendEars({ type: "ears:session", action: "sleep" });
       return true;
     case "busy":
       return controller.isBusy;
@@ -674,24 +667,21 @@ export function startNavi() {
   settingsLoaded = loadSettings().then((loaded) => {
     settings = loaded;
   });
+  // A new Chrome session: Navi starts off, or asleep (listening for "wake up") if the user chose that.
+  sessionStarted = (async () => {
+    await settingsLoaded;
+    if ((await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY]) return;
+    await chrome.storage.session.set({ [SESSION_KEY]: true });
+    await chrome.storage.local.set({ [OFF_KEY]: !settings.startOnLaunch });
+  })();
   void (async () => {
     await settingsLoaded;
     onSettingsChanged((next) => {
-      const toHandsFree = next.listenMode === "handsfree" && settings.listenMode !== "handsfree";
-      const pushChanged = (next.listenMode === "push") !== (settings.listenMode === "push");
       settings = next;
-      // Into push to talk the mic closes until the shortcut; out of it, Navi (if on) listens again.
-      if (pushChanged && worker.listening) void setListening(true);
       void earsExist().then((open) => open && sendEars({ type: "ears:configure", settings }));
-      // Choosing "Hey Navi" means Navi should be listening for its name (unless it was turned off).
-      if (toHandsFree) void resume();
       pushPill();
     });
-    // A new Chrome session listens for the name: Open mic (every word a command) is only on when chosen.
-    if (!(await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY]) {
-      await chrome.storage.session.set({ [SESSION_KEY]: true });
-      if (settings.listenMode === "open") await saveSettings({ listenMode: "handsfree" });
-    }
+    await sessionStarted;
     // Replaced by OFF_KEY (on unless turned off).
     void chrome.storage.local.remove("listening");
     await resume();

@@ -6,7 +6,6 @@ import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, model
  * "handsfree": say the wake name first. "open": every word is a command while the mic is on. "push": the
  * mic stays closed until the push-to-talk shortcut (a Bluetooth headset keeps its good sound until then).
  */
-export type ListenMode = "handsfree" | "open" | "push";
 /**
  * How freely Navi acts. "default": asks only before what can't be taken back (sending, buying, deleting,
  * closing unsaved typing). "yolo": never asks except before payments and sensitive details, no step limit.
@@ -35,7 +34,10 @@ export interface Settings {
   /** Opus fast mode: faster output at 2x price (research preview). */
   fastMode: boolean;
   wakeName: string;
-  listenMode: ListenMode;
+  /** Never falls asleep on its own while on (it still sleeps when told to). */
+  stayAwake: boolean;
+  /** When Chrome opens, Navi starts asleep, listening for "wake up" (otherwise it starts off). */
+  startOnLaunch: boolean;
   recognizer: Recognizer;
   /**
    * The microphone Navi listens with ("" for the system's default). A Bluetooth headset's own mic switches
@@ -113,7 +115,8 @@ export const DEFAULT_SETTINGS: Settings = {
   effort: PROVIDER_DEFAULTS.openai.effort,
   fastMode: false,
   wakeName: "Navi",
-  listenMode: "handsfree",
+  stayAwake: false,
+  startOnLaunch: false,
   recognizer: "chrome",
   micDeviceId: "",
   sessionTimeoutSec: 120,
@@ -192,7 +195,10 @@ export function normalizeSettings(raw: Partial<Settings> | undefined, mode?: AiM
     const value = own !== undefined ? own : raw && raw[key] !== undefined ? raw[key] : (MODE_DEFAULTS[current][key] ?? DEFAULT_SETTINGS[key]);
     (s as Record<string, unknown>)[key] = value;
   }
-  if (!["handsfree", "open", "push"].includes(s.listenMode)) s.listenMode = "handsfree";
+  s.stayAwake = s.stayAwake === true;
+  s.startOnLaunch = s.startOnLaunch === true;
+  // Replaced by the on/off button, Stay awake and Start when Chrome opens.
+  delete (s as { listenMode?: unknown }).listenMode;
   if (s.recognizer !== "parakeet") s.recognizer = "chrome";
   if (s.autonomy !== "yolo") s.autonomy = "default";
   // The old default step limit (12) was too few for tasks that span several emails or pages.

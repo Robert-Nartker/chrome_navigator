@@ -7,8 +7,8 @@
 export interface TutorialContext {
   /** The wake name ("Navi"). */
   name: string;
-  /** Open-mic mode: no wake name needed. */
-  openMic: boolean;
+  /** Stay awake is on: Navi never falls asleep on its own, so there's no waking to practice. */
+  stayAwake: boolean;
   /** An AI is set up (Pro with a key, or Free with the on-device model ready). */
   ai: boolean;
   /** Navi says out loud everything it does (the user can't see the screen well). */
@@ -52,27 +52,26 @@ const is =
     !!e.intent && intents.includes(e.intent);
 
 export function tutorialSteps(c: TutorialContext): TutorialStep[] {
-  const alias = c.name.toLowerCase() === "navi" ? ` “Hey Navigator” works too.` : "";
   const steps: TutorialStep[] = [
     {
       id: "intro",
       title: "Welcome",
       say: `Hi, I'm ${c.name}. This tour takes about two minutes. Say “next” to skip a step, “repeat” to hear it again, or “end tutorial” to stop. First, a question: would you like me to say out loud everything I do? It helps if you can't see the screen well. Say yes or no.`,
     },
-    c.openMic
+    c.stayAwake
       ? {
           id: "wake",
           title: "Give a command",
-          say: "In open mic mode I'm always listening, so just say the command. Try: open Wikipedia.",
+          say: "Stay awake is on, so I'm always listening: just say the command. Try: open Wikipedia.",
           done: is("open", "search"),
           praise: "That's it.",
         }
       : {
           id: "wake",
           title: "Wake me up",
-          say: `I'm going to sleep now. To wake me, say my name and the command together. Try: Hey ${c.name}, open Wikipedia.`,
+          say: `I fall asleep when you've been quiet for a while. I'm going to sleep now. To wake me, say “wake up” and the command together. Try: wake up, open Wikipedia.`,
           done: is("open", "search"),
-          praise: `That's how you wake me.${alias} After that I stay awake while you keep talking, so you don't need my name again until I fall asleep.`,
+          praise: `That's how you wake me. “Hey ${c.name}” works too. After that I stay awake while you keep talking.`,
           sleepAfter: true,
         },
     {
@@ -142,7 +141,7 @@ export function tutorialSteps(c: TutorialContext): TutorialStep[] {
   steps.push({
     id: "finish",
     title: "Sleep and settings",
-    say: `Last thing. When you're done, say “go to sleep”, and I'll wait for my name. “Turn off” stops me listening completely. Say “what can I say” any time for ideas, “open settings” for settings, and “start the tutorial” to take this tour again. Say “go to sleep” now to finish.`,
+    say: `Last thing. When you're done, say “go to sleep”, and I'll wait for “wake up”. “Turn off” stops me listening completely; the on button or the push-to-talk shortcut brings me back. Say “what can I say” any time for ideas, “open settings” for settings, and “start the tutorial” to take this tour again. Say “go to sleep” now to finish.`,
     done: is("sleep", "turnOff"),
     praise: "That's the tour. Have fun.",
   });

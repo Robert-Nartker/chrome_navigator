@@ -48,12 +48,11 @@
 
     <section id="voice" class="voice" data-state="off" aria-label="Microphone">
       <div class="voice-main">
-        <button id="mic" class="mic" aria-pressed="false" aria-label="Start listening">
+        <!-- On/off: off means the mic is closed and nothing is loaded. -->
+        <button id="mic" class="mic power" type="button" role="switch" aria-checked="false" aria-label="Navi">
           <span class="mic-halo" aria-hidden="true"></span>
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-            <rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25" fill="none" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M3.5 7.75a4.5 4.5 0 0 0 9 0M8 12.25v2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
+          <span class="track" aria-hidden="true"><span class="knob"></span></span>
+          <span id="power-label" class="power-label">Off</span>
         </button>
         <div class="caption">
           <!-- What the recognizer is hearing right now (the log gets the final command). -->
@@ -64,26 +63,10 @@
         <div id="session-bar" class="session-bar" hidden><div></div></div>
       </div>
       <div class="mode-row">
-      <fieldset class="mode">
-        <legend class="sr-only">Listening mode</legend>
-        <div class="segmented three">
-          <label title="Say “Hey Navi”, then talk.">
-            <input type="radio" name="mode" value="handsfree" aria-describedby="hint-handsfree" />
-            <span>Hey <span class="wake-name">Navi</span></span>
-          </label>
-          <label title="Everything is a command until you turn the mic off.">
-            <input type="radio" name="mode" value="open" aria-describedby="hint-open" />
-            <span>Open mic</span>
-          </label>
-          <label title="The mic opens when you press the push-to-talk shortcut (Ctrl+Space).">
-            <input type="radio" name="mode" value="push" aria-describedby="hint-push" />
-            <span>Push to talk</span>
-          </label>
-        </div>
-        <p id="hint-handsfree" class="sr-only">Say “Hey <span class="wake-name">Navi</span>”, then talk.</p>
-        <p id="hint-open" class="sr-only">Everything is a command until you turn the mic off.</p>
-        <p id="hint-push" class="sr-only">The mic opens when you press the push-to-talk shortcut, and closes a few seconds after you stop.</p>
-      </fieldset>
+      <!-- While on, Navi falls asleep after a quiet spell unless this is on. -->
+      <button id="stay-awake" class="chip" type="button" aria-pressed="false" aria-describedby="stay-awake-hint">Stay awake</button>
+      <p id="stay-awake-hint" class="sr-only">Navi never falls asleep on its own; say “go to sleep” to make it sleep.</p>
+      <span id="ptt-hint" class="ptt-hint"></span>
       <!-- Pro only: act without asking (except payments and passwords), with no step limit. -->
       <button id="yolo" class="yolo" type="button" aria-pressed="false" aria-describedby="yolo-hint" hidden>YOLO</button>
       <p id="yolo-hint" class="sr-only">Does everything without asking, except before payments and passwords, with no step limit.</p>
@@ -147,7 +130,7 @@
       <button id="helpers-stop-all" class="link-button" type="button" hidden>Stop all helpers</button>
     </section>
 
-    <p id="feed-empty" class="feed-empty" hidden>New thread. Say “Hey <span class="wake-name">Navi</span>” or type below; the other threads keep their own history.</p>
+    <p id="feed-empty" class="feed-empty" hidden>New thread. Talk to Navi or type below; the other threads keep their own history.</p>
     <ol id="log" class="feed" aria-label="Activity"></ol>
     <!-- Screen readers hear Navi's replies and errors, not every step. -->
     <div id="announcer" class="sr-only" aria-live="polite" aria-relevant="additions"></div>

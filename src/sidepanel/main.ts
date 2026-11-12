@@ -83,35 +83,34 @@ function renderStatus() {
   } else if (worker.working) {
     state = "working";
     text = worker.detail ?? "Working…";
-  } else if (ears.listening) {
-    if (settings.listenMode === "open") {
-      state = "awake";
-      text = "Open mic: just say a command";
-    } else if (settings.listenMode === "push") {
-      state = "awake";
-      text = `Listening: say a command (${talkShortcut || "the shortcut"} again to stop)`;
-    } else if (ears.awake) {
-      state = "awake";
-      text = "Awake: just say a command";
-    } else {
-      state = "sleeping";
-      text = `Say “Hey ${settings.wakeName}”`;
-    }
-  } else if (worker.listening && settings.listenMode === "push") {
-    // Push to talk: on, with the mic closed until the shortcut.
+  } else if (ears.listening && ears.once) {
+    // Push to talk: one command, then back to how it was.
+    state = "awake";
+    text = "Listening for one command…";
+  } else if (ears.listening && ears.awake) {
+    state = "awake";
+    text = settings.stayAwake ? "Listening: just say a command. Staying awake." : "Listening: just say a command";
+  } else if (ears.listening && worker.listening) {
     state = "sleeping";
-    text = talkShortcut ? `Press ${talkShortcut} to talk` : "Set a push-to-talk shortcut in Chrome's shortcut settings";
+    text = "Asleep: say “wake up”";
   } else if (worker.listening) {
     // Asked to listen; the mic is still opening.
     state = "starting";
     text = "Starting the mic…";
   }
   showStatus(state, text, worker.detail);
-  const listening = worker.listening;
+  const on = worker.listening;
   ui.dictate.setAttribute("aria-pressed", String(ears.dictating));
   ui.dictate.setAttribute("aria-label", ears.dictating ? "Stop dictating" : "Dictate a message");
-  ui.mic.setAttribute("aria-pressed", String(listening));
-  ui.mic.setAttribute("aria-label", listening ? "Turn Navi off" : "Turn Navi on");
+  ui.mic.setAttribute("aria-checked", String(on));
+  ui.mic.title = on ? "Navi is on. Click to turn it off: the mic closes and nothing stays loaded." : "Navi is off. Click to turn it on.";
+  setText($("power-label"), on ? "On" : "Off");
+  const stay = $("stay-awake");
+  stay.setAttribute("aria-pressed", String(settings.stayAwake));
+  stay.title = settings.stayAwake
+    ? "Stay awake is on: Navi never falls asleep on its own. Click to let it sleep after a quiet spell."
+    : "Stay awake: Navi never falls asleep on its own (say “go to sleep” to make it sleep).";
+  setText($("ptt-hint"), talkShortcut ? `${talkShortcut}: one command` : "");
   // What's hearing and speaking right now, so it's always clear what runs locally and what's paid.
   const engines = [ears.engineLabel && `Hears: ${ears.engineLabel}`, ears.voiceLabel && `Speaks: ${ears.voiceLabel}`];
   const engineText = engines.filter(Boolean).join(" · ");
@@ -153,13 +152,13 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, state === "error" ? text : (STATUS_LABELS[state] ?? text));
   const hint =
     state === "off"
-      ? `Navi is off and stays off, even after Chrome restarts. Click the mic${talkShortcut ? ` or press ${talkShortcut}` : ""} to turn it on.`
+      ? `Navi is off: the mic is closed and nothing is loaded. Turn it on with the switch${talkShortcut ? `, or press ${talkShortcut} for one command` : ""}.`
       : state === "error"
         ? ears.micError || worker.problem || text
         : state === "working"
           ? feed.activity || text
           : state === "sleeping" && ears.heardAsleep
-            ? `Heard “${ears.heardAsleep}”. Start with “Hey ${settings.wakeName}”.`
+            ? `Heard “${ears.heardAsleep}”. Say “wake up” first.`
             : text;
   setText(captionHint, hint);
 }
@@ -175,7 +174,7 @@ function setToggle(button: HTMLButtonElement, on: boolean, label: string) {
 }
 
 function renderSessionBar() {
-  const show = ears.listening && settings.listenMode === "handsfree" && ears.remainingMs > 0;
+  const show = ears.listening && ears.remainingMs > 0;
   ui.sessionBar.hidden = !show;
   if (show) {
     const pct = (ears.remainingMs / (settings.sessionTimeoutSec * 1000)) * 100;
@@ -263,10 +262,6 @@ async function checkMicPermission(): Promise<boolean> {
 
 function applySettings(next: Settings) {
   settings = next;
-  document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((r) => (r.checked = r.value === next.listenMode));
-  document.querySelectorAll(".wake-name").forEach((el) => (el.textContent = next.wakeName));
-  const handsFree = document.querySelector<HTMLElement>("label:has(input[value=handsfree])");
-  if (handsFree) handsFree.title = `Say “Hey ${next.wakeName}”, then talk.`;
   // Until the user picks Free or connects a key, say which one is running.
   ui.keyBanner.hidden = providersWithKeys(next).length > 0 || next.aiMode === "free";
   // How much the AI thinks: Pro only. A level set in Settings that isn't here leaves none selected.
@@ -290,12 +285,10 @@ function openSettings(e?: Event) {
 }
 
 ui.mic.addEventListener("click", () => {
-  void toWorker({ type: "navi:listen", on: !(worker.listening || ears.listening) });
+  void toWorker({ type: "navi:listen", on: !worker.listening });
 });
 
-document.querySelectorAll<HTMLInputElement>("input[name=mode]").forEach((radio) =>
-  radio.addEventListener("change", () => void saveSettings({ listenMode: radio.value as Settings["listenMode"] })),
-);
+$("stay-awake").addEventListener("click", () => void saveSettings({ stayAwake: !settings.stayAwake }));
 
 /** What was in the chat box when dictation started; dictated words go after it. */
 let dictationBase: string | null = null;

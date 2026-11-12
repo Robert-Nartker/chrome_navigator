@@ -7,7 +7,7 @@ const base: PillUpdate = {
   ears: { ...EARS_OFF, listening: true },
   worker: { working: false, numbers: false, grid: false, listening: true },
   wakeName: "Navi",
-  mode: "handsfree",
+  stayAwake: false,
 };
 const look = (u: Partial<PillUpdate>) => pillLook({ ...base, ...u });
 
@@ -17,9 +17,10 @@ describe("floating pill", () => {
     expect(look({ ears: EARS_OFF, worker: { ...base.worker, listening: false } })).toBeNull();
   });
 
-  it("says it's listening once awake, and just shows a mark in open-mic mode", () => {
+  it("says it's listening once awake, just shows a mark with Stay awake, and says when it's push to talk", () => {
     expect(look({ ears: { ...base.ears, awake: true } })).toEqual({ kind: "hint", icon: "bars", text: "Listening…" });
-    expect(look({ ears: { ...base.ears, awake: true }, mode: "open" })?.text).toBe("");
+    expect(look({ ears: { ...base.ears, awake: true }, stayAwake: true })?.text).toBe("");
+    expect(look({ ears: { ...base.ears, awake: true, once: true }, stayAwake: true })?.text).toBe("Listening for one command…");
   });
 
   it("puts what's being heard first, then the work, then the reply", () => {

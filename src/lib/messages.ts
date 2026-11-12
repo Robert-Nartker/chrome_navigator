@@ -30,19 +30,21 @@ export interface LogEntry {
 export interface EarsState {
   /** The mic is on. */
   listening: boolean;
-  /** Listening and awake (open mic, or after "Hey Navi"). */
+  /** Listening and taking commands: awake, or hearing one push-to-talk command. */
   awake: boolean;
+  /** Push to talk: waiting for (or hearing) one command. */
+  once?: boolean;
   /** Why listening doesn't work, if it doesn't. */
   micError: string;
   /** Which recognizer is listening, e.g. "Chrome (on-device)". */
   engineLabel: string;
   /** Which voice Navi last spoke with, e.g. "Kokoro (on-device)" ("" before it has spoken). */
   voiceLabel: string;
-  /** Until the hands-free session falls asleep (0 when not counting down). */
+  /** Until Navi falls asleep (0 when not counting down: asleep, or Stay awake). */
   remainingMs: number;
   /** Navi is talking. */
   speaking: boolean;
-  /** Hands-free and asleep: the last thing heard that didn't start with the wake name (cleared after a few seconds). */
+  /** Asleep: the last thing heard that didn't start with the wake name (cleared after a few seconds). */
   heardAsleep?: string;
   /** Speech goes into the chat box instead of running as commands. */
   dictating: boolean;
@@ -98,7 +100,7 @@ export type EarsRequest =
   | { type: "ears:say"; text: string }
   | { type: "ears:stop-speaking" }
   | { type: "ears:sound"; name: EarconName }
-  | { type: "ears:session"; action: "sleep" | "wake" | "touch" }
+  | { type: "ears:session"; action: "sleep" | "wake" | "touch" | "once" }
   | { type: "ears:dictate"; on: boolean }
   /** Navi Free's on-device model runs in the background page too. Answer: { text } or { error }. */
   | { type: "nano:prompt"; req: NanoRequest }
@@ -139,7 +141,8 @@ export type WorkerRequest =
   | { type: "navi:thread"; action: "new" | "switch" | "rename" | "delete"; id?: string; title?: string }
   | {
       type: "navi:test";
-      action: "reset" | "route" | "busy" | "ears" | "wake" | "memory" | "focus";
+      /** "wake": the push-to-talk shortcut. "asleep": on and asleep, as Start when Chrome opens leaves Navi. */
+      action: "reset" | "route" | "busy" | "ears" | "wake" | "asleep" | "memory" | "focus";
       text?: string;
       recent?: RecentCommand[];
       ears?: Extract<EarsRequest, { type: "ears:test" }>;
@@ -165,7 +168,7 @@ export interface PillUpdate {
   /** Navi's latest reply or error, to show briefly. */
   reply?: { kind: "navi" | "error"; text: string };
   wakeName: string;
-  mode: Settings["listenMode"];
+  stayAwake: boolean;
   /** This tab isn't the one Navi is using (another tab, or another window): no pill. */
   away?: boolean;
 }

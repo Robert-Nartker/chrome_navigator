@@ -1296,7 +1296,7 @@ test.describe("tutorial", () => {
     await run(panel, "no");
     await expectStep(panel, 2, 8, "Wake me up");
     await expect(lastNavi(panel)).toHaveText(
-      "Okay. I'll play a short sound when something works, and talk when there's something to tell you. I'm going to sleep now. To wake me, say my name and the command together. Try: Hey Navi, open Wikipedia.",
+      "Okay. I'll play a short sound when something works, and talk when there's something to tell you. I fall asleep when you've been quiet for a while. I'm going to sleep now. To wake me, say “wake up” and the command together. Try: wake up, open Wikipedia.",
     );
     expect((await settingsOf(panel)).feedback).toBe("minimal");
     await expect(panel.locator("#tutorial-yes")).toBeHidden();
@@ -1310,7 +1310,7 @@ test.describe("tutorial", () => {
     await expect.poll(() => context.pages().some((p) => /wikipedia|chrome-error/.test(p.url()))).toBe(true);
     for (const p of context.pages()) if (/wikipedia|chrome-error/.test(p.url())) await p.close();
     await site.bringToFront();
-    await expect(lastNavi(panel)).toHaveText(/^That's how you wake me\. “Hey Navigator” works too\..* Now say: scroll down\.$/);
+    await expect(lastNavi(panel)).toHaveText(/^That's how you wake me\. “Hey Navi” works too\..* Now say: scroll down\.$/);
     await run(panel, "scroll down");
     await expectStep(panel, 4, 8, "Click");
     await run(panel, "show numbers");
@@ -1527,11 +1527,11 @@ test.describe("after setup", () => {
   test("once Navi hears for the first time, it offers the spoken tour, once", async ({ panel }) => {
     const offer = panel.locator("#log li.navi .text").filter({ hasText: "For a two-minute tour" });
     await panel.evaluate(() => (window as unknown as { navi: { startListening(): Promise<void> } }).navi.startListening());
-    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "awake");
     // Not before setup has allowed the mic.
     await expect(offer).toHaveCount(0);
     await panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:mic-granted" }));
-    await expect(offer).toHaveText("Hi, I'm Navi, and I'm listening. For a two-minute tour of what I can do, say: Hey Navi, start the tutorial.");
+    await expect(offer).toHaveText("Hi, I'm Navi, and I'm listening. For a two-minute tour of what I can do, say: start the tutorial.");
     await panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:mic-granted" }));
     await panel.waitForTimeout(1500);
     await expect(offer).toHaveCount(1);
@@ -2272,7 +2272,8 @@ test("typed: a task looks at the page first, then acts, and knows what happened 
   expect(bodies).toHaveLength(3);
   const first = String((bodies[0].input as { content?: unknown }[])[0].content);
   expect(first).toContain("Recent activity");
-  expect(first).toContain('typed "click sign in" → Clicked Sign in');
+  // When it happened, what was typed (or heard), and what Navi did, so the AI can explain it later.
+  expect(first).toMatch(/- \d{1,2}:\d{2}.* typed "click sign in" → built-in command \w+: Clicked Sign in/);
   await expect(panel.locator("#log > li.turn").last().locator("li.step").nth(1)).toHaveText("Looking at the page");
 });
 
@@ -2525,7 +2526,7 @@ test.describe("Navi's on-device voice", () => {
       panel.evaluate(async () => (await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType] })).length);
     expect(await backgroundPages()).toBe(1);
     // Off: Navi's background page (and the voice model, recognizer and mic in it) is closed.
-    await panel.getByRole("button", { name: "Turn Navi off" }).click();
+    await panel.getByRole("switch", { name: "Navi" }).click();
     await expect.poll(backgroundPages).toBe(0);
     // Typed commands still work while off.
     await panel.evaluate(() => (window as unknown as { navi: { run(t: string, s: string): Promise<void> } }).navi.run("what time is it", "typed"));

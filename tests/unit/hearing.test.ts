@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCommand } from "../../src/lib/parser";
+import { isCommandStart, parseCommand } from "../../src/lib/parser";
 
 // How Chrome's recognizer really mishears everyday commands, and the chatter it picks up. Each
 // mishearing must run the command that was meant; chatter must run nothing (it goes to the router,
@@ -21,6 +21,7 @@ const MEANT: Record<string, string[]> = {
   "hide numbers": ["hide number", "hyde numbers", "height numbers"],
   "click 5": ["click five", "clique 5", "quick 5", "clicks 5", "click on 5", "click number 5"],
   pause: ["paws"],
+  "pause the video": ["paws the video", "how's the video", "pause video", "paused the video", "pauses the video"],
   mute: ["mewt", "moot"],
   "where am i": ["wear am i"],
   "scroll to the top": ["scroll to the tap"],
@@ -99,7 +100,7 @@ describe("hearing: typing and finding take just the words meant", () => {
 
 describe("hearing: the wake name", async () => {
   const { WakeSession } = await import("../../src/lib/session");
-  const woke = (said: string) => new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 }).handle(said).woke;
+  const woke = (said: string) => new WakeSession({ stayAwake: false, wakeName: "Navi", timeoutSec: 120 }).handle(said).woke;
   it("wakes for the ways Chrome writes “Hey Navi” down", () => {
     const heard = [
       "hey navi scroll down", "Hey Navi.", "hey navy", "hey Navy, open YouTube", "hey nabi", "hey novi", "hey navie", "hey navvy",
@@ -110,7 +111,7 @@ describe("hearing: the wake name", async () => {
     for (const h of heard) expect(woke(h), `"${h}"`).toBe(true);
   });
   it("keeps nothing said before the name", () => {
-    const session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
+    const session = new WakeSession({ stayAwake: false, wakeName: "Navi", timeoutSec: 120 });
     expect(session.fromName("so anyway tiktok hey navi open youtube")).toBe("hey navi open youtube");
     expect(session.fromName("um wake up")).toBe("wake up");
     expect(session.fromName("scroll down")).toBe("scroll down");
@@ -184,5 +185,41 @@ describe("answering a helper's question by voice", () => {
   });
   it("leaves AI tasks that start with “answer” alone", () => {
     expect(parseCommand("answer this email saying thanks")?.type).not.toBe("helperQuestion");
+  });
+});
+
+describe("on, off, awake and asleep by voice", () => {
+  it("Stay awake on and off", () => {
+    for (const said of ["stay awake", "keep listening", "don't fall asleep", "don't go to sleep", "open mic", "turn on open mic", "caffeine mode", "stay on"]) {
+      expect(parseCommand(said), `"${said}"`).toEqual({ type: "stayAwake", on: true });
+    }
+    for (const said of ["you can sleep when I'm quiet", "fall asleep on your own", "stop staying awake", "stay awake off", "turn off stay awake", "turn off open mic"]) {
+      expect(parseCommand(said), `"${said}"`).toEqual({ type: "stayAwake", on: false });
+    }
+  });
+  it("what Navi does when Chrome opens", () => {
+    for (const said of ["start when chrome opens", "listen when chrome starts", "start with chrome", "always start listening when chrome opens", "start asleep"]) {
+      expect(parseCommand(said), `"${said}"`).toEqual({ type: "startOnLaunch", on: true });
+    }
+    for (const said of ["start off when chrome opens", "don't start when chrome opens", "don't listen when chrome starts", "don't start with chrome"]) {
+      expect(parseCommand(said), `"${said}"`).toEqual({ type: "startOnLaunch", on: false });
+    }
+  });
+  it("turn on, wake up, and the commands they're close to", () => {
+    expect(parseCommand("turn on")).toEqual({ type: "turnOn" });
+    expect(parseCommand("start listening")).toEqual({ type: "turnOn" });
+    expect(parseCommand("wake up")).toEqual({ type: "wake" });
+    expect(parseCommand("hey wake up navi")).toEqual({ type: "wake" });
+    expect(parseCommand("go to sleep")).toEqual({ type: "sleep" });
+    expect(parseCommand("turn off")).toEqual({ type: "turnOff" });
+    expect(parseCommand("stay in this window")).toMatchObject({ type: "pinWindow", on: true });
+    expect(parseCommand("keep scrolling")).toMatchObject({ type: "scroll" });
+  });
+});
+
+describe("the first words of a command wait for the rest", () => {
+  it("knows a command that isn't finished yet", () => {
+    for (const said of ["close", "scroll to the", "go to", "next"]) expect(isCommandStart(said), `"${said}"`).toBe(true);
+    for (const said of ["close tab", "scroll down", "pause", "so I told my friend", "hello"]) expect(isCommandStart(said), `"${said}"`).toBe(false);
   });
 });

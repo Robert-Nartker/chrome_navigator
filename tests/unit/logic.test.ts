@@ -68,9 +68,9 @@ describe("sites", () => {
 });
 
 describe("WakeSession", () => {
-  function make(mode: "handsfree" | "open" = "handsfree") {
+  function make(stayAwake = false) {
     let t = 0;
-    const session = new WakeSession({ mode, wakeName: "Navi", timeoutSec: 60 }, () => t);
+    const session = new WakeSession({ stayAwake, wakeName: "Navi", timeoutSec: 60 }, () => t);
     return { session, advance: (ms: number) => (t += ms) };
   }
 
@@ -105,13 +105,19 @@ describe("WakeSession", () => {
     expect(session.handle("go back").command).toBeNull();
   });
 
-  it("treats everything as a command in open mic mode, and notices the name", () => {
-    const { session } = make("open");
+  it("with Stay awake, never falls asleep on its own, but still sleeps when told", () => {
+    const { session, advance } = make(true);
+    session.wake();
+    advance(60 * 60_000);
+    expect(session.current).toBe("awake");
+    expect(session.remainingMs).toBe(0);
     expect(session.handle("go back")).toEqual({ command: "go back", woke: false, named: false });
     expect(session.handle("navi go back")).toEqual({ command: "go back", woke: false, named: true });
     // "Hey Navi" alone: nothing to run, but Navi says it heard (a sound).
     expect(session.handle("hey navi")).toEqual({ command: null, woke: false, named: true });
-    expect(session.handle("wake up")).toEqual({ command: null, woke: false, named: true });
+    session.sleep();
+    expect(session.handle("scroll down").command).toBeNull();
+    expect(session.handle("wake up")).toEqual({ command: null, woke: true });
   });
 
   it("wakes on “wake up” or “wake”, with or without the name, and runs what follows", () => {
