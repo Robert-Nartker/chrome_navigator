@@ -67,6 +67,27 @@ describe("hearing: never the opposite", () => {
   });
 });
 
+describe("hearing: everyday ways to say scroll still scroll", () => {
+  it("scrolls down for phrasings without a direction word", () => {
+    for (const said of ["scroll through the comments", "scroll farther", "scroll past this", "scroll ahead", "keep scrolling", "scroll a bit"]) {
+      expect(parseCommand(said), `"${said}"`).toMatchObject({ type: "scroll", direction: "down" });
+    }
+  });
+});
+
+describe("hearing: the user's own words are kept as said", () => {
+  it("run-together words are split only at the start of a command", () => {
+    expect(parseCommand("search for closeup photos")).toMatchObject({ type: "search", query: "closeup photos" });
+    expect(parseCommand("type closeout sale")).toMatchObject({ type: "type", text: "closeout sale" });
+  });
+  it("“type out of office” types all of it", () => {
+    expect(parseCommand("type out of office")).toMatchObject({ type: "type", text: "out of office" });
+  });
+  it("“what did I say” is left to the AI", () => {
+    expect(parseCommand("what did I say")).toBeNull();
+  });
+});
+
 describe("hearing: typing and finding take just the words meant", () => {
   it("type in … and then hit enter", () => {
     expect(parseCommand("type in hello world and then hit enter")).toEqual({ type: "type", text: "hello world", submit: true });
@@ -88,10 +109,17 @@ describe("hearing: the wake name", async () => {
     ];
     for (const h of heard) expect(woke(h), `"${h}"`).toBe(true);
   });
+  it("keeps nothing said before the name", () => {
+    const session = new WakeSession({ mode: "handsfree", wakeName: "Navi", timeoutSec: 120 });
+    expect(session.fromName("so anyway tiktok hey navi open youtube")).toBe("hey navi open youtube");
+    expect(session.fromName("um wake up")).toBe("wake up");
+    expect(session.fromName("scroll down")).toBe("scroll down");
+  });
   it("doesn't wake for everyday talk", () => {
     const talk = [
       "hey nancy can you pass the salt", "hey there", "hey man", "hey buddy", "hey Google", "hey Siri", "hey mom", "I joined the navy",
       "okay", "navigate to the store", "the navy seals", "hey now", "hey babe", "hey honey", "hey Nate", "have a nice day", "hey look at this", "hey Nick",
+      "I need a knife", "take a nap", "a nephew of mine", "grab a knife and fork",
     ];
     for (const t of talk) expect(woke(t), `"${t}"`).toBe(false);
   });

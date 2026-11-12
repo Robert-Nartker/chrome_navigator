@@ -61,23 +61,33 @@ export function hearingColumns(hearing: Hearing | undefined): Partial<CommandMet
 }
 
 /** Marks the last spoken command as misheard. Returns what was heard, if there was one. */
-export async function markLastMisheard(): Promise<CommandMetric | undefined> {
-  const stored = await chrome.storage.local.get(KEY);
-  const rows = (stored[KEY] as CommandMetric[] | undefined) ?? [];
-  const last = [...rows].reverse().find((r) => r.heard !== undefined && !r.misheard && r.intent !== "misheard" && r.intent !== "whatHeard");
-  if (!last) return undefined;
-  last.misheard = true;
-  await chrome.storage.local.set({ [KEY]: rows });
-  return last;
+export function markLastMisheard(): Promise<CommandMetric | undefined> {
+  return update((rows) => {
+    const last = [...rows].reverse().find((r) => r.heard !== undefined && !r.misheard && r.intent !== "misheard" && r.intent !== "whatHeard");
+    if (last) last.misheard = true;
+    return last;
+  });
 }
 
 const KEY = "metrics";
 const MAX_ROWS = 2000;
 
-export async function recordMetric(metric: CommandMetric) {
-  const stored = await chrome.storage.local.get(KEY);
-  const rows = ((stored[KEY] as CommandMetric[] | undefined) ?? []).concat(metric).slice(-MAX_ROWS);
-  await chrome.storage.local.set({ [KEY]: rows });
+/** Writes to the log one at a time, so two at once can't drop a row or undo a change. */
+let writes: Promise<unknown> = Promise.resolve();
+function update<T>(change: (rows: CommandMetric[]) => T): Promise<T> {
+  const next = writes.then(async () => {
+    const stored = await chrome.storage.local.get(KEY);
+    const rows = (stored[KEY] as CommandMetric[] | undefined) ?? [];
+    const result = change(rows);
+    await chrome.storage.local.set({ [KEY]: rows.slice(-MAX_ROWS) });
+    return result;
+  });
+  writes = next.catch(() => undefined);
+  return next;
+}
+
+export function recordMetric(metric: CommandMetric): Promise<void> {
+  return update((rows) => void rows.push(metric));
 }
 
 export async function loadMetrics(): Promise<CommandMetric[]> {

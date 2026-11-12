@@ -427,6 +427,8 @@ export class WebSpeechEngine implements SpeechEngine {
       const words = [phrase.done, phrase.live].filter(Boolean).join(" ");
       const now = Date.now();
       if (words && !this.phraseStartedAt) this.phraseStartedAt = now;
+      // Chrome took its words back: the next words start a new phrase.
+      if (!words) this.phraseStartedAt = 0;
       if (words !== this.lastWords) {
         this.wordsChangedAt = now;
         this.lastWords = words;

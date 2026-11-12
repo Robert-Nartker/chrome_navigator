@@ -993,6 +993,18 @@ test.describe("listening log", () => {
     const top = rows.find((r) => r.heard === "go to the top")!;
     expect(top).toMatchObject({ ending: "held", misheard: true });
     expect(top.waitMs).toBeGreaterThanOrEqual(400);
+
+    // Words said before the name, in the same breath, are never kept.
+    await hear(panel, "go to sleep", true);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    await panel.waitForTimeout(800);
+    await hear(panel, "so anyway hey navi scroll down", true, ["so anyway hey navy scroll down", "so anyway he named scroll down"]);
+    await expect.poll(async () => (await panel.evaluate(async () => ((await chrome.storage.local.get("metrics")).metrics ?? []) as Row[])).at(-1)?.heard).toBe(
+      "hey navi scroll down",
+    );
+    const last = (await panel.evaluate(async () => ((await chrome.storage.local.get("metrics")).metrics ?? []) as Row[])).at(-1)!;
+    expect(last.alternatives).toBe("hey navy scroll down");
+    expect(JSON.stringify(last)).not.toContain("anyway");
   });
 });
 

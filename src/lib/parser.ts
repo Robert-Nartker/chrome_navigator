@@ -158,7 +158,9 @@ function fuzzyWake(text: string, name: string, maxLead: number): { woke: boolean
     const word = bare(words[i]);
     const merged = /^(?:hey|hay|hi|a)(.+)$/.exec(word);
     if (merged && similarity(merged[1], name) >= 0.75) return { woke: true, rest: words.slice(i + 1).join(" ") };
-    if (GREETINGS.has(word) && i + 1 < words.length && (similarity(bare(words[i + 1]), name) >= 0.6 || soundsLikeName(words[i + 1], name))) {
+    const next = i + 1 < words.length ? words[i + 1] : "";
+    // Matching by sound only after a real greeting: after "a", everyday words sound alike too ("a knife", "a nap").
+    if (GREETINGS.has(word) && next && (similarity(bare(next), name) >= 0.6 || (word !== "a" && soundsLikeName(next, name)))) {
       return { woke: true, rest: words.slice(i + 2).join(" ").replace(/^[,.!?\s]+/, "") };
     }
   }
@@ -214,7 +216,7 @@ const RULES: Rule[] = [
 
   // Talking with Navi
   [/^(?:no )?(?:that'?s|that is|that was) not what i said$|^(?:no )?you (?:misheard(?: me| that)?|heard (?:me|that) wrong)$|^(?:you )?misheard(?: me)?$|^wrong command$/, () => ({ type: "misheard" })],
-  [/^what did you (?:just )?hear(?: me say)?$|^what did you think i said$|^what did i (?:just )?say$/, () => ({ type: "whatHeard" })],
+  [/^what did you (?:just )?hear(?: me say)?$|^what did you think i said$/, () => ({ type: "whatHeard" })],
   [/^(?:what did you (?:just )?say|say (?:that|it) again|repeat (?:that|it|yourself|what you said)?|come again|pardon(?: me)?|sorry what|what was that|huh|i didn'?t (?:catch|hear) (?:that|you))$/, () => ({ type: "repeat" })],
   [/^(?:thanks?|thank you|thanks navi|got it|ok(?:ay)? thanks|perfect|cool|nice|great|awesome|good job|sounds good)$/, () => ({ type: "ack" })],
   [/^(?:are you (?:there|awake|listening|on)|you there|hello|hi|hey|can you hear me)$/, () => ({ type: "ack", reply: "I'm here." })],
@@ -418,7 +420,7 @@ const RULES: Rule[] = [
     const target = parseNumber(m[2]);
     return target === null ? null : { type: "type", text: m[1], target, submit: / and (?:press enter|submit|search|send)$/.test(m[0]) };
   }],
-  [/^(?:type|dictate)(?: in| out)? (.+?)(?: and (?:then )?(press enter|hit enter|submit|search|send))?$/, (m) => {
+  [/^(?:type|dictate)(?: in)? (.+?)(?: and (?:then )?(press enter|hit enter|submit|search|send))?$/, (m) => {
     // "type hello in the search box" names a target by description: let the AI find it.
     if (/ (?:in|into) (?:the |this )?\w+(?: \w+)? (?:box|field|bar|input)$/.test(m[1])) return null;
     return { type: "type", text: m[1], submit: !!m[2] };
@@ -552,8 +554,10 @@ function looseIntent(t: string): Intent | null {
             : /\bright\b/.test(t)
               ? "right"
               : "down";
-    // No direction said: down, unless there's a word that isn't explained ("scroll op" may be "scroll up").
-    if (direction === "down" && !/\bdown\b/.test(t) && (words.some((w) => !SCROLL_WORDS.has(w)) || words.at(-1) === "a")) return null;
+    // No direction said: down, unless a word may be a misheard direction ("scroll op", "scroll a", "scroll to
+    // the tap"): a short unexplained one, or one that sounds like "up" or "top".
+    const unclear = (w: string) => !SCROLL_WORDS.has(w) && (w.length <= 2 || soundsClose(w, "up") || soundsClose(w, "top"));
+    if (direction === "down" && !/\bdown\b/.test(t) && (words.some(unclear) || words.at(-1) === "a")) return null;
     const amount: ScrollAmount = /\b(?:little|bit|slightly|tad|touch|smidge)\b/.test(t)
       ? "small"
       : /\b(?:lot|way|much|far|bunch|fast)\b/.test(t)
@@ -580,8 +584,8 @@ const CANONICAL = [
 
 /** Phrases matched by how they sound when nothing matched by spelling ("clothes tab", "go bag", "paws"). */
 const SOUND_PHRASES = [...CANONICAL, "stop", "flags", "show the flags", "close the tab", "go back a page"];
-/** Words Chrome sometimes runs together ("scrollup", "newtab"). */
-const GLUED = /\b(scroll|zoom|go|close|new|next|page)(up|down|in|out|back|forward|tab)\b/g;
+/** Words Chrome sometimes runs together at the start of a command ("scrollup", "newtab"); never inside the user's own words. */
+const GLUED = /^(scroll|zoom|go|close|new|next|page)(up|down|in|out|back|forward|tab)\b/;
 /** Agreement noises, not "huh?" (which asks Navi to repeat). */
 const AGREEING = /^(?:uh|um|mm|mhm|m)[ -]?(?:huh|hmm|hm|mm)$/;
 

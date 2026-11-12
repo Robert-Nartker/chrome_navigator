@@ -43,11 +43,19 @@ const HEARD_MS = 6000;
 
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
 
-/** Navi hearing its own voice: most of the words are in what it's saying. */
+/** Little words almost every sentence has: they say nothing about whether Navi is hearing itself. */
+const SMALL_WORDS = new Set("a an the to of in on at for and or i you it is me my this that your".split(" "));
+
+/**
+ * Navi hearing its own voice: most of the words are in what it's saying. Little words don't count, so a
+ * command said over Navi ("go to sleep" while it says "…go to the top…") isn't mistaken for an echo.
+ */
 export function isEcho(heard: string, saying: string): boolean {
   const said = new Set(words(saying));
-  const h = words(heard);
-  if (!h.length) return true;
+  const all = words(heard);
+  if (!all.length) return true;
+  const meaningful = all.filter((w) => !SMALL_WORDS.has(w));
+  const h = meaningful.length ? meaningful : all;
   return h.filter((w) => said.has(w)).length / h.length >= 0.6;
 }
 /** Dictation ends by itself after this long without hearing anything. */
@@ -227,7 +235,16 @@ export class Ears {
     }
     if (decision.command) {
       const others = alternatives.map((a) => this.session.withoutName(a)).filter((a) => a && a !== decision.command);
-      this.out.command(decision.command, confidence, others, { heard: transcript, alternatives, confidence, ...timing });
+      // For the usage log: never words said before the name.
+      const heard = this.session.fromName(transcript);
+      const strays = heard !== transcript.trim();
+      this.out.command(decision.command, confidence, others, {
+        heard,
+        // Other guesses too; where words before the name were dropped, only guesses that have the name.
+        alternatives: alternatives.map((a) => this.session.fromName(a)).filter((a, i) => !strays || a !== alternatives[i].trim()),
+        confidence,
+        ...timing,
+      });
     }
     // Asleep and not for Navi: show what was heard for a moment, so a missed "Hey Navi" is visible.
     this.heardAsleep = this.asleep && !decision.woke ? transcript : "";

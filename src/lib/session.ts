@@ -79,6 +79,19 @@ export class WakeSession {
     return true;
   }
 
+  /**
+   * The phrase from the wake name on: words said before it (asleep, up to three are tolerated) are
+   * dropped, since speech before the name is never kept. Unchanged if the name isn't in it.
+   */
+  fromName(text: string): string {
+    const words = text.trim().split(/\s+/);
+    for (let i = 0; i <= 3 && i < words.length; i++) {
+      const rest = words.slice(i).join(" ");
+      if (WAKE_UP.test(rest) || stripWakePhrase(rest, this.aliases, false).woke) return rest;
+    }
+    return text.trim();
+  }
+
   /** A phrase without the wake name in front (for the recognizer's other guesses at a command). */
   withoutName(text: string): string {
     return stripWakePhrase(text, this.aliases, true).rest;

@@ -12,5 +12,8 @@ describe("isEcho", () => {
     expect(isEcho("close this tab", saying)).toBe(false);
     expect(isEcho("no, open spotify instead", saying)).toBe(false);
     expect(isEcho("scroll down", "")).toBe(false);
+    // Little words in common don't make it an echo.
+    expect(isEcho("go to sleep", "Sorry. I heard “go to the top”. I've noted it, so it can be fixed.")).toBe(false);
+    expect(isEcho("open the settings", "I opened the page for you.")).toBe(false);
   });
 });
