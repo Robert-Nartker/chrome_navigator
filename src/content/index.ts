@@ -2,7 +2,7 @@
 
 import type { PillUpdate } from "../lib/messages";
 import type { ContentRequest, ContentResponse } from "../lib/protocol";
-import { autoScroll, click, edit, findOnPage, media, pressKey, readPage, scroll, selectOption, typeKeys, typeText } from "./actions";
+import { autoScroll, click, edit, hover, findOnPage, media, pressKey, readPage, scroll, selectOption, typeKeys, typeText } from "./actions";
 import { hasUnsavedTyping } from "./unsaved";
 import { clickAtPoint, gridActive, hideGrid, runGrid } from "./grid";
 import { badgesVisible, destroyOverlay, displayedGeneration, hideBadges, refreshBadges, showBadges } from "./overlay";
@@ -38,6 +38,12 @@ async function handle(req: ContentRequest): Promise<ContentResponse> {
       const name = accessibleName(el);
       click(el);
       return { ok: true, detail: name ? `Clicked ${name}` : "Clicked" };
+    }
+    case "hover": {
+      const el = element(req.id, req.gen);
+      const name = accessibleName(el);
+      hover(el);
+      return { ok: true, detail: name ? `Hovering over ${name}` : "Hovering" };
     }
     case "type": {
       const target = req.id !== undefined ? element(req.id, req.gen) : null;

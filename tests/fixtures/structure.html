@@ -4,7 +4,8 @@
 <body>
   <header>
     <a href="#home">Desk Shop</a>
-    <nav aria-label="Primary"><a href="#desks">Desks</a> <a href="#chairs">Chairs</a> <a href="#help">Help</a></nav>
+    <nav aria-label="Primary"><a href="#desks">Desks</a> <a href="#chairs">Chairs</a> <a href="#help" id="help">Help</a>
+      <div id="help-menu" hidden><a href="#contact">Contact us</a></div></nav>
   </header>
   <main>
     <h1>Standing desks</h1>
@@ -27,4 +28,8 @@
     </form>
   </main>
   <footer><a href="#privacy">Privacy</a></footer>
+  <script>
+    // A menu that opens under the mouse, as many sites have.
+    document.getElementById("help").addEventListener("mouseenter", () => (document.getElementById("help-menu").hidden = false));
+  </script>
 </body></html>

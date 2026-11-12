@@ -5,6 +5,22 @@ import type { EditAction, Key, MediaAction, ScrollAmount, ScrollDirection } from
 import { deepActiveElement } from "./snapshot";
 import { flash } from "./overlay";
 
+/**
+ * Moves the "mouse" onto an element, for menus that open on hover. Pages hear the same events a mouse
+ * makes; it's also focused, since many menus open on focus too. (Menus that only use CSS :hover need a
+ * real mouse; the mouse grid's click works there.)
+ */
+export function hover(el: Element) {
+  ensureInView(el);
+  flash(el);
+  const init = { bubbles: true, cancelable: true, composed: true, view: window, ...center(el) };
+  for (const type of ["pointerover", "pointerenter", "pointermove"]) {
+    el.dispatchEvent(new PointerEvent(type, { ...init, bubbles: type !== "pointerenter", pointerType: "mouse" }));
+  }
+  for (const type of ["mouseover", "mouseenter", "mousemove"]) el.dispatchEvent(new MouseEvent(type, { ...init, bubbles: type !== "mouseenter" }));
+  (el as HTMLElement).focus?.({ preventScroll: true });
+}
+
 function center(el: Element) {
   const r = el.getBoundingClientRect();
   return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };

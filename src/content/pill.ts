@@ -62,6 +62,16 @@ const STYLE = `
     .pill[data-kind="hear"] .bars i, .spin { animation: none; }
   }
   @media print { .pill { display: none; } }
+  /* Low vision ("increase contrast" on the computer): solid black, white text, a bright rim, bigger text. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .pill, .pill[data-compact="true"] {
+      background: #000; color: #fff; text-shadow: none; font-size: 17px;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px #000;
+    }
+    .pill[data-kind="hint"] .text { color: #fff; }
+    .pill[data-kind="error"] .text { color: #ffb4b4; }
+    .bars i, .dot { background: #ffd60a; }
+  }
 `;
 
 type Look = { kind: "hear" | "work" | "reply" | "error" | "hint"; icon: "bars" | "spin" | "dot"; text: string };

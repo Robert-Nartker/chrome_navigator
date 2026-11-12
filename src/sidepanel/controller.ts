@@ -1213,6 +1213,20 @@ export class Controller {
         await this.confirm(res.detail ?? `Clicked ${intent.n}`);
         return;
       }
+      case "hover": {
+        let id = intent.n;
+        let gen: number | undefined;
+        if (id === undefined) {
+          const snap = await snapshot(tab);
+          const match = bestMatch(intent.text ?? "", snap.elements);
+          if (!match) throw new Unhandled(`I couldn't find ${intent.text}. Say flags, then “hover” and a flag's number.`);
+          id = match.element.id;
+          gen = snap.gen;
+        }
+        const res = await pageRequest(tab, { kind: "hover", id, gen });
+        await this.confirm(res.detail ?? "Hovering");
+        return;
+      }
       case "clickText": {
         const snap = await snapshot(tab);
         const match = bestMatch(intent.text, snap.elements);

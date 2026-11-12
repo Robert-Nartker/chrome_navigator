@@ -28,7 +28,7 @@ new tab; new window; close tab (the current one); close <site or title> tab; clo
 find <text> (on this page); find next; select all; undo; clear it; new line; delete that (what Navi just typed); delete the last word; delete the last <n> words; print
 what did you say; what did you hear (what the recognizer wrote down); that's not what I said (marks the last command misheard); talk louder; talk quieter; talk faster; talk slower; what time is it; what's the date
 open <site or URL> (opens it in a new tab); go to <site or URL> (in this tab); search for <query>; search <youtube|amazon|wikipedia|reddit|github|maps|spotify|images> for <query> (optionally "in a new tab"); search this site for <query>
-flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>
+flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>; hover over <name>; hover <number> (menus that open under the mouse)
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
 pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; volume <0-100>; restart the video

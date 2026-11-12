@@ -149,3 +149,13 @@ describe("moving through a page by its structure", () => {
     expect(parseCommand("go to youtube")).toMatchObject({ type: "open" });
   });
 });
+
+describe("hovering by voice", () => {
+  it("by name or by flag number", () => {
+    expect(parseCommand("hover over account")).toEqual({ type: "hover", text: "account" });
+    expect(parseCommand("mouse over the help menu")).toEqual({ type: "hover", text: "help" });
+    expect(parseCommand("hover 5")).toEqual({ type: "hover", n: 5 });
+    expect(parseCommand("hover over number twelve")).toEqual({ type: "hover", n: 12 });
+    expect(parseCommand("put the mouse on sign in")).toEqual({ type: "hover", text: "sign in" });
+  });
+});

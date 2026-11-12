@@ -59,6 +59,8 @@ export type Intent =
   | { type: "whatHeard" }
   /** Moving through the page's structure, as screen reader users do: "next heading", "list links", "go to the email field". */
   | { type: "structure"; what: StructureKind; action: StructureAction; name?: string }
+  /** Moving the mouse onto something (menus that open on hover): by flag number or by name. */
+  | { type: "hover"; n?: number; text?: string }
   | { type: "ack"; reply?: string }
   | { type: "voice"; change: "louder" | "quieter" | "faster" | "slower" }
   | { type: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
@@ -485,6 +487,13 @@ const RULES: Rule[] = [
     (!m[2] && (similarity(m[1], "tab") >= 0.6 || soundKey(m[1]) === soundKey("tab")))
       ? null
       : { type: "closeNamedTab", query: m[1], saidTab: !!m[2] }],
+
+  // Hovering, for menus that open under the mouse: "hover over account", "hover 5".
+  [new RegExp(`^(?:hover|mouse) (?:over |on )?(?:number |flag )?${N}$`), (m) => {
+    const n = parseNumber(m[1]);
+    return n === null ? null : { type: "hover", n };
+  }],
+  [/^(?:hover|mouse) (?:over |on )?(?:the )?(.+?)(?: button| link| menu| tab| icon)?$|^(?:move|put) the mouse (?:over|on|to) (?:the )?(.+?)(?: button| link| menu| tab| icon)?$/, (m) => ({ type: "hover", text: m[1] ?? m[2] })],
 
   // Clicking by label: "click sign in". Resolved against the page before falling back to AI.
   [/^(?:click|press|tap|hit|select|choose)(?: on)?(?: the)? (.+?)(?: button| link| tab| icon)?$/, (m) =>

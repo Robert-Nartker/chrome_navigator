@@ -92,7 +92,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Search | "search for a used civic" (searches the site you're on, with its own search box), "search YouTube for lofi", "google pizza near me" |
 | Tabs | "new tab", "close tab", "next tab", "tab 3", "switch to YouTube", "reopen closed tab", "what tabs are open" |
 | Windows | "stay in this window", "follow me", "move this tab to a new window", "open YouTube in a new window" |
-| Click | "flags", then "12" (or "click 12"); or "click sign in" |
+| Click | "flags", then "12" (or "click 12"); or "click sign in". For menus that open under the mouse: "hover over account", "hover 12" |
 | Mouse grid | "grid", then a block number (1–9, laid out like a phone keypad) to zoom in, or several at once ("5 3"). "click", "click 7", "click 5 3", "double click", "right click". "back" zooms out, "grid off" closes it |
 | Type | "type hello world", "type cats into 5 and press enter", "press enter", "escape"; typing again adds a space between words. Fix it with "delete that" (what Navi just typed), "delete the last word", "delete the last 3 words" |
 | Media | "pause", "play", "skip ahead 30 seconds", "mute" |

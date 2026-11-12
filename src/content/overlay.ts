@@ -26,6 +26,11 @@ const STYLE = `
     position: fixed; border: 2px solid #6b6bf0; border-radius: 6px;
     background: rgba(107, 107, 240, .12); transition: opacity .5s ease; pointer-events: none;
   }
+  /* Low vision ("increase contrast"): solid black tags with yellow numbers, larger, and a thick outline. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .badge { font-size: 15px; padding: 4px 6px; color: #ffd60a; background: #000; box-shadow: 0 0 0 2px #fff; }
+    .flash { border: 4px solid #ffd60a; background: none; box-shadow: 0 0 0 2px #000; }
+  }
 `;
 
 function ensureLayer(): HTMLDivElement {

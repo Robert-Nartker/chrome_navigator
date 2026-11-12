@@ -55,6 +55,7 @@ export type ContentRequest =
   | { kind: "showBadges" }
   | { kind: "hideBadges" }
   | { kind: "click"; id: number; gen?: number }
+  | { kind: "hover"; id: number; gen?: number }
   | { kind: "type"; id?: number; gen?: number; text: string; submit: boolean; clear: boolean }
   | { kind: "select"; id: number; gen?: number; option: string }
   /** `id`: scroll the panel or list this element is in (a sidebar of filters), not the page. */

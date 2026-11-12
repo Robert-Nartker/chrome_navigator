@@ -1455,6 +1455,25 @@ test("moving through a page by its structure, without seeing it: headings, secti
   await expect(said.last()).toContainText("There's no heading called “shipping” on this page.");
 });
 
+test("hovering by voice opens a menu that opens under the mouse; with “increase contrast” on, Navi's tags and caption are high contrast", async ({ panel, site, baseUrl }) => {
+  await site.goto(`${baseUrl}/structure.html`);
+  await site.bringToFront();
+  await expect(site.locator("#help-menu")).toBeHidden();
+  await run(panel, "hover over help");
+  await expect(site.locator("#help-menu")).toBeVisible();
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("Hovering over Help");
+
+  await site.emulateMedia({ contrast: "more" });
+  await run(panel, "flags");
+  const badge = site.locator("navi-overlay").locator(".badge").first();
+  await expect(badge).toBeVisible();
+  expect(await badge.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(0, 0, 0)");
+  expect(await badge.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(255, 214, 10)");
+  const pill = site.locator("navi-pill").locator(".pill");
+  await expect(pill).toHaveAttribute("data-shown", "true");
+  expect(await pill.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(0, 0, 0)");
+});
+
 test("describe the screen: the AI looks and describes it for someone who can't see it", async ({ panel, context }) => {
   const bodies: { input: { role?: string; content?: unknown }[] }[] = [];
   await context.route("https://api.openai.com/v1/responses", (route) => {

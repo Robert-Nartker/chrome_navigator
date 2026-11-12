@@ -131,7 +131,7 @@ function highlight(el: Element) {
     top: `${rect.top - 4}px`,
     width: `${rect.width + 8}px`,
     height: `${rect.height + 8}px`,
-    border: "3px solid #4f46e5",
+    border: matchMedia("(prefers-contrast: more), (forced-colors: active)").matches ? "5px solid #ffd60a" : "3px solid #4f46e5",
     borderRadius: "6px",
     pointerEvents: "none",
     zIndex: "2147483646",

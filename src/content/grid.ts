@@ -68,6 +68,13 @@ const STYLE = `
     text-shadow: 0 0 2px rgba(0, 0, 0, .8), 0 0 6px rgba(0, 0, 0, .45);
   }
   [data-labels="off"] .tile b, [data-preview]:not([data-preview="labels"]) .preview i { opacity: 0; }
+  /* Low vision ("increase contrast"): solid tags, yellow numbers, and solid lines. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    :host { --accent: #ffd60a; --ink: #000; }
+    .tile b { color: #ffd60a; box-shadow: 0 0 0 2px #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .major { stroke: #fff; stroke-width: 3px; }
+    .major.halo { stroke: #000; stroke-width: 6px; }
+  }
   [data-preview="none"] .minor, [data-lines="off"] .lines { opacity: 0; }
   .instant, .instant * { transition: none !important; }
 

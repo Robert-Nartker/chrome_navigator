@@ -14,7 +14,7 @@ Navi lets people use the web by talking to it: built-in commands for everyday br
 | **Limited or painful hand use** | Arthritis, RSI and carpal tunnel, tremor (Parkinson's, essential tremor), MS, stroke | Fewer, bigger actions; no fine pointing; rest for hands | All of the above, plus mixing voice with some mouse use | Same as above; a push-to-talk key or foot pedal for people who can press one |
 | **Temporary injury** | A cast, a broken wrist, after surgery (Theo Browne coded through two casts with dictation and agents) | Get work done for weeks without a learning curve | Natural phrasing goes to the AI; the tutorial | Dictation as good as Wispr Flow (accuracy, cleanup) |
 | **Blind** | Screen reader users (NVDA, JAWS, VoiceOver) | Know what's on the page; move through it by structure (headings, links, fields); fill forms; do multi-step tasks without hunting | "Describe the screen", "read this page", "where am I", "click" plus a name; moving by structure ("next heading", "list the links", "next field", "go to the pricing section", "read this section"), with fields focused for typing; spoken feedback for everything; AI tasks that skip the hunting | Sharing audio with a screen reader without talking over it; the visual number tags don't help |
-| **Low vision** | Macular degeneration, glaucoma, cataracts | Large text, zoom, high contrast, less reading | "Zoom in", reading aloud, describe the screen, the big caption in the panel | High-contrast caption and number tags; automatic page zoom |
+| **Low vision** | Macular degeneration, glaucoma, cataracts | Large text, zoom, high contrast, less reading | "Zoom in", reading aloud, describe the screen, the big caption in the panel; with the computer's "increase contrast" on, a high-contrast caption, number tags and grid | Automatic page zoom |
 | **Cognitive and learning differences** | Dyslexia, ADHD, brain injury | Less reading and fewer steps; plain language; help staying on task | Reading aloud, summaries, "do it for me" tasks, threads for separate tasks | A "simple mode": fewer options, slower speech, step-by-step confirmations |
 | **Atypical speech** | Dysarthria (ALS, cerebral palsy, stroke), stutter, strong accent | Recognition that understands them | Typing to Navi; mishearing fixes (router, sound-alikes) | Off-the-shelf recognizers do poorly here. A personal voice model (like Google's Project Relate) is a long-term research question |
 | **Older adults, less technical users** | First-time computer users | Ask in their own words; no jargon | Natural requests go to the AI; the tutorial | A "what can I do here" helper; gentler wording |
@@ -72,9 +72,9 @@ A study with disabled participants should go through the university's ethics rev
 | P1 | Dictation editing commands | Motor | New |
 | P1 | Screen reader coexistence | Blind | New |
 | P1 | Push-to-talk on a key, switch or pedal | Partial hand use, noisy rooms | Item 7 |
-| P2 | Drag, hover and text selection by voice | Motor | New |
+| P2 | Drag and text selection by voice (hover shipped 2026-11-12: "hover over account", "hover 5") | Motor | New |
 | P2 | Simple mode | Cognitive, older adults | New |
-| P2 | High-contrast caption and tags | Low vision | New |
+| ~~P2~~ | ~~High-contrast caption and tags~~ (shipped 2026-11-12, follows the computer's contrast setting) | Low vision | Done |
 | P3 | Personal speech models for atypical speech | Atypical speech | Research |
 
 ## Expo demo plan
