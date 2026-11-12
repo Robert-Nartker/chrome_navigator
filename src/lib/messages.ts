@@ -131,6 +131,8 @@ export type WorkerRequest =
   | { type: "navi:tutorial"; action: "start" | "next" | "repeat" | "end" | "yes" | "no" }
   /** The panel's helper list: stop one helper, or all of them (no id). */
   | { type: "navi:helper"; action: "stop"; id?: number }
+  /** The user's answer to a helper's question (null cancels it). */
+  | { type: "navi:helper"; action: "answer"; id: number; answer: string | null }
   /** The panel's pin button: Navi works only in this window (null: in whichever window the user is using). */
   | { type: "navi:pin"; window: number | null }
   /** The panel's thread menu: start, switch to, rename or delete a thread. */

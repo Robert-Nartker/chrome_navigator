@@ -59,6 +59,8 @@ export type Intent =
   | { type: "whatHeard" }
   /** Moving through the page's structure, as screen reader users do: "next heading", "list links", "go to the email field". */
   | { type: "structure"; what: StructureKind; action: StructureAction; name?: string }
+  /** A helper's question: read it out, answer it (an option by number, or in the user's words), or cancel it. */
+  | { type: "helperQuestion"; action: "read" | "answer" | "cancel"; helper?: number; option?: number; text?: string }
   /** Which recognizer hears: switch ("use Parakeet"), or say which one is on. */
   | { type: "recognizer"; to?: "chrome" | "parakeet" }
   /** Moving the mouse onto something (menus that open on hover): by flag number or by name. */
@@ -246,6 +248,28 @@ const RULES: Rule[] = [
   [/^read (?:this|the|that) (?:section|part)$|^read from here$/, () => ({ type: "structure", what: "heading", action: "readSection" })],
   [/^(?:go|jump|skip|move) to (?:the )?(.+?) (heading|section|link|field|box|button|region)$/, (m) =>
     /^(?:next|previous|first|last|main)$/.test(m[1]) ? null : { type: "structure", what: structureKind(m[2]), action: "jump", name: m[1] }],
+
+  // Answering a helper's question
+  [/^what (?:does|do) (?:the )?helpers? (?:want|need|ask)$|^what(?:'s| is) (?:the )?(?:helper'?s? )?question$|^(?:read|repeat) (?:the )?(?:helper'?s? )?question$|^what is (?:the )?helper asking$/, () => ({
+    type: "helperQuestion",
+    action: "read",
+  })],
+  [new RegExp(`^(?:helper ${N},? )?(?:pick |choose |go with |answer )?(?:option|choice) ${N}$`), (m) => {
+    const option = parseNumber(m[2]);
+    return option === null ? null : { type: "helperQuestion", action: "answer", option, helper: m[1] ? (parseNumber(m[1]) ?? undefined) : undefined };
+  }],
+  [/^(?:the )?(first|second|third|fourth) (?:one|option)$/, (m) => ({
+    type: "helperQuestion",
+    action: "answer",
+    option: ["first", "second", "third", "fourth"].indexOf(m[1]) + 1,
+  })],
+  [new RegExp(`^(?:tell (?:the )?helper(?: ${N})?(?: that)?|the answer is|other)[,:]? (.+)$`), (m) => ({
+    type: "helperQuestion",
+    action: "answer",
+    text: m[2],
+    helper: m[1] ? (parseNumber(m[1]) ?? undefined) : undefined,
+  })],
+  [/^(?:cancel|skip|ignore|dismiss|never ?mind)(?: the)? (?:helper'?s? )?question$/, () => ({ type: "helperQuestion", action: "cancel" })],
 
   // Which recognizer hears
   [/^(?:use|switch to|try|turn on)(?: the)? (?:parakeet|para keet|parakeets?)(?: recognizer| speech recognition)?$/, () => ({ type: "recognizer", to: "parakeet" })],

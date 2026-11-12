@@ -76,6 +76,17 @@ export interface ControllerUi {
 export const HELP_TEXT =
   "Try: scroll down, go back, open YouTube, search for pizza near me, new tab, close tab, flags, click 5, click sign in, type hello, read this page, describe the screen, or ask anything like: open my latest email. For anything hard to name, say show grid, then numbers to zoom in, then click. To move through a page without seeing it, say next heading, next link, next field, or list the headings. Make your own shortcuts by saying: add a command open wordle. Start a separate conversation with new thread, and come back with previous thread. Say go to sleep when you're done, or turn off to stop listening completely. For a spoken tour, say start the tutorial.";
 
+/** A helper's report waits until the user has given no command for this long. */
+const REPORT_QUIET_MS = 4000;
+
+/** A helper's question, as said and shown: the question, its options by number, and the other ways to answer. */
+export function questionText(helper: Pick<HelperInfo, "id" | "question">): string {
+  const q = helper.question;
+  if (!q) return "";
+  const options = q.options.map((o, i) => `Option ${i + 1}: ${o}.`).join(" ");
+  return `Helper ${helper.id} asks: ${q.text}${options ? ` ${options}` : ""} Or answer in your own words, or say “cancel the question”.`;
+}
+
 /** What the AI is asked for "describe the screen". */
 const DESCRIBE_SCREEN =
   "Describe what's on my screen for someone who can't see it. Look at the screen first. Say what page this is, what its main content is, and the main things I can do here, in under 80 words. Don't click or change anything.";
@@ -138,6 +149,11 @@ export class Controller {
   private autoScrolling = false;
   /** Last thing Navi said or showed, for "what did you say?". */
   private lastMessage = "";
+  /** Helper reports waiting for a quiet moment, by thread. */
+  private readonly reportsWaiting = new Map<string, string>();
+  private reportTimer: ReturnType<typeof setTimeout> | undefined;
+  /** When the user last gave a command (spoken or typed). */
+  private lastUserCommand = 0;
   /** How the last spoken command was heard (for "what did you hear?"). */
   private lastHearing: Hearing | undefined;
   /** What Navi showed for the command running now. */
@@ -193,11 +209,38 @@ export class Controller {
   }
 
   /**
-   * A helper ended: its report goes to the AI in the thread it was started from, once Navi is free
-   * (several that end close together are reported in one go).
+   * A helper ended: a ding now, and its report goes to the AI in the thread it was started from at a quiet
+   * moment (nothing running, nothing said for a few seconds), so it never talks over a conversation.
+   * Several that end close together are reported in one go.
    */
   helperEnded(helper: HelperInfo) {
-    void this.run(`Helper ${helper.id} ${helper.status === "done" ? "finished" : helper.status}`, { source: "helper", thread: helper.thread });
+    this.speaker.sound("notify");
+    this.reportsWaiting.set(helper.thread, `Helper ${helper.id} ${helper.status === "done" ? "finished" : helper.status}`);
+    this.reportWhenQuiet();
+  }
+
+  private reportWhenQuiet() {
+    clearTimeout(this.reportTimer);
+    const quietFor = Date.now() - this.lastUserCommand;
+    if (this.busy || this.queue.length || quietFor < REPORT_QUIET_MS) {
+      this.reportTimer = setTimeout(() => this.reportWhenQuiet(), Math.max(300, REPORT_QUIET_MS - quietFor));
+      return;
+    }
+    for (const [thread, text] of this.reportsWaiting) void this.run(text, { source: "helper", thread });
+    this.reportsWaiting.clear();
+  }
+
+  /**
+   * A helper asked the user something: a ding, the card in the panel, and a note in its thread. It's said
+   * out loud only if the user is in that helper's window; otherwise a helper never talks over Navi's window.
+   */
+  async helperAsked(helper: HelperInfo) {
+    if (!helper.question) return;
+    this.speaker.sound("notify");
+    const text = questionText(helper);
+    this.ui.log("info", text, "Helper question", { thread: helper.thread, solo: true });
+    const focused = await chrome.windows.getLastFocused().catch(() => undefined);
+    if (helper.window !== undefined && focused?.id === helper.window) await this.say(text);
   }
 
   /** Stops whatever Navi is doing or saying. */
@@ -250,6 +293,7 @@ export class Controller {
     const command = this.bestGuess(heard, options.alternatives);
     if (!command) return;
     const fromHelper = options.source === "helper";
+    if (options.source === "voice" || options.source === "typed") this.lastUserCommand = Date.now();
     const intent = fromHelper ? null : parseCommand(command);
     if (options.hearing && intent?.type !== "whatHeard" && intent?.type !== "misheard") this.lastHearing = options.hearing;
     if (intent?.type === "stop") {
@@ -1336,6 +1380,41 @@ export class Controller {
       }
       case "stop":
         return;
+      case "helperQuestion": {
+        const asking = this.helpers.asking();
+        const helper = intent.helper !== undefined ? asking.find((h) => h.id === intent.helper) : asking[0];
+        if (!helper?.question) {
+          // "Tell the helper to also check Best Buy", "the first one": not an answer, so the AI takes it.
+          if (intent.action === "answer") throw new Unhandled("No helper is asking anything right now.");
+          const none = "No helper is asking anything right now.";
+          this.navi(none);
+          await this.say(none);
+          return;
+        }
+        if (intent.action === "read") {
+          const more = asking.length - 1;
+          const text = `${questionText(helper)}${more ? ` ${more} more ${more === 1 ? "question is" : "questions are"} waiting.` : ""}`;
+          this.navi(text);
+          await this.say(text);
+          return;
+        }
+        let answer: string | null = null;
+        if (intent.action === "answer") {
+          const { options } = helper.question;
+          if (intent.option !== undefined) {
+            answer = options[intent.option - 1] ?? null;
+            if (!answer) {
+              const text = `Helper ${helper.id}'s question has ${options.length} options.`;
+              this.navi(text);
+              await this.say(text);
+              return;
+            }
+          } else answer = intent.text?.trim() || null;
+        }
+        this.helpers.answer(helper.id, answer);
+        await this.confirm(answer ? `Told helper ${helper.id}: ${answer}` : `Cancelled helper ${helper.id}'s question`);
+        return;
+      }
       case "recognizer": {
         const now = this.getSettings().recognizer;
         let text: string;

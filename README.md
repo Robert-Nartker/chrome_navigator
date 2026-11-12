@@ -100,6 +100,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Page structure | "next heading", "previous link", "next field", "next button", "next region", "list the headings", "what links are on this page", "go to the pricing section", "go to the email field", "go to main content", "read this section". Navi says what it lands on ("Pricing, heading level 2, 3 of 8"); fields and buttons get the focus, so "type …" and "press enter" go there |
 | Anything else (AI) | "open the first video", "reply to this email saying thanks", "what's this article about?", "add this to my cart" |
 | Your own commands | "add a command open wordle", "make study mode open Canvas and play lofi on YouTube", "what are my commands", "delete the wordle command" |
+| Helpers | "how are the helpers doing", "stop helper 2"; when a helper asks something: "what does the helper want?", "option 2", "the first one", "tell the helper the blue one", "cancel the question" |
 | Control | "stop" (interrupts speech or a running task), "what can I say", "open the panel", "close the panel", "open settings", "start the tutorial" |
 | Hearing | "what did you hear?" (exactly what the recognizer wrote down), "that's not what I said" (marks the last command as misheard in the usage log) |
 

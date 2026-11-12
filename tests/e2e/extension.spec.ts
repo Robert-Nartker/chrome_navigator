@@ -1671,6 +1671,94 @@ test.describe("helpers", () => {
     await expect.poll(() => context.pages().some((p) => p.url().endsWith("?Slow"))).toBe(false);
   });
 
+  test("a helper asks a question: a ding and a card, never spoken from a background window; answered by voice or from the card", async ({ panel, site, context, baseUrl }) => {
+    const helperBodies: Body[] = [];
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        helperBodies.push(body);
+        const last = outputs(body).at(-1) ?? "";
+        if (!outputs(body).length) return route.fulfill(openaiReply([call("ask_user", { question: "Which desk?", options: ["Uplift, $399", "Flexispot, $349"] }, "q1")]));
+        if (last.includes("The user answered: Flexispot, $349")) return route.fulfill(openaiReply([call("ask_user", { question: "Gift wrap it?", options: ["Yes", "No"] }, "q2")]));
+        return route.fulfill(openaiReply([message("Put the Flexispot in the cart, without gift wrap.")]));
+      }
+      if (isReport(body)) return route.fulfill(openaiReply([message("Your helper put the Flexispot in the cart.")]));
+      if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("A helper is on it.")]));
+      return route.fulfill(openaiReply([call("start_helper", { task: "Put the better desk in the cart", url: `${baseUrl}/index.html?desk`, keep_open: false })]));
+    });
+    await usePro(panel);
+    // Navi's background page (where sounds play) opens when needed: waking Navi opens it.
+    const isEars = (p: Page) => p.url().endsWith("/offscreen.html");
+    await panel.evaluate(() => (window as unknown as { navi: { handleFinal(t: string): void } }).navi.handleFinal("hey navi"));
+    await expect.poll(() => context.pages().some(isEars)).toBe(true);
+    const ears = context.pages().find(isEars)!;
+    await ears.evaluate(() => {
+      const w = window as unknown as { __sounds: string[] };
+      w.__sounds = [];
+      chrome.runtime.onMessage.addListener((m: { type?: string; name?: string }) => void (m.type === "ears:sound" && w.__sounds.push(m.name ?? "")));
+    });
+    await site.bringToFront();
+    await type(panel, "have a helper put the better desk in the cart");
+
+    // The card in the panel, a ding, the caption on the page; nothing said aloud.
+    const card = panel.locator(".question");
+    await expect(card.locator(".question-text")).toHaveText("Which desk?", { timeout: 15_000 });
+    await expect(card.getByRole("button", { name: "Option 2: Flexispot, $349" })).toBeVisible();
+    await expect(card.getByRole("button", { name: "Other…" })).toBeVisible();
+    await expect.poll(() => ears.evaluate(() => (window as unknown as { __sounds: string[] }).__sounds)).toContain("notify");
+    // (After the AI's own reply has had its few seconds on the page.)
+    await expect
+      .poll(() => site.evaluate(() => document.querySelector("navi-pill")?.shadowRoot?.querySelector(".text")?.textContent), { timeout: 15_000 })
+      .toBe("Helper 1 has a question. Say “what does the helper want?”");
+    const said = () => panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid);
+    expect(await said()).not.toContain("Which desk?");
+
+    // Asked for, it's read out; answered by voice.
+    await run(panel, "what does the helper want");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(
+      "Helper 1 asks: Which desk? Option 1: Uplift, $399. Option 2: Flexispot, $349. Or answer in your own words, or say “cancel the question”.",
+    );
+    await run(panel, "option 2");
+    await expect.poll(() => helperBodies.some((b) => outputs(b).some((o) => o === "The user answered: Flexispot, $349"))).toBe(true);
+
+    // The next one is cancelled from the card.
+    await expect(card.locator(".question-text")).toHaveText("Gift wrap it?");
+    await card.getByRole("button", { name: "Cancel" }).click();
+    await expect.poll(() => helperBodies.some((b) => outputs(b).some((o) => o.startsWith("No answer")))).toBe(true);
+    await expect(card).toHaveCount(0);
+    // Its report waits for a quiet moment, then the AI tells the user.
+    await expect(panel.locator("#log li.navi .text").filter({ hasText: "Your helper put the Flexispot in the cart." })).toHaveCount(1, { timeout: 20_000 });
+  });
+
+  test("a helper's question is said out loud when the user is in that helper's window", async ({ panel, context, baseUrl }) => {
+    let focused = () => {};
+    const inHelperWindow = new Promise<void>((resolve) => (focused = resolve));
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        if (outputs(body).length) return route.fulfill(openaiReply([message("Done.")]));
+        // It asks once the user has gone to its window.
+        await inHelperWindow;
+        return route.fulfill(openaiReply([call("ask_user", { question: "Which size?", options: ["Small", "Large"] }, "q1")]));
+      }
+      if (isReport(body)) return route.fulfill(openaiReply([message("Done.")]));
+      if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("A helper is on it.")]));
+      return route.fulfill(openaiReply([call("start_helper", { task: "Pick a size", url: `${baseUrl}/index.html?size`, keep_open: false })]));
+    });
+    await usePro(panel);
+    await type(panel, "have a helper pick a size");
+    await expect.poll(() => context.pages().some((p) => p.url().endsWith("?size")), { timeout: 15_000 }).toBe(true);
+    await panel.evaluate(async () => {
+      const [tab] = await chrome.tabs.query({ url: "*://*/index.html?size" });
+      await chrome.windows.update(tab.windowId, { focused: true });
+    });
+    focused();
+    const said = () => panel.evaluate(() => (window as unknown as { navi: { lastSaid: Promise<string> } }).navi.lastSaid);
+    await expect.poll(said, { timeout: 15_000 }).toContain("Helper 1 asks: Which size? Option 1: Small. Option 2: Large.");
+    await run(panel, "the first one");
+    await expect(panel.locator(".question")).toHaveCount(0);
+  });
+
   test("the AI can tell a running helper more about its task, and the helper reads it at its next step", async ({ panel, context, baseUrl }) => {
     const helperBodies: Body[] = [];
     let mainTurns = 0;

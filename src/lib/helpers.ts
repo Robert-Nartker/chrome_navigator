@@ -48,10 +48,22 @@ export interface HelperInfo {
   collected: boolean;
   /** Messages from the main AI it hasn't read yet (it reads them at its next step). */
   inbox: string[];
+  /** A question it's waiting on the user to answer (its time limit pauses meanwhile). */
+  question?: HelperQuestion;
 }
 
+/** A helper's question: a few options to pick from; the user can also answer in their own words or cancel. */
+export interface HelperQuestion {
+  text: string;
+  options: string[];
+  asked: number;
+}
+
+/** A question nobody answers is dropped after this long, and the helper decides for itself or stops. */
+export const QUESTION_WAIT_MS = 10 * 60_000;
+
 /** What views show for a running helper. */
-export type HelperSummary = Pick<HelperInfo, "id" | "task" | "step" | "costUsd" | "started" | "activity">;
+export type HelperSummary = Pick<HelperInfo, "id" | "task" | "step" | "costUsd" | "started" | "activity" | "question">;
 
 /** Notices when the same actions keep leaving the page unchanged. */
 export class StuckCheck {
@@ -111,12 +123,16 @@ export interface HelperDeps {
   onChange(running: HelperSummary[]): void;
   /** A helper ended (its report goes to the main AI, see report()). */
   onEnd(helper: HelperInfo): void;
+  /** A helper asked the user something (see Helpers.answer). */
+  onQuestion(helper: HelperInfo): void;
 }
 
 export class Helpers {
   private all: HelperInfo[] = [];
   private seq = 0;
   private readonly stoppers = new Map<number, (why: string) => void>();
+  /** Answers to the questions helpers are waiting on (null: cancelled or not answered). */
+  private readonly answers = new Map<number, (answer: string | null) => void>();
 
   constructor(private readonly deps: HelperDeps) {}
 
@@ -172,7 +188,18 @@ export class Helpers {
     };
     this.stoppers.set(helper.id, stop);
     const minutes = this.deps.getSettings().helperMinutes;
-    const timer = setTimeout(() => stop(`it reached its time limit (${minutes} minutes)`), minutes * 60_000);
+    // The time limit, paused while the helper waits on the user's answer.
+    let left = minutes * 60_000;
+    let since = Date.now();
+    let timer = setTimeout(() => stop(`it reached its time limit (${minutes} minutes)`), left);
+    const pause = () => {
+      clearTimeout(timer);
+      left -= Date.now() - since;
+    };
+    const resume = () => {
+      since = Date.now();
+      timer = setTimeout(() => stop(`it reached its time limit (${minutes} minutes)`), Math.max(0, left));
+    };
     const stuck = new StuckCheck();
     const agent = new NaviAgent(() => helperSettings(this.deps.getSettings()), { role: "helper", window: helper.window });
     try {
@@ -198,7 +225,17 @@ export class Helpers {
           }
           return notes.length ? notes.join("\n\n") : undefined;
         },
-      }, { timeLimitMinutes: minutes });
+      }, {
+        timeLimitMinutes: minutes,
+        ask: async (text, options) => {
+          pause();
+          try {
+            return await this.ask(helper, text, options, control.signal);
+          } finally {
+            resume();
+          }
+        },
+      });
       helper.costUsd = result.costUsd;
       helper.result = result.reply;
       helper.status = "done";
@@ -212,6 +249,7 @@ export class Helpers {
     } finally {
       clearTimeout(timer);
       this.stoppers.delete(helper.id);
+      this.answers.get(helper.id)?.(null);
       helper.ended = Date.now();
       if (helper.window !== undefined && !(helper.status === "done" && helper.keepOpen)) {
         await chrome.windows.remove(helper.window).catch(() => undefined);
@@ -227,8 +265,52 @@ export class Helpers {
     const message = text.trim();
     if (!message) return "The message is empty.";
     if (!helper || helper.status !== "running") return `Helper ${id} isn't running.`;
+    // Waiting on a question: the message is the answer.
+    if (helper.question) {
+      this.answer(id, message);
+      return `Helper ${id} was waiting on its question; that's its answer now.`;
+    }
     helper.inbox.push(message);
     return `Sent to helper ${id}; it reads it at its next step.`;
+  }
+
+  /** The helpers waiting on an answer, oldest question first. */
+  asking(): HelperInfo[] {
+    return this.running()
+      .filter((h) => h.question)
+      .sort((a, b) => a.question!.asked - b.question!.asked);
+  }
+
+  /** Answers a helper's question (null cancels it). Returns whether it was waiting on one. */
+  answer(id: number, answer: string | null): boolean {
+    const resolve = this.answers.get(id);
+    resolve?.(answer?.trim() || null);
+    return !!resolve;
+  }
+
+  /** Waits for the user's answer to a helper's question, up to QUESTION_WAIT_MS. */
+  private ask(helper: HelperInfo, text: string, options: string[], signal: AbortSignal): Promise<string | null> {
+    const question = text.trim();
+    if (!question) return Promise.resolve(null);
+    helper.question = { text: question, options: options.map((o) => o.trim()).filter(Boolean).slice(0, 4), asked: Date.now() };
+    helper.activity = `Waiting for your answer: ${question}`;
+    this.changed();
+    this.deps.onQuestion(helper);
+    return new Promise<string | null>((resolve) => {
+      const done = (answer: string | null) => {
+        clearTimeout(expiry);
+        signal.removeEventListener("abort", cancel);
+        this.answers.delete(helper.id);
+        helper.question = undefined;
+        helper.activity = answer ? `Got your answer: ${answer}` : "No answer; going on without one";
+        this.changed();
+        resolve(answer);
+      };
+      const cancel = () => done(null);
+      const expiry = setTimeout(cancel, QUESTION_WAIT_MS);
+      signal.addEventListener("abort", cancel, { once: true });
+      this.answers.set(helper.id, done);
+    });
   }
 
   /** Stops one helper. */
@@ -276,7 +358,7 @@ export class Helpers {
   }
 
   summaries(): HelperSummary[] {
-    return this.running().map(({ id, task, step, costUsd, started, activity }) => ({ id, task, step, costUsd, started, activity }));
+    return this.running().map(({ id, task, step, costUsd, started, activity, question }) => ({ id, task, step, costUsd, started, activity, question }));
   }
 
   /** Which helpers were last saved as running (saved again only when that changes, not every step). */

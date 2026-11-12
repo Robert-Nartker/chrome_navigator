@@ -170,3 +170,19 @@ describe("switching recognizers by voice", () => {
     expect(parseCommand("which recognizer are you using")).toEqual({ type: "recognizer" });
   });
 });
+
+describe("answering a helper's question by voice", () => {
+  it("reads it, answers it by option or in your own words, or cancels it", () => {
+    expect(parseCommand("what does the helper want")).toEqual({ type: "helperQuestion", action: "read" });
+    expect(parseCommand("what's the question")).toEqual({ type: "helperQuestion", action: "read" });
+    expect(parseCommand("option 2")).toEqual({ type: "helperQuestion", action: "answer", option: 2, helper: undefined });
+    expect(parseCommand("helper 3, option one")).toEqual({ type: "helperQuestion", action: "answer", option: 1, helper: 3 });
+    expect(parseCommand("the second one")).toEqual({ type: "helperQuestion", action: "answer", option: 2 });
+    expect(parseCommand("tell the helper the blue one")).toEqual({ type: "helperQuestion", action: "answer", text: "the blue one", helper: undefined });
+    expect(parseCommand("the answer is next tuesday")).toMatchObject({ type: "helperQuestion", action: "answer", text: "next tuesday" });
+    expect(parseCommand("cancel the question")).toEqual({ type: "helperQuestion", action: "cancel" });
+  });
+  it("leaves AI tasks that start with “answer” alone", () => {
+    expect(parseCommand("answer this email saying thanks")?.type).not.toBe("helperQuestion");
+  });
+});

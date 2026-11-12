@@ -28,6 +28,7 @@ import {
   saveSettings,
 } from "../lib/settings";
 import { SPEECH_NOT_DOWNLOADED, installOnDevice, onDeviceStatus } from "../lib/speech";
+import type { HelperQuestion } from "../lib/helpers";
 import type { ThreadsState } from "../lib/threads";
 import { Feed } from "./feed";
 
@@ -609,12 +610,62 @@ function renderHelpers() {
         '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
       stop.addEventListener("click", () => void toWorker({ type: "navi:helper", action: "stop", id: h.id }));
       li.append(task, meta, stop);
+      if (h.question) li.append(questionCard(h.id, h.question));
       return li;
     }),
   );
 }
 
 helperUi.stopAll.addEventListener("click", () => void toWorker({ type: "navi:helper", action: "stop" }));
+
+/** A helper's question: its options as buttons, "Other…" to answer in your own words, and "Cancel". */
+function questionCard(id: number, question: HelperQuestion): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "question";
+  card.setAttribute("role", "group");
+  const label = document.createElement("p");
+  label.className = "question-text";
+  label.id = `question-${id}`;
+  label.textContent = question.text;
+  card.setAttribute("aria-labelledby", label.id);
+  const answer = (value: string | null) => void toWorker({ type: "navi:helper", action: "answer", id, answer: value });
+  const button = (text: string, onClick: () => void, cls = "") => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = `question-option ${cls}`.trim();
+    b.textContent = text;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  const options = document.createElement("div");
+  options.className = "question-options";
+  question.options.forEach((o, i) => {
+    const b = button(o, () => answer(o));
+    b.setAttribute("aria-label", `Option ${i + 1}: ${o}`);
+    options.append(b);
+  });
+  const other = document.createElement("form");
+  other.className = "question-other";
+  other.hidden = true;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Your answer";
+  input.setAttribute("aria-label", "Your own answer");
+  other.append(input, button("Send", () => other.requestSubmit()));
+  other.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (input.value.trim()) answer(input.value.trim());
+  });
+  options.append(
+    button("Other…", () => {
+      other.hidden = false;
+      input.focus();
+    }, "secondary"),
+    button("Cancel", () => answer(null), "secondary"),
+  );
+  card.append(label, options, other);
+  return card;
+}
 
 // ---------- Navi's window ----------
 

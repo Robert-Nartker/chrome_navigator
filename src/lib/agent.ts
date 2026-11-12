@@ -80,7 +80,7 @@ export function systemPrompt(autonomy: Autonomy): string {
 }
 
 /** What a helper agent is told: one task, in its own window, nothing irreversible. */
-export const HELPER_PROMPT = `You are a Navi helper: a background agent that Navi, the user's voice browser assistant, gave one task to. You work on your own, in a browser window of your own (signed in as the user), while the user does other things. Nobody is watching or answering questions: work it out yourself.
+export const HELPER_PROMPT = `You are a Navi helper: a background agent that Navi, the user's voice browser assistant, gave one task to. You work on your own, in a browser window of your own (signed in as the user), while the user does other things. Work things out yourself whenever you reasonably can. Only when a choice really is the user's (which of two good options, a detail only they know), call ask_user with one short question and 2 to 4 short options; they can also answer in their own words or cancel, and may take a while. Never ask for permission to do something you mustn't do anyway.
 
 How you see the page: an element list shows the page's interactive elements as [id] role "label". Ids are valid only for the most recent element list. You cannot see page text unless you call read_page or read_tab.
 
@@ -208,6 +208,10 @@ const TOOLS: ToolDef[] = [
     url: { type: "string", description: "Where it starts (a full https URL), or \"\" for a task without a browser." },
     keep_open: { type: "boolean", description: "Leave its window open when it's done, for the user to see the result." },
   }),
+  tool("ask_user", "Helpers only: ask the user a question only they can answer, with 2 to 4 short options. Waits for the answer.", {
+    question: { type: "string", description: "One short question." },
+    options: { type: "array", items: { type: "string" }, description: "2 to 4 short answers to choose from." },
+  }),
   tool("check_helpers", "See how your helpers are doing: each running one's time, step and current action, and how any that ended since your last check went.", {}),
   tool("message_helper", "Tell a running helper something about its task: more to do, a change of plan, an answer it needs. It reads it at its next step.", {
     helper_id: { type: "integer", description: "The helper's number." },
@@ -218,10 +222,10 @@ const TOOLS: ToolDef[] = [
   }),
 ];
 
-/** What a helper can do: the page tools, without talking to the user, closing tabs, or changing Navi. */
+/** What a helper can do: the page tools and asking the user a question, without closing tabs or changing Navi. */
 const HELPER_TOOL_NAMES = new Set([
   "click", "type_text", "select_option", "scroll", "navigate", "go_back", "switch_tab", "press_key", "type_keys",
-  "look_at_screen", "click_at", "read_page", "look_at_page", "list_tabs", "read_tab", "wait",
+  "look_at_screen", "click_at", "read_page", "look_at_page", "list_tabs", "read_tab", "wait", "ask_user",
 ]);
 
 /** A role's instructions and tools, the same on every call so providers can cache them. */
@@ -242,14 +246,15 @@ function profile(tools: ToolDef[], system: (autonomy: Autonomy) => string, cache
 }
 
 const PROFILES: Record<AgentRole | "reader", Profile> = {
-  main: profile(TOOLS, systemPrompt, "navi-agent"),
+  // Navi itself asks the user by talking to them; only helpers, out of sight, use ask_user.
+  main: profile(TOOLS.filter((t) => t.name !== "ask_user"), systemPrompt, "navi-agent"),
   helper: profile(
     TOOLS.filter((t) => HELPER_TOOL_NAMES.has(t.name)),
     () => HELPER_PROMPT,
     "navi-helper",
   ),
   // A helper without a browser window: it only thinks and writes.
-  reader: profile([], () => HELPER_PROMPT, "navi-helper-text"),
+  reader: profile(TOOLS.filter((t) => t.name === "ask_user"), () => HELPER_PROMPT, "navi-helper-text"),
 };
 
 /** Tools that don't touch the page, so no fresh page observation is needed after them. */
@@ -268,6 +273,7 @@ const NON_PAGE_TOOLS = new Set([
   "check_helpers",
   "message_helper",
   "stop_helper",
+  "ask_user",
 ]);
 const MAX_SHOT_WIDTH = 1280;
 
@@ -341,6 +347,8 @@ export interface AgentContext {
   helperReport?: boolean;
   /** A helper's time limit, so it can pace itself. */
   timeLimitMinutes?: number;
+  /** Helpers: asks the user a question with a few options, and waits (null: cancelled or no answer). */
+  ask?: (question: string, options: string[]) => Promise<string | null>;
 }
 
 export interface AgentResult {
@@ -1007,6 +1015,17 @@ export class NaviAgent {
       }
       case "check_helpers":
         return this.context.helpers?.check() ?? "No helpers.";
+      case "ask_user": {
+        const ask = this.context.ask;
+        if (!ask) return "Nobody can answer questions here: decide yourself.";
+        const question = String(input.question ?? "");
+        hooks.onStep?.(`Asking you: ${question}`);
+        const options = Array.isArray(input.options) ? input.options.map(String) : [];
+        const answer = await ask(question, options);
+        return answer === null
+          ? "No answer (the user cancelled, or didn't answer in time). Decide yourself if you safely can; otherwise stop and report what you need."
+          : `The user answered: ${answer}`;
+      }
       case "message_helper": {
         const helpers = this.context.helpers;
         if (!helpers) return "No helpers.";

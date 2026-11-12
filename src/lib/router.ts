@@ -41,7 +41,7 @@ move this tab to a new window; move this tab to the other window; open youtube i
 wake up (wakes Navi)
 push to talk mode; open mic mode; wake word mode (how Navi listens); use Parakeet; use Chrome's recognizer; which recognizer are you using (which speech recognizer hears); change the shortcut (Chrome's shortcut settings)
 open the panel; close the panel (Navi's side panel)
-how are the helpers doing (background agents the AI started); stop helpers; stop helper 2; stop everything (the command running now and all helpers)
+how are the helpers doing (background agents the AI started); stop helpers; stop helper 2; stop everything (the command running now and all helpers); what does the helper want (a helper's question); option 2 / helper 2, option 1 / the first one (answer it); tell the helper <answer>; the answer is <answer>; cancel the question
 describe the screen (what's on it, for someone who can't see it); open settings (Navi's settings); start the tutorial (a spoken tour of Navi)
 go to sleep; turn off (stops listening until turned back on); stop`;
 

@@ -1005,6 +1005,74 @@ body {
   font-size: 11.5px;
 }
 
+/* A helper's question: on its own line under the helper, with the answers as buttons. */
+.helper-list li:has(.question) {
+  flex-wrap: wrap;
+}
+
+.question {
+  flex-basis: 100%;
+  margin: 4px 0 6px 14px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.question-text {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: normal;
+}
+
+.question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.question-option {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.question-option:hover {
+  border-color: var(--accent);
+}
+
+.question-option.secondary {
+  color: var(--muted);
+}
+
+.question-other {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.question-other[hidden] {
+  display: none;
+}
+
+.question-other input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+}
+
 .feed-empty {
   flex: none;
   margin: 16px 22px 0;

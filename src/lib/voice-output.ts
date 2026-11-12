@@ -45,7 +45,7 @@ export async function pickVoice(lang: string): Promise<string | undefined> {
   return voices.find((v) => v.gender === "female")?.voiceName ?? voices[0]?.voiceName;
 }
 
-export type EarconName = "wake" | "sleep" | "error" | "unknown" | "done" | "thinking";
+export type EarconName = "wake" | "sleep" | "error" | "unknown" | "done" | "thinking" | "notify";
 
 /** What the command controller needs to talk: it may run where there's no audio (the background worker). */
 export interface Voice {
@@ -355,5 +355,10 @@ export const earcons = {
   /** Soft tick when a command goes to the AI, so you know Navi heard you. */
   thinking() {
     tone(784, 0, 0.06, 0.04);
+  },
+  /** Gentle two-note ding: a helper working out of sight has something for you (a question, or it finished). */
+  notify() {
+    tone(1047, 0, 0.1, 0.04);
+    tone(1319, 0.11, 0.16, 0.04);
   },
 };

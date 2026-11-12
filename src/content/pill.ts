@@ -86,6 +86,9 @@ export function pillLook(u: PillUpdate): Look | null {
     return { kind: u.reply.kind === "error" ? "error" : "reply", icon: "dot", text: u.reply.text };
   }
   if (u.ears.micError && u.worker.listening) return { kind: "error", icon: "dot", text: u.ears.micError };
+  // A helper out of sight has a question: shown, never said (it may be mid-conversation here).
+  const asking = u.worker.helpers?.find((h) => h.question);
+  if (asking) return { kind: "hint", icon: "dot", text: `Helper ${asking.id} has a question. Say “what does the helper want?”` };
   // Awake after "Hey Navi": show that it's listening. Open mic: a small listening mark only.
   if (u.ears.awake) return { kind: "hint", icon: "bars", text: handsFree ? "Listening…" : "" };
   return null;

@@ -245,6 +245,11 @@ function log(kind: LogKind, text: string, meta?: string, onPage = true, place: L
 
 const helpers = new Helpers({
   getSettings: () => activeSettings(settings),
+  onQuestion(helper) {
+    // Out of sight: a ding and the card in the panel. Spoken only if the user is in that helper's window,
+    // so a helper never talks over the conversation in Navi's window.
+    controller.helperAsked(helper);
+  },
   onChange(running) {
     worker = { ...worker, helpers: running };
     broadcastWorker();
@@ -529,7 +534,8 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       return true;
     }
     case "navi:helper":
-      if (msg.id === undefined) helpers.stopAll();
+      if (msg.action === "answer") helpers.answer(msg.id, msg.answer);
+      else if (msg.id === undefined) helpers.stopAll();
       else helpers.stop(msg.id);
       sendResponse(true);
       return false;
