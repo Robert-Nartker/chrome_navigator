@@ -483,7 +483,9 @@ export function edit(action: EditAction, count = 1): string {
       } else {
         (last.el as HTMLElement).focus();
         if (!textBeforeCaret(last.el).endsWith(last.text)) throw new Error("What I typed has changed since, so I left it alone.");
-        for (let i = 0; i < last.text.length; i++) document.execCommand("delete");
+        // Each delete removes one character as people see it (an emoji is one), not one code unit.
+        const characters = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(last.text)].length;
+        for (let i = 0; i < characters; i++) document.execCommand("delete");
       }
       lastTyped = null;
       return `deleted “${last.text.trim()}”`;

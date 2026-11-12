@@ -11,6 +11,10 @@ describe("dictating in pieces", () => {
     expect(spaced("hello", "!")).toBe("!");
     expect(spaced("call me (", "maybe")).toBe("maybe");
     expect(spaced("sam@", "example.com")).toBe("example.com");
+    // A straight quote: no space after an opening one, a space after a closing one.
+    expect(spaced('He said "', "hi")).toBe("hi");
+    expect(spaced('He said "hi"', "and left")).toBe(" and left");
+    expect(spaced("the kids'", "toys")).toBe(" toys");
   });
   it("takes off the last few words", () => {
     expect(withoutLastWords("hello big wide world", 2)).toBe("hello big");
@@ -26,6 +30,7 @@ describe("dictating in pieces", () => {
     expect(parseCommand("dictate See you soon...")).toMatchObject({ text: "See you soon..." });
     expect(parseCommand("Type cats into 5 and press enter.")).toEqual({ type: "type", text: "cats", target: 5, submit: true });
     expect(parseCommand("type hello world and then hit enter")).toEqual({ type: "type", text: "hello world", submit: true });
+    expect(parseCommand("type hello into twenty one")).toEqual({ type: "type", text: "hello", target: 21, submit: false });
   });
   it("understands how people correct dictation", () => {
     expect(parseCommand("delete that")).toEqual({ type: "edit", action: "deleteLast" });

@@ -675,7 +675,8 @@ async function init() {
     renderHelpers();
     renderTutorial();
     if (!updatedSinceHello.ears) ears = hello.ears;
-    for (const m of hello.metrics) addMetric(m);
+    const seen = new Set(metrics.map((m) => `${m.t}:${m.command}`));
+    for (const m of hello.metrics) if (!seen.has(`${m.t}:${m.command}`)) addMetric(m);
     const known = new Set(hello.log.map((e) => `${e.t}:${e.text}`));
     entries = [...hello.log, ...entries.filter((e) => !known.has(`${e.t}:${e.text}`))].slice(-500);
     showThreads(hello.threads, true);

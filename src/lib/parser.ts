@@ -493,7 +493,7 @@ const RULES: Rule[] = [
     const n = parseNumber(m[1]);
     return n === null ? null : { type: "hover", n };
   }],
-  [/^(?:hover|mouse) (?:over |on )?(?:the )?(.+?)(?: button| link| menu| tab| icon)?$|^(?:move|put) the mouse (?:over|on|to) (?:the )?(.+?)(?: button| link| menu| tab| icon)?$/, (m) => ({ type: "hover", text: m[1] ?? m[2] })],
+  [/^(?:hover|mouse) (?!click|double|right)(?:over |on )?(?:the )?(.+?)(?: button| link| menu| tab| icon)?$|^(?:move|put) the mouse (?:over|on|to) (?:the )?(.+?)(?: button| link| menu| tab| icon)?$/, (m) => ({ type: "hover", text: m[1] ?? m[2] })],
 
   // Clicking by label: "click sign in". Resolved against the page before falling back to AI.
   [/^(?:click|press|tap|hit|select|choose)(?: on)?(?: the)? (.+?)(?: button| link| tab| icon)?$/, (m) =>
@@ -695,6 +695,8 @@ export function parseExact(text: string): Intent | null {
   return intent?.type === "type" ? { ...intent, text: dictated(text, intent) } : intent;
 }
 
+/** The field named at the end of "type … into 5" (or "into twenty one"). */
+const TYPE_TARGET = new RegExp(`\\s+(?:in|into|on)\\s+(?:number\\s+|box\\s+|field\\s+)?${N}[.!]?$`, "i");
 const SAID_TYPE = /^[\s,]*(?:(?:ok(?:ay)?|hey|so|um+|uh+|please|now|and|then|alright|all right|can you|could you|would you|will you|just)[\s,]+)*(?:type|dictate)(?:\s+in)?[\s,:]+([\s\S]+?)\s*$/i;
 
 /**
@@ -706,7 +708,7 @@ function dictated(said: string, intent: Extract<Intent, { type: "type" }>): stri
   if (!m) return intent.text;
   let text = m[1];
   if (intent.submit) text = text.replace(/[\s,]+and\s+(?:then\s+)?(?:press enter|hit enter|submit|search|send)[.!]?$/i, "");
-  if (intent.target !== undefined) text = text.replace(/\s+(?:in|into|on)\s+(?:number\s+|box\s+|field\s+)?\S+[.!]?$/i, "");
+  if (intent.target !== undefined) text = text.replace(TYPE_TARGET, "");
   text = text.replace(/(?<!\.)\.$/, "").trim();
   return text || intent.text;
 }

@@ -5,7 +5,10 @@
  * after an opening bracket, so "type hello" then "type world" gives "hello world".
  */
 export function spaced(before: string, text: string): string {
-  if (!before || /\s$/.test(before) || /[(\["'“‘/@#-]$/.test(before) || /^[\s.,!?;:)\]}”’'%]/.test(text)) return text;
+  if (!before || /\s$/.test(before) || /[([“‘/@#-]$/.test(before) || /^[\s.,!?;:)\]}”’'%]/.test(text)) return text;
+  // A straight quote opens when there's an odd number of them so far ("…said "), and closes otherwise.
+  const quote = /["']$/.exec(before)?.[0];
+  if (quote && before.split(quote).length % 2 === 0 && !(quote === "'" && /\w'$/.test(before))) return text;
   return ` ${text}`;
 }
 

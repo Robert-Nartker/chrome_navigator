@@ -28,7 +28,7 @@ let movedFocus: Element | null = null;
 let movedScrollY = 0;
 
 function shown(el: Element): boolean {
-  if (el.closest("[aria-hidden=true], [hidden], #navi-overlay, #navi-pill")) return false;
+  if (el.closest("[aria-hidden=true], [hidden]")) return false;
   const style = getComputedStyle(el);
   if (style.display === "none" || style.visibility === "hidden") return false;
   const rect = el.getBoundingClientRect();
@@ -191,6 +191,8 @@ function sectionText(maxChars: number): string {
   }
   const text = parts.join(" ").replace(/ ?\n ?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   cursor = start;
+  movedFocus = document.activeElement;
+  movedScrollY = scrollY;
   return text.length > maxChars ? `${text.slice(0, maxChars)}\n[truncated]` : text;
 }
 

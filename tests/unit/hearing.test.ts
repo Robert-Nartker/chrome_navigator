@@ -157,5 +157,6 @@ describe("hovering by voice", () => {
     expect(parseCommand("hover 5")).toEqual({ type: "hover", n: 5 });
     expect(parseCommand("hover over number twelve")).toEqual({ type: "hover", n: 12 });
     expect(parseCommand("put the mouse on sign in")).toEqual({ type: "hover", text: "sign in" });
+    expect(parseCommand("mouse click on sign in")?.type).not.toBe("hover");
   });
 });

@@ -93,6 +93,7 @@ export function pillLook(u: PillUpdate): Look | null {
 
 function ensurePill(): HTMLDivElement {
   if (pill && host?.isConnected) return pill;
+  placeDirty = true;
   host = document.createElement("navi-pill");
   const root = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
@@ -112,6 +113,10 @@ function ensurePill(): HTMLDivElement {
   return pill;
 }
 
+/** Whether the pill's place needs working out again, and the kind of caption it was worked out for. */
+let placeDirty = true;
+let placedKind = "";
+
 /** The pending fade-in, cancelled if the pill is hidden first (or it would show again after hiding). */
 let showFrame = 0;
 
@@ -129,7 +134,12 @@ function render() {
     icon!.dataset.icon = look.icon;
     icon!.innerHTML = look.icon === "bars" ? '<span class="bars"><i></i><i></i><i></i></span>' : `<span class="${look.icon}"></span>`;
   }
-  el.dataset.place = coversFocus(el) ? "top" : "bottom";
+  // Measuring forces a layout, so only when focus moved or the caption changed kind (not on every word).
+  if (placeDirty || el.dataset.kind !== placedKind) {
+    el.dataset.place = coversFocus(el) ? "top" : "bottom";
+    placeDirty = false;
+    placedKind = look.kind;
+  }
   // A long caption keeps its newest words in view.
   const shown = look.kind === "hear" && look.text.length > 140 ? `…${look.text.slice(-140)}` : look.text;
   if (text!.textContent !== shown) text!.textContent = shown;
@@ -161,7 +171,10 @@ export function updatePill(update: PillUpdate) {
 
 const onVisibility = () => render();
 /** Focus moved: the pill may need to move out of the way (or back). */
-const onFocus = () => pill?.dataset.shown === "true" && render();
+const onFocus = () => {
+  placeDirty = true;
+  if (pill?.dataset.shown === "true") render();
+};
 
 /** Shows the pill in this page (top frame only) and asks for Navi's current state. */
 export function startPill() {
