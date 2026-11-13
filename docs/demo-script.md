@@ -8,12 +8,12 @@ A 3–4 minute run through what Navi does best, with a fallback for every step. 
 - **Microphone.** In a quiet room, the laptop's own mic often hears better than AirPods (AirPods drop to a low-quality "headset" mic while they're recording). Try both in the rehearsal: Settings → Listening → Microphone.
 - **Pro AI on** (your OpenAI key in Settings) for the AI steps. Without it, everything but step 6 still works.
 - **Clean Chrome.** One window, a couple of tabs, logged in to YouTube. Close anything you don't want on screen.
-- **Turn Navi on** with the switch in its panel before you start, and click **Stay awake** so it doesn't fall asleep while you explain something.
+- **Turn Navi on** with the power button in its panel before you start, and click **Stay awake** so it doesn't fall asleep while you explain something.
 - **Know the escape hatches:** Ctrl+Space (Control+Space on a Mac) always takes one command, even if Navi is asleep; "stop" interrupts anything; you can type in the side panel's chat box. Multi-word commands ("pause the video", "close this tab") are heard more reliably than single words.
 
 ## The run
 
-1. **Turn it on.** Click the switch (or, with Navi asleep, say "wake up"). *(A short sound; the page caption shows what it hears.)* Fallback: press Ctrl+Space and say the command.
+1. **Turn it on.** Click the power button (or, with Navi asleep, say "wake up"). *(A short sound; the page caption shows what it hears.)* Fallback: press Ctrl+Space and say the command.
 2. **Move around.** "Open YouTube." → "Search YouTube for lofi beats." → "Scroll down." → "Scroll up."
 3. **Click by number.** "Show numbers." → "Click 4" (whichever video). → "Pause the video." → "Play the video." → "Go back."
 4. **Tabs.** "Open Wikipedia." *(new tab)* → "Next tab." → "Close tab."

@@ -34,7 +34,7 @@ npm run build          # outputs the extension to dist/
    Built-in commands work without a key.
 4. Pin Navi (puzzle-piece menu), then click its icon or press **Alt+Shift+N** to open the side panel.
 
-**On, off, awake, asleep.** Navi is **off** when Chrome starts (mic closed, nothing loaded) until you turn it on with the switch in its panel. On, it's **awake**: everything you say is a command. After a quiet spell it falls **asleep** and waits for "wake up" (or "Hey Navi"). Two settings change that, by voice or in Settings → Listening:
+**On, off, awake, asleep.** Navi is **off** when Chrome starts (mic closed, nothing loaded) until you turn it on with the power button in its panel. On, it's **awake**: everything you say is a command. After a quiet spell it falls **asleep** and waits for "wake up" (or "Hey Navi"). Two settings change that, by voice or in Settings → Listening:
 - **Stay awake** ("stay awake" / "you can sleep when I'm quiet"): never falls asleep on its own.
 - **Start when Chrome opens** ("start when Chrome opens" / "start off when Chrome opens"): Navi starts asleep, listening for "wake up", so it never needs a click.
 
@@ -166,7 +166,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 - **Speech stays on your computer.** Speech recognition and Navi's voice both run locally. The AI runs on-device with Gemini Nano (Free), or through OpenAI or Anthropic with your own key (Pro). ElevenLabs was removed because zero data retention needs its Enterprise plan.
 - **Navi's own voice** is kept out of the mic by echo cancellation, plus a check that ignores words Navi is saying. You can still talk over Navi to cut it short.
 - **Asleep, nothing is acted on until "wake up".** Speech before "wake up" (or "Hey Navi") is ignored and never stored, shown or sent to the AI. Awake, everything said is a command until Navi falls asleep (unless Stay awake is on).
-- **Off by default, and off means off.** Each Chrome start, Navi is off: no mic, nothing loaded, until you turn it on (or press push to talk for one command). With Start when Chrome opens, it starts asleep instead. Turned off (the switch, or saying "turn off"), the mic stays closed until you turn Navi on again.
+- **Off by default, and off means off.** Each Chrome start, Navi is off: no mic, nothing loaded, until you turn it on (or press push to talk for one command). With Start when Chrome opens, it starts asleep instead. Turned off (the power button, or saying "turn off"), the mic stays closed until you turn Navi on again.
 - **The AI sees labels, not content.** By default the AI receives only the names of buttons, links and fields. It reads page text only when a request needs it (read, summarize, answer a question), and you can turn that off. Password fields are never included.
 - **"Read this page" is local.** Reading aloud never involves the AI.
 - **Blocked sites:** list sites (your bank, health portal) where the AI is never used.

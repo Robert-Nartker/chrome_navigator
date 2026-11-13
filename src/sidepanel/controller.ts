@@ -46,6 +46,7 @@ import { type CommandMetric, type Hearing, hearingColumns, markLastMisheard, rec
 import { NO_USAGE, formatCost } from "../lib/models";
 import { type GridCommand, type Intent, parseBareNumber, parseCommand, parseExact, parseGridCommand } from "../lib/parser";
 import { type RecentCommand, routeUtterance } from "../lib/router";
+import { untilAborted } from "../lib/abortable";
 import { FREE_MODEL, type Settings, isBlocked, keyFor, saveSettings } from "../lib/settings";
 import { searchUrl, siteEngine } from "../lib/sites";
 import { type ThreadBook, findThread, threadTitle, threadTranscript } from "../lib/threads";
@@ -348,7 +349,11 @@ export class Controller {
     let reply: string | null = null;
     let confirmation = false;
     try {
-      const outcome = fromHelper ? await this.helperReport(thread, controller.signal) : await this.dispatch(command, controller.signal, 0, options);
+      // "Stop" ends the wait at once, even if a step never finishes (a page that doesn't answer).
+      const outcome = await untilAborted(
+        fromHelper ? this.helperReport(thread, controller.signal) : this.dispatch(command, controller.signal, 0, options),
+        controller.signal,
+      );
       const routerCost = outcome.routerCostUsd ?? 0;
       if (outcome.agent) {
         const { agent } = outcome;
@@ -1092,7 +1097,7 @@ export class Controller {
       case "turnOff": {
         // Said before the mic goes off, so someone who can't see the screen knows how to turn it back on.
         const key = (await chrome.commands.getAll().catch(() => [])).find((c) => c.name === "wake-navi")?.shortcut;
-        const text = `Navi is off and isn't listening. To turn it back on, click the on button in Navi's panel, or ${key ? `press ${key}` : "press the push-to-talk shortcut"} and say “turn on”.`;
+        const text = `Navi is off and isn't listening. To turn it back on, click the power button in Navi's panel, or ${key ? `press ${key}` : "press the push-to-talk shortcut"} and say “turn on”.`;
         this.navi(text);
         await this.say(text);
         this.hooks.onTurnOff();
@@ -1123,7 +1128,7 @@ export class Controller {
         await saveSettings({ startOnLaunch: intent.on });
         const text = intent.on
           ? "When Chrome opens, I'll start asleep, listening for “wake up”."
-          : "When Chrome opens, I'll start off, with the mic closed. Turn me on with the on button in my panel.";
+          : "When Chrome opens, I'll start off, with the mic closed. Turn me on with the power button in my panel.";
         this.navi(text);
         await this.say(text);
         return;

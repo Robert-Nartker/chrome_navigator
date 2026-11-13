@@ -354,6 +354,19 @@ test("video volume: set to a level, and turned up or down however it's said", as
   await expect.poll(volume).toBe(80);
 });
 
+test("“play” on a video that won't start (still loading) doesn't leave Navi stuck", async ({ panel, site, baseUrl, context }) => {
+  // The video's file never arrives, so the page's play() never finishes.
+  await context.route("**/stalled.mp4", () => undefined);
+  await site.goto(`${baseUrl}/video.html`);
+  await site.locator("#player").evaluate((v: HTMLVideoElement, url) => (v.src = url), `${baseUrl}/stalled.mp4`);
+  const started = Date.now();
+  await run(panel, "play the video");
+  expect(Date.now() - started).toBeLessThan(8000);
+  // Navi is free for the next command.
+  await run(panel, "what time is it");
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^It's \d/);
+});
+
 test("“open” opens a new tab; “go back” is the browser's back button and never closes a tab; “go to” stays in this tab", async ({
   panel,
   site,

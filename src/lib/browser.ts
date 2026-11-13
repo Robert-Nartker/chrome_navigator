@@ -81,11 +81,21 @@ async function inject(tabId: number) {
   await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
 }
 
+/** Longest Navi waits for a page to answer: a frozen or busy page mustn't leave Navi stuck. */
+const PAGE_TIMEOUT_MS = 20_000;
+
 /** Sends a request to the page, injecting the content script first if needed. */
 async function sendToPage(tab: chrome.tabs.Tab, req: ContentRequest): Promise<ContentResponse> {
   if (tab.id === undefined) throw new Error("No tab to control.");
   if (!isWebUrl(tab.url)) throw new RestrictedPageError(tab.url);
-  const send = () => chrome.tabs.sendMessage(tab.id!, req) as Promise<ContentResponse | undefined>;
+  const send = () =>
+    new Promise<ContentResponse | undefined>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`The page didn't answer within ${PAGE_TIMEOUT_MS / 1000} seconds.`)), PAGE_TIMEOUT_MS);
+      (chrome.tabs.sendMessage(tab.id!, req) as Promise<ContentResponse | undefined>).then(
+        (res) => (clearTimeout(timer), resolve(res)),
+        (err: unknown) => (clearTimeout(timer), reject(err)),
+      );
+    });
   let res: ContentResponse | undefined;
   try {
     res = await send();

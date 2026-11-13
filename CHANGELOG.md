@@ -2,10 +2,18 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-13
+
+- **Navi can't get stuck any more.** A task could hang for minutes on a page that never answered (a background YouTube tab Chrome had frozen, or a video still loading when asked to play), with every new command queued behind it and "stop" unable to end it. Now "stop" (said, typed, or the new **Stop** button in the panel while Navi works) ends a task at once, whatever it's waiting on; no page gets more than 20 seconds to answer; "play" waits at most 3 seconds for a video that's still loading; and turning Navi off with the power button stops what it's doing too.
+- **"Stop" however it's heard:** "St O P." and "S top" count.
+- **The video you mean:** YouTube's mini player (or any video you've started) counts, not just the biggest one on screen.
+- **A power button** instead of the On/Off switch.
+- **"Loading", not "Downloading"**, for Parakeet and Navi's voice once they've been downloaded.
+
 ## 2026-11-12
 
 - **On/off, awake/asleep, and no more modes.** The Hey Navi / Open mic / Push to talk switch is gone; it was hard to tell what clicking the mic would do. Now:
-  - **Off** (the default each time Chrome starts): mic closed, nothing loaded. A labeled **On/Off switch** in the panel turns Navi on, awake: just talk. After a quiet spell it falls **asleep** and waits for **"wake up"** ("Hey Navi" still works, but Chrome often mishears it).
+  - **Off** (the default each time Chrome starts): mic closed, nothing loaded. A **power button** in the panel turns Navi on, awake: just talk. After a quiet spell it falls **asleep** and waits for **"wake up"** ("Hey Navi" still works, but Chrome often mishears it).
   - **Stay awake** (a button in the panel, "stay awake" / "you can sleep when I'm quiet"): never falls asleep on its own; "go to sleep" still works.
   - **Start when Chrome opens** (Settings, "start when Chrome opens"): Navi starts asleep instead of off, so it never needs a click.
   - **Push to talk (Ctrl+Space) hears one command**, whether Navi is awake, asleep or off, and leaves it as it was. From off, the mic closes again afterwards; "turn on" or "wake up" said this way turns Navi on.

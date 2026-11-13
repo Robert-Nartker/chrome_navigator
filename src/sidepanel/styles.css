@@ -373,55 +373,36 @@ body {
   display: none;
 }
 
-/* On/off switch: says which it is, so a click is never a guess. */
+/* Power: lit while Navi is on. */
 .mic.power {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px 0 8px;
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
 }
 
-.power .track {
-  position: relative;
-  width: 26px;
-  height: 15px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--muted) 35%, transparent);
-  transition: background-color 0.15s;
+.voice:not([data-state="off"]) .mic.power[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.power .knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: var(--elevated);
-  transition: transform 0.15s;
-}
-
-.power[aria-checked="true"] .track {
-  background: currentColor;
-}
-
-.power[aria-checked="true"] .knob {
-  transform: translateX(11px);
-}
-
-.voice[data-state="awake"] .power[aria-checked="true"] .knob,
-.voice[data-state="working"] .power[aria-checked="true"] .knob {
+.voice[data-state="awake"] .mic.power,
+.voice[data-state="working"] .mic.power {
   background: var(--accent);
+  color: var(--accent-text);
 }
 
 .mic.power:focus-visible,
 .chip:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.chip.stop {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--border));
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.chip[hidden] {
+  display: none;
 }
 
 /* Stay awake: lit up while on. */

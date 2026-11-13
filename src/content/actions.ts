@@ -348,19 +348,26 @@ export function readPage(maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, maxChars)}\n[truncated]` : text;
 }
 
+/**
+ * The video the user means: one that's playing or has been started (YouTube's mini player, not the silent
+ * previews under the mouse), the biggest on screen first.
+ */
 function mainVideo(): HTMLVideoElement | null {
   const videos = Array.from(document.querySelectorAll("video"));
-  let best: HTMLVideoElement | null = null;
-  let bestArea = 0;
-  for (const v of videos) {
+  const area = (v: HTMLVideoElement) => {
     const r = v.getBoundingClientRect();
-    const area = r.width * r.height;
-    if (area > bestArea) {
-      best = v;
-      bestArea = area;
-    }
-  }
-  return best;
+    return r.width * r.height;
+  };
+  const started = (v: HTMLVideoElement) => !v.paused || v.currentTime > 1;
+  const ranked = videos
+    .filter((v) => area(v) > 0 || started(v))
+    .sort((a, b) => Number(started(b)) - Number(started(a)) || area(b) - area(a));
+  return ranked[0] ?? null;
+}
+
+/** Starts the video, but doesn't wait forever: a video still loading (or held by the site) can take its time. */
+async function play(video: HTMLVideoElement): Promise<void> {
+  await Promise.race([video.play(), new Promise((resolve) => setTimeout(resolve, 3000))]);
 }
 
 export async function media(action: MediaAction, seconds = 10, volume = 50): Promise<string> {
@@ -368,13 +375,13 @@ export async function media(action: MediaAction, seconds = 10, volume = 50): Pro
   if (!video) throw new Error("There's no video on this page.");
   switch (action) {
     case "play":
-      await video.play();
-      return "playing";
+      await play(video);
+      return video.paused ? "asked the video to play (it's still loading)" : "playing";
     case "pause":
       video.pause();
       return "paused";
     case "toggle":
-      if (video.paused) await video.play();
+      if (video.paused) await play(video);
       else video.pause();
       return video.paused ? "paused" : "playing";
     case "mute":

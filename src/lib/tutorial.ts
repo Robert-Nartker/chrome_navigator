@@ -141,7 +141,7 @@ export function tutorialSteps(c: TutorialContext): TutorialStep[] {
   steps.push({
     id: "finish",
     title: "Sleep and settings",
-    say: `Last thing. When you're done, say “go to sleep”, and I'll wait for “wake up”. “Turn off” stops me listening completely; the on button or the push-to-talk shortcut brings me back. Say “what can I say” any time for ideas, “open settings” for settings, and “start the tutorial” to take this tour again. Say “go to sleep” now to finish.`,
+    say: `Last thing. When you're done, say “go to sleep”, and I'll wait for “wake up”. “Turn off” stops me listening completely; the power button in my panel brings me back. Say “what can I say” any time for ideas, “open settings” for settings, and “start the tutorial” to take this tour again. Say “go to sleep” now to finish.`,
     done: is("sleep", "turnOff"),
     praise: "That's the tour. Have fun.",
   });

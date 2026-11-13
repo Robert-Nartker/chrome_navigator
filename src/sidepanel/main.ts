@@ -104,7 +104,7 @@ function renderStatus() {
   ui.dictate.setAttribute("aria-label", ears.dictating ? "Stop dictating" : "Dictate a message");
   ui.mic.setAttribute("aria-checked", String(on));
   ui.mic.title = on ? "Navi is on. Click to turn it off: the mic closes and nothing stays loaded." : "Navi is off. Click to turn it on.";
-  setText($("power-label"), on ? "On" : "Off");
+  $("stop-task").hidden = !worker.working;
   const stay = $("stay-awake");
   stay.setAttribute("aria-pressed", String(settings.stayAwake));
   stay.title = settings.stayAwake
@@ -152,7 +152,7 @@ function showStatus(state: string, text: string, detail?: string) {
   setText(ui.statusText, state === "error" ? text : (STATUS_LABELS[state] ?? text));
   const hint =
     state === "off"
-      ? `Navi is off: the mic is closed and nothing is loaded. Turn it on with the switch${talkShortcut ? `, or press ${talkShortcut} for one command` : ""}.`
+      ? `Navi is off: the mic is closed and nothing is loaded. Turn it on with the power button${talkShortcut ? `, or press ${talkShortcut} for one command` : ""}.`
       : state === "error"
         ? ears.micError || worker.problem || text
         : state === "working"
@@ -289,6 +289,7 @@ ui.mic.addEventListener("click", () => {
 });
 
 $("stay-awake").addEventListener("click", () => void saveSettings({ stayAwake: !settings.stayAwake }));
+$("stop-task").addEventListener("click", () => void toWorker({ type: "navi:run", text: "stop", source: "typed" }));
 
 /** What was in the chat box when dictation started; dictated words go after it. */
 let dictationBase: string | null = null;

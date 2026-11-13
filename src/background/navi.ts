@@ -137,13 +137,16 @@ const SESSION_KEY = "naviSession";
 /**
  * `byUser`: an explicit on/off, remembered, and turned on by the user, Navi is awake (listening for
  * commands). Otherwise (resuming, Chrome starting) nothing is remembered and Navi starts asleep.
+ * `stopWork`: turned off, whatever Navi is doing stops too.
  */
-async function setListening(on: boolean, byUser = false) {
+async function setListening(on: boolean, byUser = false, stopWork = byUser) {
   if (byUser) {
     // After the Chrome-start default is written, so it can't undo this.
     await sessionStarted;
     await chrome.storage.local.set({ [OFF_KEY]: !on });
   }
+  // Turned off: whatever Navi was doing stops too (off means off).
+  if (!on && stopWork) controller.cancel();
   worker = { ...worker, listening: on };
   broadcastWorker();
   if (on && !(await earsOrProblem())) {
@@ -306,7 +309,8 @@ const controller = new Controller(
       void sendEars({ type: "ears:session", action: "sleep" });
     },
     onTurnOff() {
-      void setListening(false, true);
+      // ("Turn off" is itself the command running: nothing else to stop.)
+      void setListening(false, true, false);
     },
     onActivity() {
       void sendEars({ type: "ears:session", action: "touch" });

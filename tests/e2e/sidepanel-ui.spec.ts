@@ -541,9 +541,8 @@ test.describe("threads", () => {
 });
 
 test("labels: the on/off switch, Stay awake, and the Flags and Grid toggles", async ({ panel }) => {
-  // Navi starts off: the switch says so, and a screen reader hears “Navi, switch, off”.
+  // Navi starts off: the power button says so, and a screen reader hears “Navi, switch, off”.
   await expect(panel.getByRole("switch", { name: "Navi" })).toHaveAttribute("aria-checked", "false");
-  await expect(panel.locator("#power-label")).toHaveText("Off");
   await expect(panel.locator("#status-text")).toHaveText("Off");
   await expect(panel.locator("#stay-awake")).toHaveAttribute("aria-pressed", "false");
   await expect(panel.locator("#ptt-hint")).toHaveText(/^(?:Ctrl\+Space: one command)?$/);
@@ -566,7 +565,6 @@ test.describe("live caption", () => {
     await expect(panel.locator("#status-text")).toHaveText("Asleep");
     await expect(panel.locator("#caption-hint")).toHaveText("Asleep: say “wake up”");
     await expect(panel.locator("#mic")).toHaveAttribute("aria-checked", "true");
-    await expect(panel.locator("#power-label")).toHaveText("On");
 
     // Before the wake word nothing is shown (or acted on).
     await hear(panel, "so I told my friend");
@@ -599,7 +597,7 @@ test.describe("live caption", () => {
     await expect(panel.locator("#status-text")).toHaveText("Off");
     await expect(panel.locator("#mic")).toHaveAttribute("aria-checked", "false");
     await expect(panel.locator("#caption-hint")).toContainText("Navi is off: the mic is closed and nothing is loaded.");
-    // Turned on with the switch, Navi is awake: just talk.
+    // Turned on with the power button, Navi is awake: just talk.
     await panel.locator("#mic").click();
     await expect(voice).toHaveAttribute("data-state", "awake");
     await expect(panel.locator("#caption-hint")).toHaveText("Listening: just say a command");
@@ -678,6 +676,48 @@ test.describe("live caption", () => {
     release();
   });
 
+  test("while Navi works, a Stop button in the panel stops it", async ({ panel, context }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    await mockClaude(context, { hold });
+    await useClaude(panel);
+    const stop = panel.getByRole("button", { name: "Stop", exact: true });
+    await expect(stop).toBeHidden();
+    const working = run(panel, "hit the subscribe thing for me");
+    const card = panel.locator("#log > li.turn").filter({ hasText: "hit the subscribe thing" });
+    await expect(card.locator(".trace-label")).toHaveText("Step 2…");
+    await expect(stop).toBeVisible();
+    await stop.click();
+    await working;
+    await expect(card.locator("li.info").last()).toContainText("Cancelled.");
+    await expect(stop).toBeHidden();
+    release();
+  });
+
+  test("turning Navi off stops what it's doing, and “stop” works however the recognizer spells it", async ({ panel, context }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    await mockClaude(context, { hold });
+    await useClaude(panel);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    const task = (text: string) => panel.locator("#log > li.turn").filter({ hasText: text });
+
+    const first = run(panel, "hit the subscribe thing for me");
+    await expect(task("hit the subscribe thing").locator(".trace-label")).toHaveText("Step 2…");
+    await panel.getByRole("switch", { name: "Navi" }).click();
+    await first;
+    await expect(task("hit the subscribe thing").locator("li.info").last()).toContainText("Cancelled.");
+    await expect(panel.locator("#status-text")).toHaveText("Off");
+
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    const second = run(panel, "subscribe to this channel for me");
+    await expect(task("subscribe to this channel").locator(".trace-label")).toHaveText("Step 2…");
+    await hear(panel, "St O P.", true);
+    await second;
+    await expect(task("subscribe to this channel").locator("li.info").last()).toContainText("Cancelled.");
+    release();
+  });
+
   test("talking over Navi cuts its reply short, but its own voice coming back through the mic doesn't", async ({ panel, context }) => {
     const answer =
       "Your inbox has three new emails: one from Sarah about the study session on Thursday, one from Professor Pritchard about the case analysis, and one from Mike about rides to the game on Saturday.";
@@ -704,7 +744,7 @@ test.describe("live caption", () => {
     await run(panel, "turn off");
     await expect(panel.locator("#status-text")).toHaveText("Off");
     await expect(panel.locator("#log li.navi .text").last()).toHaveText(
-      /click the on button in Navi's panel, or press (?:Ctrl\+Space|the push-to-talk shortcut) and say “turn on”\.$/,
+      /click the power button in Navi's panel, or press (?:Ctrl\+Space|the push-to-talk shortcut) and say “turn on”\.$/,
     );
     expect(await lastSaid(panel)).toContain("turn it back on");
     expect(await panel.evaluate(async () => (await chrome.storage.local.get("naviOff")).naviOff)).toBe(true);

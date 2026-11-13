@@ -213,11 +213,21 @@ export class Speaker implements Voice {
 
   /** Loads Navi's voice (a separate module, so its libraries load only here), noting a slow first download. */
   private async loadNeural(entry: NeuralEntry) {
+    // Downloaded once; after that it only loads.
+    const doneKey = "naviVoiceDownloaded";
+    let downloaded = false;
+    try {
+      downloaded = localStorage.getItem(doneKey) === "1";
+    } catch {
+      // No storage here: say "Downloading" to be safe.
+    }
     let noted = false;
     const timer = window.setTimeout(() => {
       noted = true;
       const size = entry.voice ? `, about ${entry.voice.downloadMb} MB` : "";
-      this.onNote?.(`Downloading Navi's voice (once${size}). Chrome's voice speaks until it's ready.`);
+      this.onNote?.(
+        downloaded ? "Loading Navi's voice (already downloaded). Chrome's voice speaks until it's ready." : `Downloading Navi's voice (once${size}). Chrome's voice speaks until it's ready.`,
+      );
     }, 1500);
     try {
       const neural = await loadModule<typeof NeuralModule>("voice/neural.js");
@@ -225,6 +235,11 @@ export class Speaker implements Voice {
       // Warmed up in the chosen voice, so the first reply doesn't also wait for that.
       await entry.voice.load(() => undefined, this.getVoice().neural?.voice);
       entry.state = "ready";
+      try {
+        localStorage.setItem(doneKey, "1");
+      } catch {
+        // Not kept: the next load says "Downloading" again.
+      }
       if (noted) this.onNote?.("Navi's voice is ready.");
       this.unloadWhenIdle();
     } catch (err) {

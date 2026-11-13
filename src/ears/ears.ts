@@ -33,6 +33,8 @@ export interface EarsOutput {
 const STOP_WORDS = /\b(stop|cancel|quiet)\b/i;
 /** A short "stop" on its own: stops whatever Navi is doing, even asleep and without the name. */
 const JUST_STOP = /^(?:(?:hey |ok(?:ay)? )?(?:navi|navy)[,.]? )?(?:stop|stop it|stop that|cancel|never ?mind|quiet|be quiet|shut up)[.!]*$/i;
+/** "Stop" as a recognizer sometimes writes it, letters apart ("St O P.", "S top"). */
+const SPELLED_STOP = /^(?:hey)?(?:navi|navy)?(?:stop|stopit|stopthat|stopstop)$/;
 /**
  * A whole command Chrome shows but doesn't finish (it isn't sure the speaker is done) runs after its words
  * have stood still this long; Chrome itself can take seconds.
@@ -258,7 +260,7 @@ export class Ears {
       // Talking over Navi: it stops and listens.
       this.speaker.stop();
     }
-    if (JUST_STOP.test(transcript.trim())) {
+    if (JUST_STOP.test(transcript.trim()) || SPELLED_STOP.test(transcript.toLowerCase().replace(/[^a-z]/g, ""))) {
       // "Stop" works any time, with or without the name: it halts speech and any running task.
       if (this.once) this.endOnce();
       this.out.cancel();
@@ -427,10 +429,19 @@ export class Ears {
         deviceId: () => this.settings.micDeviceId,
         fake: this.fakeParakeet,
       });
+      // Downloaded once; after that it only loads (a few seconds onto the graphics chip).
+      const doneKey = `parakeetDownloaded:${parakeetModelFor(lang)}`;
+      // (This page has no chrome.storage: its own localStorage, which lasts as long as the extension.)
+      const downloaded = remembered(doneKey);
       let noted = false;
       timer = setTimeout(() => {
         noted = true;
-        this.out.log("info", `Downloading Parakeet (once, about ${engine.downloadGb} GB). Chrome's recognizer listens until it's ready.`);
+        this.out.log(
+          "info",
+          downloaded
+            ? "Loading Parakeet (already downloaded). Chrome's recognizer listens until it's ready."
+            : `Downloading Parakeet (once, about ${engine.downloadGb} GB). Chrome's recognizer listens until it's ready.`,
+        );
       }, 1500);
       let shown = -1;
       await engine.load((loaded, total) => {
@@ -440,6 +451,7 @@ export class Ears {
         this.parakeetProgress = `${pct}%`;
         this.emit();
       });
+      remember(doneKey);
       if (!this.wantsParakeet() || this.settings.lang !== lang) return engine.dispose();
       this.parakeet = engine;
       if (noted) {
@@ -560,5 +572,22 @@ async function micGranted(): Promise<boolean> {
     return (await navigator.permissions.query({ name: "microphone" as PermissionName })).state === "granted";
   } catch {
     return false;
+  }
+}
+
+/** A note kept between runs (in this page's localStorage), e.g. that a model has been downloaded. */
+export function remembered(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function remember(key: string) {
+  try {
+    localStorage.setItem(key, "1");
+  } catch {
+    // Not kept: the next load just says "Downloading" again.
   }
 }
