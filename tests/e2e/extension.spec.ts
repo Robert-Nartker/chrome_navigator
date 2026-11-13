@@ -1168,7 +1168,7 @@ test("router: a loosely worded command is understood by the quick model and runs
   await expect(panel.locator("#log li.step").filter({ hasText: "Understood as “click subscribe”" })).toHaveCount(1);
 });
 
-test("router: noise is ignored quietly and never reaches the main model", async ({ panel, context }) => {
+test("router: noise never reaches the main model, and a short sound says it wasn't understood", async ({ panel, context }) => {
   const models: string[] = [];
   await context.route(
     "https://api.anthropic.com/**",
@@ -1196,9 +1196,9 @@ test("router: noise is ignored quietly and never reaches the main model", async 
   await final("and then she told me the car was still in the shop");
   await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “and then she told me" })).toHaveCount(1);
   expect(models).toEqual(["claude-sonnet-5-5", "claude-sonnet-5-5"]);
-  // Nothing was spoken or shown as an error, and no "didn't understand" sound each time someone talks nearby.
+  // Nothing was spoken or shown as an error; the short "didn't work" sound says it wasn't understood, and when.
   await expect(panel.locator("#log li.error")).toHaveCount(0);
-  expect(await ears.evaluate(() => (window as unknown as { __sounds: string[] }).__sounds)).not.toContain("unknown");
+  await expect.poll(() => ears.evaluate(() => (window as unknown as { __sounds: string[] }).__sounds.filter((n) => n === "unknown").length)).toBe(2);
 });
 
 /** A fake OpenAI Responses API reply. */
@@ -1948,17 +1948,12 @@ test.describe("Navi's window", () => {
     await focus(panel, a);
     const task = run(panel, "hit the subscribe thing for me");
     await expect.poll(() => calls).toBe(1);
-    // Said in A while Navi works: it waits its turn, and runs in A too.
-    const queued = run(panel, "scroll down");
     // The user moves to window B before Navi acts: Navi still acts in A.
     await focus(panel, b);
     release();
     await task;
-    await queued;
     await expect(site.locator("#subs")).toHaveText("1");
     await expect(bPage.locator("#subs")).toHaveText("0");
-    await expect.poll(() => scrolled(site)).toBeGreaterThan(0);
-    expect(await scrolled(bPage)).toBe(0);
     // The next command acts where the user is now.
     const before = await settled(site);
     await run(panel, "scroll down");

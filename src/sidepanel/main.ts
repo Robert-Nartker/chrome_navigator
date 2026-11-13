@@ -104,7 +104,7 @@ function renderStatus() {
   ui.dictate.setAttribute("aria-label", ears.dictating ? "Stop dictating" : "Dictate a message");
   ui.mic.setAttribute("aria-checked", String(on));
   ui.mic.title = on ? "Navi is on. Click to turn it off: the mic closes and nothing stays loaded." : "Navi is off. Click to turn it on.";
-  $("stop-task").hidden = !worker.working;
+  renderSend();
   const stay = $("stay-awake");
   stay.setAttribute("aria-pressed", String(settings.stayAwake));
   stay.title = settings.stayAwake
@@ -289,7 +289,14 @@ ui.mic.addEventListener("click", () => {
 });
 
 $("stay-awake").addEventListener("click", () => void saveSettings({ stayAwake: !settings.stayAwake }));
-$("stop-task").addEventListener("click", () => void toWorker({ type: "navi:run", text: "stop", source: "typed" }));
+/** While Navi works and nothing is typed, the send button is a Stop button (like Claude's). */
+function renderSend() {
+  const send = $("send");
+  const stop = worker.working && !ui.input.value.trim();
+  send.dataset.mode = stop ? "stop" : "go";
+  send.setAttribute("aria-label", stop ? "Stop" : worker.working ? "Stop and send" : "Go");
+}
+ui.input.addEventListener("input", renderSend);
 
 /** What was in the chat box when dictation started; dictated words go after it. */
 let dictationBase: string | null = null;
@@ -315,8 +322,10 @@ ui.form.addEventListener("submit", (e) => {
   e.preventDefault();
   if (ears.dictating) void toWorker({ type: "navi:dictate", on: false });
   dictationBase = null;
-  const text = ui.input.value;
+  // Nothing typed while Navi works: stop it. Something typed: it stops what's running and goes now.
+  const text = ui.input.value.trim() || (worker.working ? "stop" : "");
   ui.input.value = "";
+  renderSend();
   // Typed commands skip the wake word.
   void navi.run(text);
 });
@@ -725,6 +734,15 @@ async function init() {
     const known = new Set(hello.log.map((e) => `${e.t}:${e.text}`));
     entries = [...hello.log, ...entries.filter((e) => !known.has(`${e.t}:${e.text}`))].slice(-500);
     showThreads(hello.threads, true);
+    // Opening Navi after a break starts a fresh thread (earlier ones are in the thread menu). Not when the
+    // conversation is still going (opened mid-task, or by voice, or reopened right after closing), nor on a
+    // reload of the same panel; a thread with nothing in it yet is reused.
+    const current = hello.threads.threads.find((t) => t.id === hello.threads.current);
+    const idle = !current || Date.now() - current.updated >= FRESH_THREAD_AFTER_MS;
+    if (openedJustNow() && idle && !hello.worker.working) {
+      const fresh = await toWorker<ThreadsState>({ type: "navi:thread", action: "new" }).catch(() => undefined);
+      if (fresh) showThreads(fresh, true);
+    }
   }
   void loadSpentToday();
   const granted = await checkMicPermission();
@@ -732,6 +750,20 @@ async function init() {
   // Navi listens for its name whenever it's on (only turning it off stops that).
   if (granted) void toWorker({ type: "navi:resume" });
   renderStatus();
+}
+
+/** A conversation untouched this long is over: opening Navi starts a new one. (Tests can set it in the URL.) */
+const FRESH_THREAD_AFTER_MS = Number(new URLSearchParams(location.search).get("freshAfterMs") ?? 60_000);
+
+/** True the first time this panel loads (not on a reload of it). */
+function openedJustNow(): boolean {
+  try {
+    if (sessionStorage.getItem("naviOpened")) return false;
+    sessionStorage.setItem("naviOpened", "1");
+  } catch {
+    // No storage: treat every load as an opening.
+  }
+  return true;
 }
 
 void init();

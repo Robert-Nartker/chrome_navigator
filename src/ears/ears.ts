@@ -107,6 +107,8 @@ export class Ears {
    * `only`: the mic was off (Navi is off), so it closes again afterwards. `since`: the key, or the last words.
    */
   private once: { only: boolean; since: number } | null = null;
+  /** The headset mic Navi has already warned about. */
+  private micWarned = "";
 
   constructor(private readonly out: EarsOutput) {
     this.speaker = new Speaker(
@@ -551,9 +553,29 @@ export class Ears {
       next.stop();
       return;
     }
+    void this.checkMic();
     // Load Navi's voice now, so the first reply isn't in the fallback voice while it loads.
     if (naviVoiceOf(this.settings)) void this.speaker.prepareVoice().catch(() => undefined);
     this.emit();
+  }
+
+  /**
+   * A Bluetooth headset's mic (AirPods and the like) records at phone-call quality, and both recognizers
+   * mishear it badly: say so once per mic, with the fix.
+   */
+  private async checkMic() {
+    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => [] as MediaDeviceInfo[]);
+    const inputs = devices.filter((d) => d.kind === "audioinput");
+    const mic = inputs.find((d) => d.deviceId === (this.settings.micDeviceId || "default")) ?? inputs[0];
+    const label = mic?.label ?? "";
+    if (!label || label === this.micWarned || !isHeadsetMic(label)) return;
+    this.micWarned = label;
+    const other = inputs.find((d) => d.deviceId !== "default" && d.deviceId !== "communications" && !isHeadsetMic(d.label));
+    this.out.log(
+      "error",
+      `Navi is hearing you through “${label.replace(/^(?:Default|Communications) - /, "")}”, a Bluetooth headset mic. Those record at phone-call quality, so Navi (with either recognizer) mishears a lot, and the headset's sound gets worse while it listens. ${other ? `Choose “${other.label}” in` : "Choose another mic (like your computer's built-in one) in"} Settings → Listening → Microphone.`,
+    );
+    void this.speaker.say("Heads up: you're using a Bluetooth headset's mic, so I'll mishear a lot. Your computer's own mic works much better: choose it in my settings, under Microphone.").catch(() => undefined);
   }
 
   private stop() {
@@ -590,4 +612,9 @@ export function remember(key: string) {
   } catch {
     // Not kept: the next load just says "Downloading" again.
   }
+}
+
+/** A Bluetooth headset's mic, by the name the system gives it ("Headset (AirPods Pro Hands-Free AG Audio)"). */
+export function isHeadsetMic(label: string): boolean {
+  return /hands-?free|airpods|bluetooth|\bbt\b|galaxy buds|pixel buds|\bbuds\b|beats|jabra|bose|wh-1000|wf-1000|headset/i.test(label) && !/\busb\b/i.test(label);
 }

@@ -256,7 +256,7 @@ test("while Navi works, the card shows a spinner with the latest step and the ca
   await expect(panel.locator("#status-text")).toHaveText("Off");
 });
 
-test("a command said mid-task is noted in the running card, and stop ends it", async ({ panel, context }) => {
+test("“stop” mid-task ends it, and the card says so", async ({ panel, context }) => {
   let release = () => {};
   const hold = new Promise<void>((resolve) => (release = resolve));
   await mockClaude(context, { hold });
@@ -265,17 +265,14 @@ test("a command said mid-task is noted in the running card, and stop ends it", a
   const card = panel.locator("#log > li.turn").filter({ hasText: "hit the subscribe thing" });
   await expect(card.locator(".trace-label")).toHaveText("Step 2…");
 
-  await run(panel, "scroll down");
-  await expect(card.locator("li.info")).toContainText("Next: “scroll down”");
   await run(panel, "stop");
   await first;
   await expect(card.locator("li.info").last()).toContainText("Cancelled.");
   await expect(card).toHaveAttribute("data-state", "done");
   await expect(card.locator(".trace")).not.toHaveAttribute("data-state", "working");
-  // "stop" is its own card after the cancelled one; the queued command was dropped.
+  // "stop" is its own card after the cancelled one.
   const cards = panel.locator("#log > li.turn");
   await expect(cards.last().locator("li.user")).toContainText("stop");
-  await expect(panel.locator("#log li.user .text").filter({ hasText: "scroll down" })).toHaveCount(0);
   await expect(panel.locator("#status-text")).toHaveText("Off");
   release();
 });
@@ -301,6 +298,24 @@ test("fast commands and unrecognized ones stay compact; notes sit between cards"
   await expect(unknown.locator(".trace-label")).toContainText("Not a built-in command");
   // Not understood: one faint line rather than a card.
   await expect(unknown).toHaveAttribute("data-kind", "quiet");
+});
+
+test("opening Navi after a break starts a fresh thread; the earlier one is still in the thread menu", async ({ panel, context, extensionId }) => {
+  await run(panel, "what time is it");
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^It's \d/);
+  await panel.waitForTimeout(500);
+  await panel.close();
+  // (A break of any length, for the test.)
+  const reopened = await context.newPage();
+  await reopened.goto(`chrome-extension://${extensionId}/sidepanel.html?freshAfterMs=0`);
+  await reopened.waitForFunction(() => "navi" in window);
+  await expect.poll(() => reopened.evaluate(async () => ((await chrome.runtime.sendMessage({ type: "navi:hello" })) as { threads: { threads: unknown[] } }).threads.threads.length)).toBe(2);
+  await expect(reopened.locator("#log li.user")).toHaveCount(0);
+  // Reloading the same panel keeps it on that fresh thread (no third one).
+  await reopened.reload();
+  await reopened.waitForFunction(() => "navi" in window);
+  await reopened.waitForTimeout(500);
+  expect(await reopened.evaluate(async () => ((await chrome.runtime.sendMessage({ type: "navi:hello" })) as { threads: { threads: unknown[] } }).threads.threads.length)).toBe(2);
 });
 
 test("reopening the panel rebuilds the same cards", async ({ panel, site, context }) => {
@@ -460,7 +475,7 @@ test.describe("threads", () => {
     expect(recap.users[0]).toContain("Earlier in this thread (“My favorite color is green”), oldest first:\nUser: my favorite color is green\nNavi: Answer to: my favorite color is green\nUser: and my favorite food is pizza");
   });
 
-  test("a task keeps running in its own thread while you start another; the next command waits its turn", async ({ panel, context }) => {
+  test("a task keeps running in its own thread while you start another; something asked there takes over at once", async ({ panel, context }) => {
     let release = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
     const chats = await mockChat(context, { slow: "research standing desks", hold });
@@ -480,19 +495,16 @@ test.describe("threads", () => {
     await panel.keyboard.press("Escape");
     await expect(panel.locator("#thread-menu")).toBeHidden();
 
-    // Typed here meanwhile: noted here, and run here once the task is done, even after switching away.
+    // Typed here meanwhile: Navi stops the research and answers this, here, right away.
     const second = type(panel, "what time is it in tokyo");
-    await expect(panel.locator("#log > li.solo.info .text")).toHaveText("Next: “what time is it in tokyo”");
-    expect(chats).toHaveLength(1);
-    await panel.locator("#thread-running").click();
-    await expect(panel.locator("#thread-title")).toHaveText("Research standing desks");
-    // Its card is still working.
-    await expect(panel.locator("#log > li.turn")).toHaveAttribute("data-state", "working");
-    release();
     await first;
+    await expect.poll(() => chats.length).toBe(2);
+    release();
     await second;
-    await expect(panel.locator("#log li.navi .text")).toHaveText(["Answer to: research standing desks"]);
+    await panel.locator("#thread-current").click();
+    await panel.locator(".thread-pick", { hasText: "Research standing desks" }).click();
     await expect(panel.locator("#log > li.turn")).toHaveAttribute("data-state", "done");
+    await expect(panel.locator("#log li.info").last()).toHaveText("Stopped for what you said next.");
     expect(await feedText(panel)).not.toContain("tokyo");
     expect(chats[1]).toMatchObject({ asked: "what time is it in tokyo" });
     // A fresh conversation: nothing from the desk research.
@@ -716,6 +728,33 @@ test.describe("live caption", () => {
     await second;
     await expect(task("subscribe to this channel").locator("li.info").last()).toContainText("Cancelled.");
     release();
+  });
+
+  test("a new command while Navi works takes over at once, and the AI hears what it had done (“no, the other one”)", async ({ panel, context }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    await mockClaude(context, { hold });
+    await useClaude(panel);
+    // What the AI is sent.
+    const asked: string[] = [];
+    await context.route("https://api.anthropic.com/**", (route) => {
+      asked.push(JSON.stringify(route.request().postDataJSON()));
+      return route.fallback();
+    });
+    const task = (text: string) => panel.locator("#log > li.turn").filter({ hasText: text });
+
+    const first = run(panel, "hit the subscribe thing for me");
+    await expect(task("hit the subscribe thing").locator(".trace-label")).toHaveText("Step 2…");
+    const second = run(panel, "no the other one");
+    // No waiting in line: the first stops, the second is already being worked on.
+    await expect(task("hit the subscribe thing").locator("li.info").last()).toHaveText("Stopped for what you said next.");
+    await expect(task("no the other one").locator(".trace-label")).toHaveText("Step 2…");
+    await expect(panel.locator("#log li.info").filter({ hasText: /^Next:/ })).toHaveCount(0);
+    // The AI was told what the interrupted task had done, so it can carry on from there.
+    const start = asked.filter((b) => b.includes("no the other one")).at(0) ?? "";
+    expect(start).toContain('hit the subscribe thing for me\\" → interrupted by the next command, after: ');
+    release();
+    await Promise.all([first, second]);
   });
 
   test("talking over Navi cuts its reply short, but its own voice coming back through the mic doesn't", async ({ panel, context }) => {

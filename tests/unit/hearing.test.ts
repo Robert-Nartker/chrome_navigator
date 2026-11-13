@@ -223,3 +223,15 @@ describe("the first words of a command wait for the rest", () => {
     for (const said of ["close tab", "scroll down", "pause", "so I told my friend", "hello"]) expect(isCommandStart(said), `"${said}"`).toBe(false);
   });
 });
+
+describe("a Bluetooth headset's mic is noticed (it records at phone-call quality)", async () => {
+  const { isHeadsetMic } = await import("../../src/ears/ears");
+  it("by the names Windows and macOS give it", () => {
+    for (const label of ["Headset (Robert's AirPods Pro Hands-Free AG Audio)", "Default - Headset (AirPods)", "Robert's AirPods Pro", "Galaxy Buds2 Pro", "WH-1000XM5 Hands-Free", "Jabra Elite 75t"]) {
+      expect(isHeadsetMic(label), label).toBe(true);
+    }
+    for (const label of ["Microphone Array (Realtek(R) Audio)", "MacBook Pro Microphone", "Blue Yeti (USB)", "Default - Microphone (Realtek High Definition Audio)", "Jabra Speak 510 USB"]) {
+      expect(isHeadsetMic(label), label).toBe(false);
+    }
+  });
+});

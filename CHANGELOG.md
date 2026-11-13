@@ -4,7 +4,12 @@ What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md);
 
 ## 2026-11-13
 
-- **Navi can't get stuck any more.** A task could hang for minutes on a page that never answered (a background YouTube tab Chrome had frozen, or a video still loading when asked to play), with every new command queued behind it and "stop" unable to end it. Now "stop" (said, typed, or the new **Stop** button in the panel while Navi works) ends a task at once, whatever it's waiting on; no page gets more than 20 seconds to answer; "play" waits at most 3 seconds for a video that's still loading; and turning Navi off with the power button stops what it's doing too.
+- **No waiting in line: what you say next takes over at once.** A command given while Navi works stops what it's doing and runs now. The AI is told what the stopped task had already done, so "no, the other one" carries on from there, while something unrelated simply replaces it. Helper reports still wait for a quiet moment.
+- **The send button becomes Stop** while Navi works (like Claude's); typing something and sending it stops the current task and runs yours.
+- **Opening Navi after a break starts a fresh thread** (when the current one has been quiet for a minute or more). Earlier threads stay in the thread menu; opening the panel mid-conversation or reopening it right away keeps the conversation.
+- **A short "didn't work" sound whenever a command fails**, including speech the AI router couldn't make sense of, so you know it failed and when.
+- **A warning about Bluetooth headset mics.** AirPods and other headsets record at phone-call quality when their mic is in use, and both recognizers mishear them badly. Navi now notices one by its name ("Headset (AirPods Hands-Free AG Audio)"), says so once, and names the better mic to choose in Settings → Listening → Microphone.
+- **Navi can't get stuck any more.** A task could hang for minutes on a page that never answered (a background YouTube tab Chrome had frozen, or a video still loading when asked to play), with every new command queued behind it and "stop" unable to end it. Now "stop" (said, typed, or the **Stop** button in the panel while Navi works) ends a task at once, whatever it's waiting on; no page gets more than 20 seconds to answer; "play" waits at most 3 seconds for a video that's still loading; and turning Navi off with the power button stops what it's doing too.
 - **"Stop" however it's heard:** "St O P." and "S top" count.
 - **The video you mean:** YouTube's mini player (or any video you've started) counts, not just the biggest one on screen.
 - **A power button** instead of the On/Off switch.

@@ -140,7 +140,14 @@ interface Outcome {
 export class Controller {
   private readonly agent: NaviAgent;
   private current: AbortController | null = null;
+  /** Helper reports that came while Navi was busy (commands from the user don't wait: they interrupt). */
   private queue: { text: string; options: RunOptions }[] = [];
+  /** What the running AI task has done so far, so a command that interrupts it can carry on from there. */
+  private turnSteps: string[] = [];
+  /** Settles when the running command has wound down. */
+  private runDone: Promise<void> = Promise.resolve();
+  /** Commands waiting for the one they interrupted to wind down (they go before queued helper reports). */
+  private takingOver = 0;
   /** A close waiting for the user's yes, because it would lose typing that isn't sent or saved. */
   private pendingClose: { intent: Intent; until: number } | null = null;
   private busy = false;
@@ -321,14 +328,21 @@ export class Controller {
     }
     // The window the command acts in, decided now: the user may move to another window meanwhile.
     const windowId = options.window ?? this.pin.window ?? (await focusedWindowId());
-    if (this.busy) {
-      // Commands spoken while Navi is working run in order afterwards, in the thread and window they were given in.
-      const thread = options.thread ?? this.threads.current;
-      if (fromHelper) this.queue.push({ text: command, options: { ...options, thread, window: windowId } });
-      else if (this.queue.length < 5) {
-        this.queue.push({ text: command, options: { ...options, thread, window: windowId } });
-        this.ui.log("info", `Next: “${command}”`, undefined, { thread, solo: thread !== this.threads.running });
+    // Something new from the user takes over at once: what's running stops, and the AI hears what it had
+    // done, so "no, the other one" carries on from there while something unrelated just replaces it.
+    if (this.busy && !fromHelper) {
+      this.takingOver++;
+      while (this.busy) {
+        this.current?.abort("interrupt");
+        this.speechGen++;
+        this.speaker.stop();
+        await this.runDone;
       }
+      this.takingOver--;
+    }
+    if (this.busy) {
+      // A helper's report waits its turn, in its own thread and window.
+      this.queue.push({ text: command, options: { ...options, thread: options.thread ?? this.threads.current, window: windowId } });
       return;
     }
     const thread = this.threads.get(options.thread) ? options.thread! : this.threads.current;
@@ -340,6 +354,9 @@ export class Controller {
     if (command !== heard) this.ui.log("step", `Heard “${heard}”, which sounds like “${command}”`);
     this.busy = true;
     this.turnMessage = "";
+    this.turnSteps = [];
+    let finished = () => {};
+    this.runDone = new Promise((resolve) => (finished = resolve));
     this.ui.setWorking(true);
     const controller = new AbortController();
     this.current = controller;
@@ -373,7 +390,11 @@ export class Controller {
     } catch (err) {
       if (controller.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
         metric = { path: "cancelled", ms: elapsed() };
-        this.ui.log("info", "Cancelled.");
+        if (controller.signal.reason === "interrupt") {
+          this.ui.log("info", "Stopped for what you said next.");
+          const done = this.turnSteps.slice(-5).join("; ");
+          this.turnMessage = `interrupted by the next command${done ? `, after: ${done}` : " before doing anything"}`;
+        } else this.ui.log("info", "Cancelled.");
       } else {
         const message = err instanceof Error ? err.message : String(err);
         metric = { path: "error", ms: elapsed(), error: message };
@@ -410,15 +431,9 @@ export class Controller {
       setWorkWindow(undefined);
       this.ui.setWorking(false);
       this.hooks.onActivity();
-      const next = this.queue.shift();
-      if (next) {
-        // Said while Navi was working: the user has moved on, so the last reply is cut short.
-        if (next.options.source !== "helper") {
-          this.speechGen++;
-          this.speaker.stop();
-        }
-        void this.run(next.text, next.options);
-      }
+      finished();
+      const next = this.takingOver ? undefined : this.queue.shift();
+      if (next) void this.run(next.text, next.options);
     }
   }
 
@@ -447,7 +462,7 @@ export class Controller {
       metric.path === "error"
         ? `failed: ${metric.error}`
         : metric.path === "cancelled"
-          ? "cancelled"
+          ? this.turnMessage || "cancelled"
           : metric.path === "ignored"
             ? "ignored (not understood)"
             : this.turnMessage || "done";
@@ -595,8 +610,10 @@ export class Controller {
         });
         if (fastPath) return { ...fastPath, routerMs, routerCostUsd };
       } else if (decision.route === "ignore") {
-        // Someone else talking, a TV: no sound, or chatter nearby would set Navi off every few seconds.
+        // Not understood (or not meant for Navi): the short "didn't work" sound, so the user knows it
+        // failed, and when. Asleep, chatter never gets this far.
         this.ui.log("step", `Ignored “${command}” · ${routerMs} ms`);
+        this.speaker.sound("unknown");
         return { intent: "ignored", routerMs, routerCostUsd };
       }
     }
@@ -637,6 +654,7 @@ export class Controller {
         onStep: (step) => {
           this.ui.setWorking(true, step);
           this.ui.log("step", step);
+          if (!/^(?:Thinking…|Step \d+…)$/.test(step)) this.turnSteps.push(step);
           this.hooks.onActivity();
         },
         // Part of the answer, told right away while the model keeps working.
