@@ -71,7 +71,10 @@ A review of tonight's own code caught "open canva" opening Canvas, chatter cutti
   - Whisper's way of writing things is understood: "Wake-up." (it wakes Navi), "What’s the date?" with a curly apostrophe, "Click a 12", "Next, the heading";
   - the usage log and the command cards show a built-in command's real speed (a few milliseconds), not the time Navi spent saying the answer;
   - in Free, while Chrome isn't answering about its on-device AI, commands no longer each wait 3 seconds;
-  - recording your mic puts Navi back asleep if it was asleep.
+  - recording your mic puts Navi back asleep if it was asleep;
+  - "which recognizer are you using?" tells the truth while Whisper is still loading (Chrome's recognizer stands in), and the panel says "Whisper loading", not "Parakeet";
+  - safer handling of misheard names. "Close up" (for "close tab") could close the only tab titled "Setup", and "press into" (for "press enter") could click "Log into your account". Names now have to match whole words.
+- **A regression guard for the parser:** 1,961 real transcripts from the benchmark are a test fixture now, so a future change that understands less, or runs more wrong commands, fails the tests.
 
 ## Commits tonight
 
