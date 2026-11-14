@@ -345,6 +345,10 @@ const controller = new Controller(
     onMetric(metric) {
       addMetric(metric);
     },
+    hearing: () => ears.engineLabel,
+    retryRecognizer() {
+      void sendEars({ type: "ears:retry-model" });
+    },
     onExchange(said, reply) {
       if (!activeSettings(settings).memory) return;
       void noteExchange(said, reply).then((waiting) => scheduleMemoryUpdate(waiting >= MEMORY_BATCH ? 5000 : MEMORY_IDLE_MS));

@@ -187,6 +187,10 @@ export class Controller {
       onTurnOff(): void;
       onActivity(): void;
       onMetric?(metric: CommandMetric): void;
+      /** What's listening right now ("Whisper (on-device, graphics chip)", "Chrome (on-device) · Whisper loading"). */
+      hearing?(): string;
+      /** Try loading the chosen model recognizer again now, not after its wait. */
+      retryRecognizer?(): void;
       /** Something said to the AI and its reply (for memory). */
       onExchange?(said: string, reply: string): void;
       /** Wake Navi (turning it on if it's off), so the next thing said is a command. */
@@ -1476,8 +1480,16 @@ export class Controller {
         const now = this.getSettings().recognizer;
         const name = (r: typeof now) => (r === "parakeet" ? "Parakeet" : r === "whisper" ? "Whisper" : "Chrome's recognizer");
         let text: string;
-        if (!intent.to) text = `${name(now)} is hearing you.`;
-        else if (intent.to === now) text = `${name(now)} is already hearing you.`;
+        // A chosen model may not be listening yet (downloading, loading, or waiting to try again): Chrome's
+        // recognizer stands in, and saying so is the truth.
+        const label = this.hooks.hearing?.() ?? "";
+        const standingIn = now !== "chrome" && !!label && !label.startsWith(name(now));
+        if (!intent.to) {
+          text = standingIn ? `${name(now)} is chosen, but Chrome's recognizer is hearing you until it's ready.` : `${name(now)} is hearing you.`;
+        } else if (intent.to === now && standingIn) {
+          this.hooks.retryRecognizer?.();
+          text = `${name(now)} isn't listening yet, so I'm loading it again. Chrome's recognizer hears you until it's ready.`;
+        } else if (intent.to === now) text = `${name(now)} is already hearing you.`;
         else {
           await saveSettings({ recognizer: intent.to });
           text =

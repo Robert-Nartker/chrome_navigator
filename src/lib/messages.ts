@@ -102,6 +102,8 @@ export type EarsRequest =
   | { type: "ears:sound"; name: EarconName }
   | { type: "ears:session"; action: "sleep" | "wake" | "touch" | "once" }
   | { type: "ears:dictate"; on: boolean }
+  /** Load the chosen model recognizer again now (it failed, or is waiting to try again). */
+  | { type: "ears:retry-model" }
   /** Navi Free's on-device model runs in the background page too. Answer: { text } or { error }. */
   | { type: "nano:prompt"; req: NanoRequest }
   | { type: "nano:status" }

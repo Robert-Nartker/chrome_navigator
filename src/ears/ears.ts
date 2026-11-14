@@ -413,6 +413,12 @@ export class Ears {
     },
   };
 
+  /** Asked to by voice ("use Whisper" while it isn't listening yet): load the chosen model now. */
+  retryModel() {
+    this.parakeetRetryAt = 0;
+    if (this.wantListening && this.wantsParakeet() && !this.parakeet) void this.loadParakeet();
+  }
+
   /** The model recognizer being downloaded or loaded ("Whisper", "Parakeet"). */
   private loadingName(): string {
     const kind = this.settings.recognizer;

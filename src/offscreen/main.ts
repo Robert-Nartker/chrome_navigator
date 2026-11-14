@@ -32,6 +32,9 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     case "ears:say":
       void ears.say(msg.text).then(() => sendResponse(true));
       return true;
+    case "ears:retry-model":
+      ears.retryModel();
+      return false;
     case "ears:stop-speaking":
       ears.stopSpeaking();
       return false;

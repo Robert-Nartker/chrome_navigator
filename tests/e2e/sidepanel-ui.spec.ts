@@ -1183,6 +1183,12 @@ test.describe("Parakeet recognizer", () => {
     const labels = await panel.evaluate(() => (window as unknown as { __labels: string[] }).__labels);
     expect(labels.some((l) => /Whisper loading/.test(l))).toBe(true);
     expect(labels.filter((l) => /Parakeet/.test(l))).toEqual([]);
+    // Asked, Navi says who's really listening; "use Whisper" tries loading it again now.
+    await run(panel, "which recognizer are you using");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Whisper is chosen, but Chrome's recognizer is hearing you until it's ready.");
+    await run(panel, "use whisper");
+    await expect(panel.locator("#log li.navi .text").last()).toContainText("Whisper isn't listening yet, so I'm loading it again.");
+    await expect(panel.locator("#log li.error").filter({ hasText: "Whisper couldn't load" })).toHaveCount(2, { timeout: 30_000 });
   });
 
   test("while Parakeet can't download, Chrome's recognizer keeps listening", async ({ panel, context }) => {
