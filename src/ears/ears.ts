@@ -327,7 +327,7 @@ export class Ears {
       awake: this.listening && (this.session.current === "awake" || !!this.once),
       once: this.listening && !!this.once,
       micError: this.micError,
-      engineLabel: this.listening ? this.engineLabel + (this.parakeetProgress ? ` · Parakeet ${this.parakeetProgress}` : "") : "",
+      engineLabel: this.listening ? this.engineLabel + (this.parakeetProgress ? ` · ${this.loadingName()} ${this.parakeetProgress}` : "") : "",
       voiceLabel: this.speaker.lastVoice,
       remainingMs: this.listening && !this.once ? this.session.remainingMs : 0,
       speaking: this.speaker.busy,
@@ -412,6 +412,12 @@ export class Ears {
       this.lastInfo = message;
     },
   };
+
+  /** The model recognizer being downloaded or loaded ("Whisper", "Parakeet"). */
+  private loadingName(): string {
+    const kind = this.settings.recognizer;
+    return kind === "chrome" ? "Model" : RECOGNIZER_NAMES[kind];
+  }
 
   /** A model recognizer (Parakeet or Whisper) is chosen, and it speaks the language. */
   private wantsParakeet(): boolean {

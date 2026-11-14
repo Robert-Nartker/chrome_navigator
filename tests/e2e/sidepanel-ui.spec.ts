@@ -1168,6 +1168,23 @@ test.describe("Parakeet recognizer", () => {
     await expect(panel.locator("#log li.navi .text").last()).toHaveText("Whisper is hearing you.");
   });
 
+  test("while Whisper loads or can't download, the panel names Whisper, not Parakeet", async ({ panel, context }) => {
+    await context.route("https://huggingface.co/**", (route) => route.abort());
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { recognizer: "whisper" } }));
+    // Every "Hears:" line shown while it tries.
+    await panel.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { __labels: string[] }).__labels = seen;
+      const label = document.getElementById("engine-label")!;
+      new MutationObserver(() => seen.push(label.textContent ?? "")).observe(label, { childList: true, characterData: true, subtree: true });
+    });
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#log")).toContainText("Whisper couldn't load", { timeout: 30_000 });
+    const labels = await panel.evaluate(() => (window as unknown as { __labels: string[] }).__labels);
+    expect(labels.some((l) => /Whisper loading/.test(l))).toBe(true);
+    expect(labels.filter((l) => /Parakeet/.test(l))).toEqual([]);
+  });
+
   test("while Parakeet can't download, Chrome's recognizer keeps listening", async ({ panel, context }) => {
     const asked: string[] = [];
     await context.route("https://huggingface.co/**", (route) => {
