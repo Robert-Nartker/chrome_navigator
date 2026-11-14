@@ -23,9 +23,9 @@ export interface SessionDecision {
 }
 
 /** "Wake up" or "wake" (with a greeting or the name, or not), and maybe a command after it. */
-const WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey wakey|wake up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?(?:[\s,.!?]+(.*))?$/i;
+const WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey[\s-]wakey|wake[\s-]?up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?(?:[\s,.!?]+(.*))?$/i;
 /** The same, said on its own (while awake, "wake" can start an ordinary command). */
-const JUST_WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey wakey|wake up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?[\s,.!?]*$/i;
+const JUST_WAKE_UP = /^(?:(?:hey|hi|ok(?:ay)?|yo)[\s,.!]+)?(?:wakey[\s-]wakey|wake[\s-]?up|wake)(?:[\s,.!]+(?:navi|navy|navigator))?[\s,.!?]*$/i;
 /** After the name is heard mid-phrase, the finished phrase is treated as the one that woke Navi. */
 const SPOKEN_WAKE_MS = 8000;
 

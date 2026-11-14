@@ -842,6 +842,12 @@ function salvage(target: string): Intent | null {
 export function parseCommand(text: string): Intent | null {
   const exact = parseExact(text);
   if (exact) return exact;
+  // Whisper joins some commands with a hyphen ("Wake-up.", "Zoom-in."). Only when nothing matched as
+  // written, so a site's name ("open my-site.com") keeps its hyphen.
+  if (/\p{L}-\p{L}/u.test(text)) {
+    const unhyphenated = parseExact(text.replace(/(?<=\p{L})-(?=\p{L})/gu, " "));
+    if (unhyphenated) return unhyphenated;
+  }
   const target = prepare(text)?.target;
   if (!target) return null;
   const loose = looseIntent(target);

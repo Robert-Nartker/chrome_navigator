@@ -716,6 +716,13 @@ test.describe("live caption", () => {
     release();
   });
 
+  test("asleep, “Wake-up.” (as Whisper writes it, with a hyphen) wakes Navi", async ({ panel }) => {
+    await onAsleep(panel);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    await hear(panel, "Wake-up.", true);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "awake");
+  });
+
   test("recording your mic in the recognizer tester turns Navi off meanwhile, then back on asleep as it was", async ({ panel, context, extensionId }) => {
     await onAsleep(panel);
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
