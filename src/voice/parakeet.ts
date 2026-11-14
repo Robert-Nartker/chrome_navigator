@@ -18,6 +18,22 @@ const LIVE_EVERY_MS = 1000;
 const LIVE_MAX_S = 6;
 /** An empty transcript of a phrase this short was most likely a command said unclearly (longer: other noise). */
 const UNCLEAR_MAX_MS = 3000;
+/**
+ * Silence added before and after a phrase for Parakeet: real people's single words through a Bluetooth
+ * headset, cut as Navi cuts them, came out right 58% → 61% of the time with it (bench/asr, navicut.py).
+ * Whisper pads its own input to 30 seconds.
+ */
+const PARAKEET_PAD_S = 0.25;
+
+/** With silence on both sides, for a model that hears short phrases better that way. */
+export function padded(pcm: Float32Array, seconds: number): Float32Array {
+  if (seconds <= 0) return pcm;
+  const pad = Math.round(RATE * seconds);
+  const out = new Float32Array(pcm.length + 2 * pad);
+  out.set(pcm, pad);
+  return out;
+}
+
 /** Phrases shorter than this are clicks and breaths. */
 const MIN_PHRASE_S = 0.3;
 /** A command is short; nonstop "speech" (a video, the TV) is cut into pieces this long. */
@@ -78,6 +94,7 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
   const waiting = new Map<number, (r: AsrReply) => void>();
   const transcribe = (pcm: Float32Array, final: boolean): Promise<string> => {
     if (fake) return fake(pcm, final);
+    if (kind === "parakeet") pcm = padded(pcm, PARAKEET_PAD_S);
     const run = queue.then(
       () =>
         new Promise<string>((resolve, reject) => {

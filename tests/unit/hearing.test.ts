@@ -275,6 +275,19 @@ describe("Whisper as a recognizer", async () => {
   });
 });
 
+describe("Parakeet hears a phrase with a moment of silence around it", async () => {
+  const { padded } = await import("../../src/voice/parakeet");
+  it("adds a quarter second before and after, and keeps the phrase as it was", () => {
+    const pcm = new Float32Array([0.1, -0.2, 0.3]);
+    const out = padded(pcm, 0.25);
+    expect(out.length).toBe(3 + 2 * 4000);
+    expect(Array.from(out.slice(4000, 4003))).toEqual(Array.from(pcm));
+    expect(out[0]).toBe(0);
+    expect(out.at(-1)).toBe(0);
+    expect(padded(pcm, 0)).toBe(pcm);
+  });
+});
+
 describe("more of what the speech benchmark heard (bench/asr)", () => {
   it("a near-miss on a known site still opens it, but only a clear one", () => {
     for (const said of ["open youtuber", "open you tube"]) expect(parseCommand(said), said).toMatchObject({ type: "open", url: "https://www.youtube.com" });
