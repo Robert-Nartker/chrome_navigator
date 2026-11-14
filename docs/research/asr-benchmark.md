@@ -64,6 +64,16 @@ Wrong commands stayed at 1–3% in every column.
 - **Whisper is the clear win**, on a good mic too (16 more commands of 160), and most on headset audio: 18 more through narrowband, 33 more with room noise. Its cost is the bigger download (about 1 GB on a graphics chip) and more work per phrase.
 - **Noise alone:** on 144 clips of dishes, a running tap, an exercise bike and white or pink noise, Navi's detector started no phrase at all. Run directly, neither model produced a command; Whisper wrote "you" five times and sound labels, which Navi now drops.
 
+### Multi-word commands, cut the same way (8 synthetic voices, 640 clips per condition)
+
+| Audio | Parakeet (padded): correct / wrong / single words | Whisper small: correct / wrong / single words |
+|---|---|---|
+| Clean | 90% / 1% / 80% | 89% / 1% / 80% |
+| Bluetooth narrowband | 85% / 1% / 66% | **87%** / 1% / **77%** |
+| Narrowband + room noise | 55% / 3% / 29% | **62%** / 5% / **35%** |
+
+Whisper doesn't lose on longer commands. With room noise it gets more right, but also runs a wrong command slightly more often (5% vs 3%), something to watch in the usage log.
+
 ## Things tried that didn't help (enough)
 
 - **Turning the audio up before recognition:** no change (80% → 82%, noise 63% → 64%). Both models normalize their input.

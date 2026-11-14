@@ -263,6 +263,8 @@ describe("Whisper as a recognizer", async () => {
     expect(cleanTranscript("stop stop stop stop stop stop")).toBe("stop");
     expect(cleanTranscript("Stop. Stop. Stop.")).toBe("Stop");
     expect(cleanTranscript("go go")).toBe("go go");
+    expect(cleanTranscript("unmute unmute unmute unm")).toBe("unmute");
+    expect(cleanTranscript("stop stop stop scrolling")).toBe("stop stop stop scrolling");
     expect(cleanTranscript("Pause the video.")).toBe("Pause the video.");
     // Seen in the benchmark on noise alone: labels cut off, and Whisper's "you".
     expect(cleanTranscript("[BLANK_AUD")).toBe("");
@@ -333,6 +335,12 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("clothes tab")).toEqual({ type: "closeTab" });
     expect(parseCommand("scroll through the comments")).toMatchObject({ type: "scroll", direction: "down" });
     expect(parseCommand("scroll op")).toMatchObject({ direction: "up" });
+  });
+  it("how Whisper writes a few commands through a headset (bench/asr)", () => {
+    expect(parseCommand("Click a 12.")).toEqual({ type: "clickNumber", n: 12 });
+    expect(parseCommand("switch to top of three")).toEqual({ type: "switchTab", index: 3 });
+    expect(parseCommand("Next, the heading.")).toEqual({ type: "structure", what: "heading", action: "next" });
+    expect(parseCommand("Close this table.")).toEqual({ type: "closeTab" });
   });
   it("two command phrases that sound equally close and do the same thing aren't a tie", () => {
     // "close the tab" and "close this tab" are both closing the tab.

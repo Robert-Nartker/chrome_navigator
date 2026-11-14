@@ -46,6 +46,8 @@ export function cleanTranscript(text: string): string {
     .replace(/\s+/g, " ")
     .trim();
   if (HALLUCINATED.test(words)) return "";
-  const loop = /^(\S+?)[.,!?]?(?:\s+\1[.,!?]?){2,}$/i.exec(words);
-  return loop ? loop[1] : words;
+  const loop = /^(\S+?)[.,!?]?(?:\s+\1[.,!?]?){2,}(?:\s+(\S+))?$/i.exec(words);
+  // The last copy may be cut off ("unmute unmute unmute unm").
+  if (loop && (!loop[2] || loop[1].toLowerCase().startsWith(loop[2].toLowerCase().replace(/[.,!?]$/, "")))) return loop[1];
+  return words;
 }

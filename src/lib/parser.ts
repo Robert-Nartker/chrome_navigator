@@ -242,7 +242,8 @@ const RULES: Rule[] = [
   [/^(?:stop|pause|quit) (?:the )?(?:auto ?)?scroll(?:ing)?$/, () => ({ type: "autoScroll", action: "stop" })],
 
   // Moving through the page's structure (for people who can't see it): headings, links, fields, buttons, regions
-  [new RegExp(`^(?:go to |jump to |move to |skip to )?(?:the )?(next|previous|prev|last|first) (${STRUCTURE_WORDS})$`), (m) => ({
+  // ("Next, the heading": Whisper hears a pause after "next" as a comma.)
+  [new RegExp(`^(?:go to |jump to |move to |skip to )?(?:the )?(next|previous|prev|last|first) (?:the )?(${STRUCTURE_WORDS})$`), (m) => ({
     type: "structure",
     what: structureKind(m[2]),
     action: m[1] === "prev" ? "previous" : (m[1] as StructureAction),
@@ -421,7 +422,7 @@ const RULES: Rule[] = [
   [/^switch back$|^(?:the )?other tab$|^(?:go |switch )?back to (?:the )?(?:other|previous|last) tab$/, () => ({ type: "switchBack" })],
   [/^how many tabs(?: do i have)?(?: open)?$/, () => ({ type: "listTabs" })],
   // A word the recognizer tacks on after it ("close this tab and", "close tab but"; bench/asr) isn't a tab's name.
-  [/^close (?:this |the |current )?tab(?: (?:and|but|is|it|so|then|now|please|uh|um|okay))?$/, () => ({ type: "closeTab" })],
+  [/^close (?:this |the |current )?(?:tab|table)(?: (?:and|but|is|it|so|then|now|please|uh|um|okay))?$/, () => ({ type: "closeTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:next|right) tab$/, () => ({ type: "nextTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:previous|left) tab$/, () => ({ type: "prevTab" })],
   [/^(?:reopen|restore|undo close|bring back)(?: (?:the )?(?:last |closed |last closed )?tab)?$/, () => ({ type: "reopenTab" })],
@@ -430,7 +431,7 @@ const RULES: Rule[] = [
     return index === null ? null : { type: "switchTab", index };
   }],
   // "tab" as recognizers hear it after "switch to" ("switch to top 3", "switch to taba 3"; bench/asr).
-  [new RegExp(`^switch to (?:tap|top|taba|tub|tad|tabs) (?:number )?${N}$`), (m) => {
+  [new RegExp(`^switch to (?:tap|top|taba|tub|tad|tabs) (?:number |of )?${N}$`), (m) => {
     const index = parseNumber(m[1]);
     return index === null ? null : { type: "switchTab", index };
   }],
@@ -446,7 +447,8 @@ const RULES: Rule[] = [
   [/^(?:hide|remove|clear|turn off|close|no|no more|get rid of|take off|take away) (?:the )?(?:flags|numbers|labels|links|hints|badges)$|^(?:flags|numbers) (?:off|away)$|^turn (?:the )?flags off$/, () => ({ type: "hideNumbers" })],
 
   // Clicking by number: "click 12", "number 12", "flag 12", "press twelve"
-  [new RegExp(`^(?:click|press|tap|select|choose|hit|open)(?: on)?(?: number| flag)? ${N}$|^flag ${N}$`), (m) => {
+  // ("Click a 12": recognizers hear a short pause before the number as "a".)
+  [new RegExp(`^(?:click|press|tap|select|choose|hit|open)(?: on| a)?(?: number| flag)? ${N}$|^flag ${N}$`), (m) => {
     const n = parseNumber(m[1] ?? m[2]);
     return n === null ? null : { type: "clickNumber", n };
   }],
