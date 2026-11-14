@@ -21,7 +21,7 @@ const MEANT: Record<string, string[]> = {
   "hide numbers": ["hide number", "hyde numbers", "height numbers"],
   "click 5": ["click five", "clique 5", "quick 5", "clicks 5", "click on 5", "click number 5"],
   pause: ["paws"],
-  "pause the video": ["paws the video", "how's the video", "pause video", "paused the video", "pauses the video"],
+  "pause the video": ["paws the video", "how's the video", "pause video", "paused the video", "pauses the video", "pulls the video", "polls the video", "pours the video", "post the video", "pause that video"],
   // From the speech benchmark (bench/asr): a stray word in front, a plural at the end, a sound-alike.
   play: ["a play", "oh play"],
   "unmute": ["the unmute"],
@@ -312,6 +312,16 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     for (const said of ["oh back", "oh help", "ups", "downs"]) expect(parseCommand(said), said).toBeNull();
     expect(parseCommand("a play")).toEqual({ type: "media", action: "play" });
     expect(parseCommand("new tabs")).toEqual({ type: "newTab" });
+  });
+  it("“a mute” is “unmute” misheard, not mute; a word tacked on after “close this tab” isn't a tab's name", () => {
+    expect(parseCommand("a mute")).toEqual({ type: "muteTab", muted: false });
+    expect(parseCommand("the mute")).toEqual({ type: "muteTab", muted: true });
+    for (const said of ["close this tab and", "close this tab but", "close tab is", "close the tab uh"]) expect(parseCommand(said), said).toEqual({ type: "closeTab" });
+    expect(parseCommand("close the recipe tab")).toMatchObject({ type: "closeNamedTab", query: "recipe" });
+  });
+  it("two command phrases that sound equally close and do the same thing aren't a tie", () => {
+    // "close the tab" and "close this tab" are both closing the tab.
+    expect(parseCommand("close the tap")).toEqual({ type: "closeTab" });
   });
   it("what a noisy headset made of a few commands", () => {
     expect(parseCommand("help me")).toEqual({ type: "help" });

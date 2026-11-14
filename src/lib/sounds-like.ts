@@ -78,8 +78,10 @@ function soundDistance(said: string[], phrase: string[]): number {
 /**
  * The command phrase `text` sounds like, if exactly one is close enough: a one-word command must sound
  * the same ("paws" for "pause", but not "hello" for "help"); longer ones may be off by a little.
+ * `same`: whether two phrases do the same thing ("close the tab", "close this tab"), so equally close
+ * ones aren't a tie.
  */
-export function soundsLike(text: string, phrases: readonly string[]): string | null {
+export function soundsLike(text: string, phrases: readonly string[], same: (a: string, b: string) => boolean = (a, b) => a === b): string | null {
   const said = text.toLowerCase().split(/\s+/).filter(Boolean);
   if (!said.length || said.length > 5) return null;
   let best: string | null = null;
@@ -96,7 +98,7 @@ export function soundsLike(text: string, phrases: readonly string[]): string | n
       best = phrase;
       bestCost = cost;
       tie = false;
-    } else if (cost === bestCost && phrase !== best) tie = true;
+    } else if (cost === bestCost && best !== null && !same(phrase, best)) tie = true;
   }
   return tie ? null : best;
 }

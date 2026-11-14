@@ -47,12 +47,28 @@ Per word, through the narrowband headset: "stop" Parakeet 70% / Whisper small 90
 
 What came back instead: Parakeet, nothing at all (44 of 520 through the headset, 112 with noise) or fillers ("uh", "um", "oh", "yeah"). Whisper small: short wrong words ("oh", "of"), occasionally a sound label ("[BLANK_AUDIO]", "static"), which Navi now strips. Whisper base sometimes loops a word ("stop stop stop …"), so Navi uses small.
 
+## End to end, as Navi really hears it (real people, single words)
+
+The tables above give each recognizer a ready-cut clip. In Navi, the speech detector first decides that a phrase happened and cuts it (with a 300 ms lead-in and the 350 ms pause that ends it). `navicut.py` reproduces that: each recording gets a second of silence on either side, goes through the headset simulation as a whole, and is cut by Navi's detector. A recording the detector never turns into a phrase counts as a miss. Commands are "stop", "up", "down" and "forward" (160 recordings); "exact word" is over all 520.
+
+| Audio | Detector found it | Parakeet: exact / commands | Parakeet + silence padding | Whisper small |
+|---|---|---|---|---|
+| Their mic | 98% | 75% / 118 of 160 | 79% / 124 | – |
+| Bluetooth narrowband | 89% | 58% / 83 | 61% / 96 | **68% / 114** |
+| Narrowband + room noise | 95% | 41% / 54 | 43% / 55 | **58% / 88** |
+
+Wrong commands stayed at 1–3% in every column.
+
+- **The detector loses 11% of single words through a narrowband headset** before any recognizer sees them. Mostly it starts on them and then discards them as too short (under 150 ms of clear voice). A looser setting (start 0.35, 64 ms) found 95% and raised exact words 61% → 65%, but in noise it split five times as many recordings into an extra phrase (9 → 36 of 520), each a possible stray "didn't catch that". Not shipped; see the roadmap.
+- **Silence padding for Parakeet (shipped, 0.25 s):** better on real people (above), mixed on synthetic voices (multi-word commands about the same; single words through narrowband 73% → 65% on 96 clips). The effect on short words is partly a reshuffle of near-misses, so expect a small gain, not a fix.
+- **Whisper is the clear win on headset audio**, by 18 commands of 160 through narrowband and 33 with room noise.
+- **Noise alone:** on 144 clips of dishes, a running tap, an exercise bike and white or pink noise, Navi's detector started no phrase at all. Run directly, neither model produced a command; Whisper wrote "you" five times and sound labels, which Navi now drops.
+
 ## Things tried that didn't help (enough)
 
 - **Turning the audio up before recognition:** no change (80% → 82%, noise 63% → 64%). Both models normalize their input.
 - **Contextual biasing (hotwords) for Parakeet:** noisy narrowband 56% → 68% correct, single words 25% → 50%, but wrong commands 8% → 13%, since it pulls noise toward command words. Promising with tuning, but it needs beam-search decoding Navi's Parakeet doesn't have yet.
 - **Giving Whisper the commands as a prompt** (as earlier context, the way Whisper's "initial prompt" works; `whisper_prompt.py`): real people's single words through a noisy headset, exactly right 57% → 68%, but words turned into a *different* command 4% → 11% ("off" heard as "up" 11 times of 40, "follow" and "on" as "pause"). Not shipped: a wrong command is worse than a missed one.
-- **Padding the audio with silence** before Parakeet (noisy headset, real people's single words): 0.5 s each side 63% → 66% understood, nothing heard 22% → 19%; 1.5 s each side much worse (40%, 54% nothing). More conditions running; see below.
 - **A keyword spotter built for commands** (3.3M parameters): 84–88% on clean or narrowband audio, but 36% with noise, and it fired on 7–13% of other phrases.
 
 ## What a user can do

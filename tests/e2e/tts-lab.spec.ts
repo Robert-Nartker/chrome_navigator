@@ -411,8 +411,12 @@ test("speech recognizer tester: records the user's mic saying Navi's commands, a
 }) => {
   const page = await watchedPage(context, problems);
   await page.goto(`chrome-extension://${extensionId}/asr-lab.html?clipSeconds=0.1`);
+  // Navi is on: it mustn't act on the commands being read out, so it's off while recording.
+  await page.evaluate(() => chrome.storage.local.set({ naviOff: false }));
+  const naviOff = () => page.evaluate(async () => (await chrome.storage.local.get("naviOff")).naviOff);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Start recording" }).click();
+  await expect.poll(naviOff).toBe(true);
   await expect(page.locator("#rec-prompt")).toHaveText(/^Say: “.+”$/);
   const file = await (await download).path();
   const saved = JSON.parse(readFileSync(file, "utf8")) as { kind: string; device: string; rate: number; clips: { text: string; wav: string }[] };
@@ -426,6 +430,8 @@ test("speech recognizer tester: records the user's mic saying Navi's commands, a
   expect(wav.readUInt32LE(24)).toBe(16000);
   expect(wav.length).toBeGreaterThan(44 + 1000);
   await expect(page.locator("#rec-progress")).toContainText("Saved 36 recordings");
+  // And back on afterwards.
+  await expect.poll(naviOff).toBe(false);
   await expect(page.getByRole("button", { name: "Start recording" })).toBeVisible();
   expect(problems).toEqual([]);
 });

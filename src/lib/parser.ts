@@ -374,8 +374,9 @@ const RULES: Rule[] = [
   [/^rewind$/, () => ({ type: "media", action: "rewind", seconds: 10 })],
   [/^(?:play|resume|unpause|keep playing)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "play" })],
   [/^(?:pause|stop)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "pause" })],
-  // How Chrome hears "pause the video" (from real use).
-  [/^(?:paws|pauses|paused|pause|how'?s|house|pos|pods) (?:the |this |a )?video$/, () => ({ type: "media", action: "pause" })],
+  // How Chrome hears "pause the video" (from real use), and other near sounds ("pulls the video" sounded
+  // most like "play the video" by its consonants, the opposite).
+  [/^(?:paws|pauses|paused|pause|how'?s|house|pos|pods|pulls|pulse|polls|pours|pose|pas|post|boss|balls) (?:the |this |that |a )?video$/, () => ({ type: "media", action: "pause" })],
   [/^(?:make it |go )?full ?screen$/, () => ({ type: "media", action: "fullscreen" })],
   [/^(?:exit|leave|close|get out of) (?:the )?full ?screen$/, () => ({ type: "media", action: "exitFullscreen" })],
   [/^(?:speed (?:it |the video )?up|play (?:it )?faster|faster video)$/, () => ({ type: "media", action: "faster" })],
@@ -419,7 +420,8 @@ const RULES: Rule[] = [
   [/^(?:go to |switch to )?(?:the )?last tab$/, () => ({ type: "switchTab", index: -1 })],
   [/^switch back$|^(?:the )?other tab$|^(?:go |switch )?back to (?:the )?(?:other|previous|last) tab$/, () => ({ type: "switchBack" })],
   [/^how many tabs(?: do i have)?(?: open)?$/, () => ({ type: "listTabs" })],
-  [/^close (?:this |the |current )?tab$/, () => ({ type: "closeTab" })],
+  // A word the recognizer tacks on after it ("close this tab and", "close tab but"; bench/asr) isn't a tab's name.
+  [/^close (?:this |the |current )?tab(?: (?:and|but|is|it|so|then|now|please|uh|um|okay))?$/, () => ({ type: "closeTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:next|right) tab$/, () => ({ type: "nextTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:previous|left) tab$/, () => ({ type: "prevTab" })],
   [/^(?:reopen|restore|undo close|bring back)(?: (?:the )?(?:last |closed |last closed )?tab)?$/, () => ({ type: "reopenTab" })],
@@ -811,6 +813,8 @@ function salvage(target: string): Intent | null {
     const intent = parseExact(t);
     return intent && !FREE_TEXT.some((key) => key in intent) ? intent : null;
   };
+  // "Unmute" heard as "a mute": the opposite of what dropping the "a" would do.
+  if (/^an? mute$/.test(target)) return parseExact("unmute");
   const stray = STRAY_FIRST.exec(target);
   if (stray && target.length > stray[0].length) {
     const rest = plain(target.slice(stray[0].length));
@@ -842,6 +846,7 @@ export function parseCommand(text: string): Intent | null {
   const [first, ...rest] = target.split(" ");
   const number = rest.length ? parseBareNumber(rest.join(" ")) : null;
   if (number !== null && soundsClose(first, "click", 1)) return matchRules(`click ${number}`);
-  const sounds = soundsLike(target, SOUND_PHRASES);
+  const same = (a: string, b: string) => JSON.stringify(matchRules(a)) === JSON.stringify(matchRules(b));
+  const sounds = soundsLike(target, SOUND_PHRASES, same);
   return sounds ? matchRules(sounds) : null;
 }
