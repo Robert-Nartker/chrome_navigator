@@ -69,7 +69,7 @@ export type Intent =
   /** A helper's question: read it out, answer it (an option by number, or in the user's words), or cancel it. */
   | { type: "helperQuestion"; action: "read" | "answer" | "cancel"; helper?: number; option?: number; text?: string }
   /** Which recognizer hears: switch ("use Parakeet"), or say which one is on. */
-  | { type: "recognizer"; to?: "chrome" | "parakeet" }
+  | { type: "recognizer"; to?: "chrome" | "parakeet" | "whisper" }
   /** Moving the mouse onto something (menus that open on hover): by flag number or by name. */
   | { type: "hover"; n?: number; text?: string }
   | { type: "ack"; reply?: string }
@@ -280,6 +280,7 @@ const RULES: Rule[] = [
 
   // Which recognizer hears
   [/^(?:use|switch to|try|turn on)(?: the)? (?:parakeet|para keet|parakeets?)(?: recognizer| speech recognition)?$/, () => ({ type: "recognizer", to: "parakeet" })],
+  [/^(?:use|switch to|try|turn on)(?: the)? (?:whisper|whisperer|whispers)(?: recognizer| speech recognition)?$/, () => ({ type: "recognizer", to: "whisper" })],
   [/^(?:use|switch to|switch back to|go back to|try)(?: the)? chrome(?:'s|s)?(?: own)?(?: recognizer| speech recognition| speech)?$/, () => ({ type: "recognizer", to: "chrome" })],
   [/^(?:which|what) (?:recognizer|speech recognition)(?: are you using| is (?:on|listening)| do you use)?$/, () => ({ type: "recognizer" })],
 

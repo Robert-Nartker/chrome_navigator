@@ -235,3 +235,26 @@ describe("a Bluetooth headset's mic is noticed (it records at phone-call quality
     }
   });
 });
+
+describe("Whisper as a recognizer", async () => {
+  const { cleanTranscript, modelFor } = await import("../../src/voice/parakeet-langs");
+  it("is chosen by voice", () => {
+    expect(parseCommand("use whisper")).toEqual({ type: "recognizer", to: "whisper" });
+    expect(parseCommand("switch to whisper")).toEqual({ type: "recognizer", to: "whisper" });
+  });
+  it("uses Whisper small, English-only for English", () => {
+    expect(modelFor("whisper", "en-US")).toBe("Xenova/whisper-small.en");
+    expect(modelFor("whisper", "fr-FR")).toBe("Xenova/whisper-small");
+    expect(modelFor("parakeet", "en-GB")).toBe("parakeet-tdt-0.6b-v2");
+    expect(modelFor("parakeet", "ja-JP")).toBeUndefined();
+  });
+  it("drops the sounds Whisper labels and the word loops it falls into", () => {
+    expect(cleanTranscript("[BLANK_AUDIO]")).toBe("");
+    expect(cleanTranscript(" (static) ")).toBe("");
+    expect(cleanTranscript("*buzzing* Scroll down.")).toBe("Scroll down.");
+    expect(cleanTranscript("stop stop stop stop stop stop")).toBe("stop");
+    expect(cleanTranscript("Stop. Stop. Stop.")).toBe("Stop");
+    expect(cleanTranscript("go go")).toBe("go go");
+    expect(cleanTranscript("Pause the video.")).toBe("Pause the video.");
+  });
+});

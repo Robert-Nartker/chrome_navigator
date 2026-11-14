@@ -9,7 +9,7 @@ export interface Hearing {
   alternatives?: string[];
   confidence?: number;
   /** Which recognizer heard it. */
-  recognizer?: "chrome" | "parakeet";
+  recognizer?: "chrome" | "parakeet" | "whisper";
   /** Who ended the phrase: Chrome finished it, Navi ran words Chrome held unfinished, the session ended, or (Parakeet) a pause. */
   ending?: "chrome" | "held" | "ended" | "pause";
   /** From the first word to the last change of words. */

@@ -10,7 +10,7 @@ import type { Hearing } from "../lib/metrics";
 import { PHRASE_END_MS, type PhraseTiming, SPEECH_NOT_DOWNLOADED, STALL_MS, type SpeechCallbacks, type SpeechEngine, WebSpeechEngine, speechSupported } from "../lib/speech";
 import { type EarconName, Speaker, earcons, setSoundVolume } from "../lib/voice-output";
 import type * as ParakeetModule from "../voice/parakeet";
-import { parakeetModelFor } from "../voice/parakeet-langs";
+import { type ModelRecognizer, RECOGNIZER_NAMES, modelFor } from "../voice/parakeet-langs";
 import { loadModule } from "../lib/load-module";
 import { isCommandStart, isWholeCommand } from "../lib/parser";
 
@@ -140,13 +140,13 @@ export class Ears {
         next.recognizer !== this.settings.recognizer ||
         next.micDeviceId !== this.settings.micDeviceId);
     if (next.speechOutput !== this.settings.speechOutput || next.naviVoice !== this.settings.naviVoice) this.lastVoiceError = "";
-    // Parakeet was turned off (or hears another language now): free its memory.
-    if (this.parakeet && (next.recognizer !== "parakeet" || next.lang !== this.settings.lang)) {
+    // The model was turned off or swapped (or hears another language now): free its memory.
+    if (this.parakeet && (next.recognizer !== this.parakeet.kind || next.lang !== this.settings.lang)) {
       this.parakeet.dispose();
       this.parakeet = null;
     }
-    // Chosen again: try loading it right away.
-    if (next.recognizer === "parakeet" && this.settings.recognizer !== "parakeet") this.parakeetRetryAt = 0;
+    // A model chosen (again): try loading it right away.
+    if (next.recognizer !== "chrome" && next.recognizer !== this.settings.recognizer) this.parakeetRetryAt = 0;
     this.settings = next;
     setSoundVolume(next.volume);
     this.session.configure({ stayAwake: next.stayAwake, wakeName: next.wakeName, timeoutSec: next.sessionTimeoutSec });
@@ -303,7 +303,7 @@ export class Ears {
     const strays = heard !== transcript.trim();
     this.out.command(command, confidence, others, {
       heard,
-      recognizer: this.engine && this.engine === this.parakeet ? "parakeet" : "chrome",
+      recognizer: this.engine && this.engine === this.parakeet ? this.parakeet.kind : "chrome",
       // Other guesses too; where words before the name were dropped, only guesses that have the name.
       alternatives: alternatives.map((a) => this.session.fromName(a)).filter((a, i) => !strays || a !== alternatives[i].trim()),
       confidence,
@@ -394,6 +394,11 @@ export class Ears {
   private readonly callbacks: SpeechCallbacks = {
     onInterim: (text) => this.interim(text),
     onFinal: (text, confidence, alternatives, timing) => this.final(text, confidence, alternatives, timing),
+    // Taking commands and someone spoke, but no words came out: the short "didn't catch that" sound, so
+    // a command that didn't register isn't met with silence. Asleep, nothing.
+    onUnclear: () => {
+      if (this.listening && !this.asleep && !this.dictating && !this.speaker.busy) earcons.unknown();
+    },
     onRunningChange: () => this.emit(),
     onError: (message, fatal) => void this.onEngineError(message, fatal),
     onInfo: (message) => {
@@ -408,8 +413,10 @@ export class Ears {
     },
   };
 
+  /** A model recognizer (Parakeet or Whisper) is chosen, and it speaks the language. */
   private wantsParakeet(): boolean {
-    return this.settings.recognizer === "parakeet" && !!parakeetModelFor(this.settings.lang);
+    const kind = this.settings.recognizer;
+    return kind !== "chrome" && !!modelFor(kind, this.settings.lang);
   }
 
   /**
@@ -419,6 +426,8 @@ export class Ears {
   private async loadParakeet() {
     if (this.parakeet || this.parakeetLoading || Date.now() < this.parakeetRetryAt) return;
     const lang = this.settings.lang;
+    const kind = this.settings.recognizer as ModelRecognizer;
+    const name = RECOGNIZER_NAMES[kind];
     this.parakeetLoading = true;
     this.parakeetProgress = "loading";
     this.emit();
@@ -426,13 +435,14 @@ export class Ears {
     try {
       const mod = await loadModule<typeof ParakeetModule>("voice/parakeet.js");
       const engine = await mod.createParakeetEngine(lang, this.callbacks, {
+        kind,
         // Asleep, Navi only needs finished phrases (to catch its name): no live captions to compute.
         live: () => this.dictating || this.session.current === "awake",
         deviceId: () => this.settings.micDeviceId,
         fake: this.fakeParakeet,
       });
       // Downloaded once; after that it only loads (a few seconds onto the graphics chip).
-      const doneKey = `parakeetDownloaded:${parakeetModelFor(lang)}`;
+      const doneKey = `parakeetDownloaded:${modelFor(kind, lang)}`;
       // (This page has no chrome.storage: its own localStorage, which lasts as long as the extension.)
       const downloaded = remembered(doneKey);
       let noted = false;
@@ -441,8 +451,8 @@ export class Ears {
         this.out.log(
           "info",
           downloaded
-            ? "Loading Parakeet (already downloaded). Chrome's recognizer listens until it's ready."
-            : `Downloading Parakeet (once, about ${engine.downloadGb} GB). Chrome's recognizer listens until it's ready.`,
+            ? `Loading ${name} (already downloaded). Chrome's recognizer listens until it's ready.`
+            : `Downloading ${name} (once, about ${engine.downloadGb} GB). Chrome's recognizer listens until it's ready.`,
         );
       }, 1500);
       let shown = -1;
@@ -454,19 +464,19 @@ export class Ears {
         this.emit();
       });
       remember(doneKey);
-      if (!this.wantsParakeet() || this.settings.lang !== lang) return engine.dispose();
+      if (!this.wantsParakeet() || this.settings.recognizer !== kind || this.settings.lang !== lang) return engine.dispose();
       this.parakeet = engine;
       if (noted) {
-        this.out.log("info", "Parakeet is ready, and listening from now on.");
+        this.out.log("info", `${name} is ready, and listening from now on.`);
         // Said too: someone who switched by voice may not be looking.
-        void this.speaker.say("Parakeet is ready.").catch(() => undefined);
+        void this.speaker.say(`${name} is ready.`).catch(() => undefined);
       }
       // Swap it in for Chrome's recognizer (after any dictation in progress).
       if (this.wantListening && !this.dictating) void this.start();
     } catch (err) {
       this.parakeetRetryAt = Date.now() + PARAKEET_RETRY_MS;
       const why = err instanceof Error ? err.message : String(err);
-      this.out.log("error", `Parakeet couldn't load (${why}), so Chrome's recognizer is listening. Navi tries again later.`);
+      this.out.log("error", `${name} couldn't load (${why}), so Chrome's recognizer is listening. Navi tries again later.`);
     } finally {
       clearTimeout(timer);
       this.parakeetLoading = false;
@@ -534,8 +544,9 @@ export class Ears {
     this.engine?.stop();
     this.engine = null;
     const parakeet = this.wantsParakeet() ? this.parakeet : null;
-    if (this.settings.recognizer === "parakeet" && !parakeetModelFor(this.settings.lang)) {
-      this.callbacks.onInfo?.(`Parakeet doesn't recognize ${this.settings.lang}, so Chrome's recognizer is listening.`);
+    const chosen = this.settings.recognizer;
+    if (chosen !== "chrome" && !modelFor(chosen, this.settings.lang)) {
+      this.callbacks.onInfo?.(`${RECOGNIZER_NAMES[chosen]} doesn't recognize ${this.settings.lang}, so Chrome's recognizer is listening.`);
     }
     // Chosen but not loaded yet: load it while Chrome's recognizer listens.
     if (this.wantsParakeet() && !parakeet) void this.loadParakeet();
@@ -571,11 +582,15 @@ export class Ears {
     if (!label || label === this.micWarned || !isHeadsetMic(label)) return;
     this.micWarned = label;
     const other = inputs.find((d) => d.deviceId !== "default" && d.deviceId !== "communications" && !isHeadsetMic(d.label));
+    // Whisper copes best with headset audio (bench/asr); with no other mic, it's the fix.
+    const whisper = this.settings.recognizer === "whisper" ? "" : " Or say “use Whisper”: it hears headset mics best.";
     this.out.log(
       "error",
-      `Navi is hearing you through “${label.replace(/^(?:Default|Communications) - /, "")}”, a Bluetooth headset mic. Those record at phone-call quality, so Navi (with either recognizer) mishears a lot, and the headset's sound gets worse while it listens. ${other ? `Choose “${other.label}” in` : "Choose another mic (like your computer's built-in one) in"} Settings → Listening → Microphone.`,
+      `Navi is hearing you through “${label.replace(/^(?:Default|Communications) - /, "")}”, a Bluetooth headset mic. Those record at phone-call quality, so recognizers mishear a lot, and the headset's sound gets worse while it listens. ${other ? `Choose “${other.label}” in` : "If you have another mic (like a webcam's), choose it in"} Settings → Listening → Microphone.${whisper}`,
     );
-    void this.speaker.say("Heads up: you're using a Bluetooth headset's mic, so I'll mishear a lot. Your computer's own mic works much better: choose it in my settings, under Microphone.").catch(() => undefined);
+    void this.speaker
+      .say(`Heads up: you're using a Bluetooth headset's mic, so I may mishear you.${whisper ? " Say: use Whisper. It hears headsets best." : ""}`)
+      .catch(() => undefined);
   }
 
   private stop() {

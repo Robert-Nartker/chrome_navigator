@@ -285,7 +285,7 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   const blocked = await blockHuggingFace(context);
   const page = await watchedPage(context, problems);
   await page.goto(`chrome-extension://${extensionId}/asr-lab.html`);
-  await expect(page.locator("button.model")).toHaveCount(6);
+  await expect(page.locator("button.model")).toHaveCount(7);
   // Qwen's engine needs threads that share memory, which only a cross-origin isolated page gets.
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   // Headless Chromium has no graphics chip for WebGPU.
@@ -294,7 +294,7 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   await expect(page.locator("#mic")).toHaveText("Stop listening");
 
   const model = (name: string) => page.locator("button.model").filter({ hasText: name });
-  for (const name of ["Whisper large-v3 turbo", "Parakeet v3"]) {
+  for (const name of ["Whisper large-v3 turbo", "Whisper small (English)", "Parakeet v3"]) {
     await model(name).click();
     await expect(model(name)).toHaveAttribute("aria-pressed", "true");
     await expect(model(name).locator(".status")).toContainText("Couldn't load", { timeout: 30_000 });
@@ -304,6 +304,8 @@ test("speech recognizer tester: loads cleanly, listens, and explains a failed mo
   await expect(model("Qwen3-ASR 1.7B").locator(".status")).toContainText("needs a graphics chip");
   // Each model's worker and runtime loaded, and went to Hugging Face for its files.
   expect(blocked.some((url) => url.includes("whisper-large-v3-turbo"))).toBe(true);
+  // The Whisper Navi listens with, from its repository.
+  expect(blocked.some((url) => url.includes("Xenova/whisper-small.en"))).toBe(true);
   expect(blocked.some((url) => /parakeet/i.test(url))).toBe(true);
   expect(problems).toEqual([]);
 });

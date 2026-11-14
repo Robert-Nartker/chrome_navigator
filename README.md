@@ -89,7 +89,7 @@ From then on, `npm run dev` checks GitHub every 10 seconds. When new commits lan
 | Kind | Examples |
 |---|---|
 | On / off, wake / sleep | "turn off", "wake up" (or "Hey Navi"), "go to sleep", "that's all"; Ctrl+Space for one command (push to talk), and "turn on" through it |
-| Listening | "stay awake", "you can sleep when I'm quiet", "start when Chrome opens", "start off when Chrome opens", "change the shortcut"; "use Parakeet", "use Chrome's recognizer", "which recognizer are you using?" |
+| Listening | "stay awake", "you can sleep when I'm quiet", "start when Chrome opens", "start off when Chrome opens", "change the shortcut"; "use Parakeet", "use Whisper", "use Chrome's recognizer", "which recognizer are you using?" |
 | Scroll | "scroll down", "scroll up a little", "go to the top", "page down" |
 | Pages | "go back" (the browser's back button), "forward", "refresh" |
 | Sites | "open YouTube", "go to github dot com", "open gmail in a new tab" |

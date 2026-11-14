@@ -12,7 +12,7 @@ import { type ApiProvider, type Effort, PROVIDER_DEFAULTS, RETIRED_MODELS, model
  */
 export type Autonomy = "default" | "yolo";
 /** Who turns speech into text, both on this computer: Chrome's built-in recognizer, or NVIDIA's Parakeet. */
-export type Recognizer = "chrome" | "parakeet";
+export type Recognizer = "chrome" | "parakeet" | "whisper";
 export type Feedback = "minimal" | "spoken";
 
 /** "free": Chrome's on-device model, no browser tasks. "pro": the user's API key. */
@@ -199,7 +199,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined, mode?: AiM
   s.startOnLaunch = s.startOnLaunch === true;
   // Replaced by the on/off button, Stay awake and Start when Chrome opens.
   delete (s as { listenMode?: unknown }).listenMode;
-  if (s.recognizer !== "parakeet") s.recognizer = "chrome";
+  if (s.recognizer !== "parakeet" && s.recognizer !== "whisper") s.recognizer = "chrome";
   if (s.autonomy !== "yolo") s.autonomy = "default";
   // The old default step limit (12) was too few for tasks that span several emails or pages.
   if (s.maxAgentSteps === 12) s.maxAgentSteps = 20;

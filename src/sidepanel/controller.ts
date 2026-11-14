@@ -1362,7 +1362,9 @@ export class Controller {
             throw /no video/i.test(message) ? new Unhandled(message) : err;
           },
         );
-        await this.confirm(res.detail ?? intent.action);
+        // The page says "paused", "skipped ahead 30 seconds": shown and said as a sentence.
+        const detail = res.detail ?? intent.action;
+        await this.confirm(detail.charAt(0).toUpperCase() + detail.slice(1));
         return;
       }
       case "zoom":
@@ -1455,15 +1457,16 @@ export class Controller {
       }
       case "recognizer": {
         const now = this.getSettings().recognizer;
+        const name = (r: typeof now) => (r === "parakeet" ? "Parakeet" : r === "whisper" ? "Whisper" : "Chrome's recognizer");
         let text: string;
-        if (!intent.to) text = now === "parakeet" ? "Parakeet is hearing you." : "Chrome's recognizer is hearing you.";
-        else if (intent.to === now) text = `${now === "parakeet" ? "Parakeet is" : "Chrome's recognizer is"} already hearing you.`;
+        if (!intent.to) text = `${name(now)} is hearing you.`;
+        else if (intent.to === now) text = `${name(now)} is already hearing you.`;
         else {
           await saveSettings({ recognizer: intent.to });
           text =
-            intent.to === "parakeet"
-              ? "Switching to Parakeet. The first time, it downloads once; Chrome's recognizer listens until it's ready, and I'll tell you when it is."
-              : "Switching to Chrome's recognizer.";
+            intent.to === "chrome"
+              ? "Switching to Chrome's recognizer."
+              : `Switching to ${name(intent.to)}. The first time, it downloads once; Chrome's recognizer listens until it's ready, and I'll tell you when it is.`;
         }
         this.navi(text);
         await this.say(text);

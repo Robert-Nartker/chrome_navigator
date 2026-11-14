@@ -41,6 +41,7 @@ const MODELS: Model[] = [
   { id: "parakeet-v3", name: "Parakeet v3", note: "NVIDIA · 25 languages", engine: "parakeet", repo: "parakeet-tdt-0.6b-v3", size: "0.7–2.4 GB" },
   { id: "parakeet-v2", name: "Parakeet v2", note: "NVIDIA · English", engine: "parakeet", repo: "parakeet-tdt-0.6b-v2", size: "0.7–2.4 GB" },
   { id: "whisper-turbo", name: "Whisper large-v3 turbo", note: "OpenAI", engine: "whisper", repo: "onnx-community/whisper-large-v3-turbo", size: "1–1.6 GB" },
+  { id: "whisper-small-en", name: "Whisper small (English)", note: "OpenAI · what Navi uses", engine: "whisper", repo: "Xenova/whisper-small.en", size: "0.3–1 GB" },
 ];
 
 type State = "idle" | "loading" | "ready" | "error";

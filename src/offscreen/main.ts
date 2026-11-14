@@ -6,6 +6,7 @@ import { Ears } from "../ears/ears";
 import { startDevReload } from "../lib/dev-reload";
 import type { EarsEvent, EarsRequest } from "../lib/messages";
 import { nanoStatus, runNano } from "../lib/nano";
+import { playedSounds } from "../lib/voice-output";
 
 const send = (event: EarsEvent) => void chrome.runtime.sendMessage(event).catch(() => undefined);
 
@@ -82,6 +83,8 @@ function test(msg: Extract<EarsRequest, { type: "ears:test" }>): unknown {
     case "mute":
       ears.speaker.muted = !!msg.muted;
       return true;
+    case "sounds":
+      return [...playedSounds];
     case "fakeParakeet": {
       // Parakeet "hears" these phrases in order, one per phrase the speech detector finds in the mic.
       const said = [...(msg.phrases ?? [])];

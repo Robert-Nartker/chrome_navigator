@@ -129,10 +129,11 @@ describe("which models run", () => {
     expect(normalizeSettings({ autonomy: "reckless" as never }).autonomy).toBe("default");
   });
 
-  it("listens with Chrome's recognizer unless Parakeet was chosen", () => {
+  it("listens with Chrome's recognizer unless Parakeet or Whisper was chosen", () => {
     expect(normalizeSettings({}).recognizer).toBe("chrome");
     expect(normalizeSettings({ recognizer: "parakeet" }).recognizer).toBe("parakeet");
-    expect(normalizeSettings({ recognizer: "whisper" as never }).recognizer).toBe("chrome");
+    expect(normalizeSettings({ recognizer: "whisper" }).recognizer).toBe("whisper");
+    expect(normalizeSettings({ recognizer: "qwen" as never }).recognizer).toBe("chrome");
   });
 });
 

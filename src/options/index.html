@@ -130,9 +130,10 @@
           <label for="recognizer">Recognizer</label>
           <select id="recognizer">
             <option value="chrome">Chrome's (default: light, starts instantly)</option>
-            <option value="parakeet">Parakeet by NVIDIA (open model: often catches more, a 0.7–2.5 GB download)</option>
+            <option value="parakeet">Parakeet by NVIDIA (open model: fast and accurate on a good mic, a 0.7–2.5 GB download)</option>
+            <option value="whisper">Whisper by OpenAI (open model: best with a Bluetooth headset or earbuds, about 1 GB)</option>
           </select>
-          <p class="hint">Both run on this computer. Parakeet runs on the graphics chip when there is one; while it downloads or loads, Chrome's recognizer listens. English and 24 European languages.</p>
+          <p class="hint">All three run on this computer. Parakeet and Whisper run on the graphics chip when there is one; while one downloads or loads, Chrome's recognizer listens. Parakeet: English and 24 European languages. Whisper: about 100 languages, and in Navi's tests it got far more single words right through a Bluetooth headset's mic (78% against Parakeet's 62%).</p>
           <label for="micDeviceId">Microphone</label>
           <select id="micDeviceId"><option value="">System default</option></select>
           <p class="hint">Listening with a Bluetooth headset's own mic switches the headset to its low-quality call mode, so music and videos sound worse while Navi is on. Choosing another mic here (like your computer's built-in one, or a desk mic) keeps the headset sounding normal.</p>

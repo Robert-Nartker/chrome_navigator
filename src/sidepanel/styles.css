@@ -378,13 +378,14 @@ body {
   cursor: pointer;
 }
 
+/* On and asleep: an outline in the accent color. */
 .voice:not([data-state="off"]) .mic.power[aria-checked="true"] {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.voice[data-state="awake"] .mic.power,
-.voice[data-state="working"] .mic.power {
+/* On and listening (or working): filled, with the icon in the accent's text color. */
+.voice:is([data-state="awake"], [data-state="working"]) .mic.power[aria-checked="true"] {
   background: var(--accent);
   color: var(--accent-text);
 }

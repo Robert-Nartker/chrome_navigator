@@ -1067,6 +1067,37 @@ test.describe("Parakeet recognizer", () => {
     }
   });
 
+  test("a phrase Parakeet can't make words of gets the short “didn't catch that” sound, not silence (model stubbed)", async ({ panel }) => {
+    // The first command comes out empty (as short ones often do through a headset); the others are heard.
+    await ears(panel, { action: "fakeParakeet", phrases: ["", "Scroll down.", "Go to the top."] });
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { stayAwake: true } }));
+    await run(panel, "use parakeet");
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#engine-label")).toContainText("Hears: Parakeet (on-device, test model)");
+    const said = panel.locator("#log li.user .text");
+    await expect(said.filter({ hasText: /Scroll down\.|Go to the top/ })).toHaveText([/Scroll down\./, /Go to the top/], { timeout: 20_000 });
+    const sounds = (await ears(panel, { action: "sounds" })) as string[];
+    expect(sounds.filter((s) => s === "unknown")).toHaveLength(1);
+  });
+
+  test("Whisper as the recognizer, chosen by voice: its sound labels aren't words, and the usage log says Whisper heard it (model stubbed)", async ({ panel }) => {
+    await ears(panel, { action: "fakeParakeet", phrases: ["[BLANK_AUDIO]", "Scroll down.", "Go to the top."] });
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { stayAwake: true } }));
+    await run(panel, "use whisper");
+    await expect(panel.locator("#log li.navi .text").last()).toContainText("Switching to Whisper.");
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect(panel.locator("#engine-label")).toContainText("Hears: Whisper (on-device, test model)");
+    const said = panel.locator("#log li.user .text");
+    await expect(said.filter({ hasText: /Scroll down\.|Go to the top/ })).toHaveText([/Scroll down\./, /Go to the top/], { timeout: 20_000 });
+    await expect(said.filter({ hasText: /BLANK/ })).toHaveCount(0);
+    expect(((await ears(panel, { action: "sounds" })) as string[]).filter((x) => x === "unknown")).toHaveLength(1);
+    type Row = { heard?: string; recognizer?: string };
+    const rows = (await panel.evaluate(async () => ((await chrome.storage.local.get("metrics")).metrics ?? []) as Row[])).filter((r) => r.heard);
+    expect(rows.map((r) => r.recognizer)).toEqual(["whisper", "whisper"]);
+    await run(panel, "which recognizer are you using");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Whisper is hearing you.");
+  });
+
   test("while Parakeet can't download, Chrome's recognizer keeps listening", async ({ panel, context }) => {
     const asked: string[] = [];
     await context.route("https://huggingface.co/**", (route) => {

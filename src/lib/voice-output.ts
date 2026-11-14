@@ -346,33 +346,48 @@ function tone(freq: number, start: number, duration: number, level = 0.08) {
   osc.stop(t + duration + 0.02);
 }
 
+/** The last sounds played, newest last (tests read it; it's a few words of memory). */
+export const playedSounds: EarconName[] = [];
+
+function played(name: EarconName) {
+  playedSounds.push(name);
+  if (playedSounds.length > 30) playedSounds.shift();
+}
+
 export const earcons = {
   wake() {
+    played("wake");
     tone(660, 0, 0.12);
     tone(990, 0.09, 0.16);
   },
   sleep() {
+    played("sleep");
     tone(880, 0, 0.12);
     tone(587, 0.09, 0.18);
   },
   error() {
+    played("error");
     tone(330, 0, 0.12, 0.07);
     tone(262, 0.1, 0.16, 0.07);
   },
   /** Soft "didn't catch that" (heard speech, but it wasn't a command). */
   unknown() {
+    played("unknown");
     tone(523, 0, 0.09, 0.05);
     tone(440, 0.08, 0.12, 0.05);
   },
   done() {
+    played("done");
     tone(1175, 0, 0.08, 0.05);
   },
   /** Soft tick when a command goes to the AI, so you know Navi heard you. */
   thinking() {
+    played("thinking");
     tone(784, 0, 0.06, 0.04);
   },
   /** Gentle two-note ding: a helper working out of sight has something for you (a question, or it finished). */
   notify() {
+    played("notify");
     tone(1047, 0, 0.1, 0.04);
     tone(1319, 0.11, 0.16, 0.04);
   },

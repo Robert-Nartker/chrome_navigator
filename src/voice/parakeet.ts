@@ -1,20 +1,23 @@
-// Parakeet (NVIDIA, open weights) as Navi's recognizer, instead of Chrome's: it runs on this computer, on
-// the graphics chip when there is one. Silero VAD splits the mic into phrases; while one is being said,
-// Parakeet re-transcribes it every half second for the live caption, and transcribes it once more when
-// it ends. Built as its own ES module (voice/parakeet.js) that Navi's background page imports only when
-// Parakeet is chosen, so its libraries load nowhere else. The model runs in the recognizer tester's worker.
+// A recognizer model on this computer as Navi's ears, instead of Chrome's: Parakeet (NVIDIA) or Whisper
+// (OpenAI), on the graphics chip when there is one. Silero VAD splits the mic into phrases; while one is
+// being said, the model re-transcribes it about once a second for the live caption, and transcribes it
+// once more when it ends. Built as its own ES module (voice/parakeet.js) that Navi's background page
+// imports only when one is chosen, so its libraries load nowhere else. The model runs in the recognizer
+// tester's worker.
 
 import { type SpeechCallbacks, type SpeechEngine, openMicrophone } from "../lib/speech";
 import type { AsrReply, AsrRequest } from "../asr-lab/worker";
 import { DEFAULT_TUNING, PhraseDetector, RATE, loudness } from "./phrases";
 import { type Vad, loadVad } from "./vad";
 import { hasWebGpu } from "./gpu";
-import { parakeetModelFor } from "./parakeet-langs";
+import { type ModelRecognizer, RECOGNIZER_NAMES, cleanTranscript, modelFor } from "./parakeet-langs";
 
 /** While talking, the phrase so far is transcribed at most this often for the live caption. */
 const LIVE_EVERY_MS = 1000;
 /** Longer phrases get no live caption, only the finished transcript (each live pass redoes the whole phrase). */
 const LIVE_MAX_S = 6;
+/** An empty transcript of a phrase this short was most likely a command said unclearly (longer: other noise). */
+const UNCLEAR_MAX_MS = 3000;
 /** Phrases shorter than this are clicks and breaths. */
 const MIN_PHRASE_S = 0.3;
 /** A command is short; nonstop "speech" (a video, the TV) is cut into pieces this long. */
@@ -29,6 +32,10 @@ const THREADS = 2;
 const TOO_SLOW = { ratio: 0.8, times: 3 };
 
 export interface ParakeetEngine extends SpeechEngine {
+  /** Which model it is. */
+  readonly kind: ModelRecognizer;
+  /** "Parakeet" or "Whisper". */
+  readonly name: string;
   /** Roughly what it downloads once. */
   readonly downloadGb: number;
   /** Downloads (the first time) and loads the model and speech detector. The mic stays off. */
@@ -41,6 +48,8 @@ export interface ParakeetEngine extends SpeechEngine {
 export type FakeModel = (pcm: Float32Array, final: boolean) => Promise<string>;
 
 export interface ParakeetOptions {
+  /** Which model (Parakeet unless said). */
+  kind?: ModelRecognizer;
   /** Whether a live caption is wanted now (Navi awake or dictating): asleep, only finished phrases matter. */
   live: () => boolean;
   /** The microphone to listen with ("" for the default). */
@@ -51,8 +60,10 @@ export interface ParakeetOptions {
 
 export async function createParakeetEngine(lang: string, callbacks: SpeechCallbacks, options: ParakeetOptions): Promise<ParakeetEngine> {
   const { fake } = options;
-  const model = parakeetModelFor(lang);
-  if (!model) throw new Error(`Parakeet doesn't recognize ${lang}`);
+  const kind = options.kind ?? "parakeet";
+  const name = RECOGNIZER_NAMES[kind];
+  const model = modelFor(kind, lang);
+  if (!model) throw new Error(`${name} doesn't recognize ${lang}`);
   const gpu = await hasWebGpu();
   const vendor = chrome.runtime.getURL("vendor/");
   let worker: Worker | null = null;
@@ -70,7 +81,7 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
     const run = queue.then(
       () =>
         new Promise<string>((resolve, reject) => {
-          if (!worker) return reject(new Error("Parakeet isn't loaded."));
+          if (!worker) return reject(new Error(`${name} isn't loaded.`));
           const id = ++nextId;
           busy = true;
           waiting.set(id, (r) => {
@@ -105,13 +116,13 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
     if (pcm.length < RATE * MIN_PHRASE_S) return;
     try {
       const started = performance.now();
-      const text = (await transcribe(pcm, true)).trim();
+      const text = cleanTranscript(await transcribe(pcm, true));
       const seconds = (performance.now() - started) / 1000;
       slow = seconds > (pcm.length / RATE) * TOO_SLOW.ratio ? slow + 1 : 0;
       if (slow >= TOO_SLOW.times && !fake && !saidSlow) {
         saidSlow = true;
         callbacks.onInfo?.(
-          `Parakeet is slow here: ${seconds.toFixed(1)} s for a ${(pcm.length / RATE).toFixed(1)} s phrase, on the ${detail || (gpu ? "graphics chip" : "processor")}. It keeps listening; say “use Chrome's recognizer” to switch back.`,
+          `${name} is slow here: ${seconds.toFixed(1)} s for a ${(pcm.length / RATE).toFixed(1)} s phrase, on the ${detail || (gpu ? "graphics chip" : "processor")}. It keeps listening; say “use Chrome's recognizer” to switch back.`,
         );
       }
       // The phrase's audio includes a moment before the speech and the pause that ended it.
@@ -119,25 +130,30 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
       const { hangMs, prerollMs } = DEFAULT_TUNING;
       const waitMs = hangMs + Math.round(seconds * 1000);
       if (text && wanted) callbacks.onFinal(text, 0, undefined, { ending: "pause", speechMs: Math.max(0, Math.round(audioMs - hangMs - prerollMs)), waitMs });
+      // Speech, but no words in it (a short command through a headset often comes out empty).
+      else if (wanted && audioMs <= UNCLEAR_MAX_MS) callbacks.onUnclear?.();
     } catch (err) {
-      callbacks.onError(`Parakeet: ${err instanceof Error ? err.message : String(err)}`, false);
+      callbacks.onError(`${name}: ${err instanceof Error ? err.message : String(err)}`, false);
     }
   }
 
-  /** While a phrase is being said: show what Parakeet makes of it so far. */
+  /** While a phrase is being said: show what the model makes of it so far. */
   async function live() {
     if (!phrases.speaking || busy || !options.live()) return;
     if (phrases.samples < RATE * 0.5 || phrases.samples > RATE * LIVE_MAX_S || Date.now() - lastLive < LIVE_EVERY_MS) return;
     lastLive = Date.now();
     const phrase = phrases.phraseId;
-    const text = await transcribe(phrases.audio(), false).catch(() => "");
+    const text = cleanTranscript(await transcribe(phrases.audio(), false).catch(() => ""));
     if (text.trim() && phrases.speaking && phrase === phrases.phraseId) callbacks.onInterim(text.trim());
   }
 
   const engine: ParakeetEngine = {
-    downloadGb: gpu ? 2.5 : 0.7,
+    kind,
+    name,
+    // Whisper small: full precision on a graphics chip, 8-bit on the processor.
+    downloadGb: kind === "whisper" ? (gpu ? 1 : 0.3) : gpu ? 2.5 : 0.7,
     get label() {
-      return `Parakeet (on-device${detail ? `, ${detail}` : ""})`;
+      return `${name} (on-device${detail ? `, ${detail}` : ""})`;
     },
     get running() {
       return wanted;
@@ -166,18 +182,18 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
             }
           };
           w.onerror = (e) => {
-            const message = e.message || "Parakeet's worker stopped (out of memory?)";
+            const message = e.message || `${name}'s worker stopped (out of memory?)`;
             reject(new Error(message));
             // Nothing in flight waits forever.
             for (const done of waiting.values()) done({ type: "error", message });
             waiting.clear();
           };
         });
-        w.postMessage({ type: "load", engine: "parakeet", model, device: gpu ? "webgpu" : "wasm", vendor, threads: THREADS } satisfies AsrRequest);
+        w.postMessage({ type: "load", engine: kind, model, device: gpu ? "webgpu" : "wasm", vendor, threads: THREADS } satisfies AsrRequest);
         // The speech detector is small; if it fails, phrases are split by loudness instead.
         const detector = loadVad(vendor).then(
           (v) => (vad = v),
-          () => callbacks.onInfo?.("Parakeet's speech detector didn't load, so phrases are split by loudness."),
+          () => callbacks.onInfo?.(`${name}'s speech detector didn't load, so phrases are split by loudness.`),
         );
         await Promise.all([ready, detector]);
       })();
@@ -218,7 +234,7 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
         engine.stop();
         const blocked = err instanceof DOMException && err.name === "NotAllowedError";
         callbacks.onError(
-          blocked ? "Microphone access is blocked. Open Navi setup to allow it." : `Parakeet: ${err instanceof Error ? err.message : String(err)}`,
+          blocked ? "Microphone access is blocked. Open Navi setup to allow it." : `${name}: ${err instanceof Error ? err.message : String(err)}`,
           true,
         );
         return;

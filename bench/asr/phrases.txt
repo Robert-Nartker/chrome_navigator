@@ -1,0 +1,84 @@
+# What people say to Navi, one per line. "#" lines are comments. Grouped by kind for the report.
+[single]
+pause
+play
+stop
+mute
+unmute
+refresh
+reload
+flags
+grid
+louder
+quieter
+help
+[short]
+scroll down
+scroll up
+go back
+go forward
+close tab
+new tab
+next tab
+previous tab
+zoom in
+zoom out
+show numbers
+hide numbers
+click 5
+click 12
+pause the video
+play the video
+stop the video
+mute the video
+go to sleep
+wake up
+turn off
+stay awake
+next heading
+next link
+next field
+read this page
+where am i
+what time is it
+scroll to the top
+page down
+reopen closed tab
+full screen
+skip ahead 30 seconds
+go back 10 seconds
+volume up
+volume down
+what can i say
+describe the screen
+read this section
+list the headings
+go to main content
+show grid
+press enter
+delete that
+delete the last word
+use parakeet
+which recognizer are you using
+what did you hear
+that's not what i said
+[long]
+open youtube
+open wikipedia
+open gmail in a new tab
+search youtube for lofi beats
+search for pizza near me
+type hello world
+type dear sarah thanks
+click sign in
+switch to tab 3
+close this tab
+scroll down a little
+scroll up a little
+go to the reviews section
+hover over account
+open the first video
+add this to my cart
+what's this page about
+reply to this email saying thanks
+find me a standing desk under four hundred dollars

@@ -1,0 +1,47 @@
+{
+  "voices": { "narrator": 21, "user": 16, "navi": 3 },
+  "voiceNames": { "narrator": "bf_emma", "user": "am_michael", "navi": "af_heart" },
+  "title": {
+    "heading": "Navi",
+    "sub": "Use Chrome with just your voice",
+    "narrator": "This is Navi, a Chrome extension that lets you use the web with just your voice. It's built for people who can't use a mouse or see the screen, and it's faster for everyone else."
+  },
+  "scenes": [
+    {
+      "page": "video.html",
+      "steps": [
+        { "narrator": "Turn Navi on, and just talk." },
+        { "power": true },
+        { "say": "play the video" },
+        { "say": "scroll down" },
+        { "narrator": "Simple commands run instantly, on your own computer, with no AI and nothing sent anywhere." },
+        { "say": "scroll up" },
+        { "say": "show numbers" },
+        { "narrator": "Everything you can click is given a number." },
+        { "say": "click 7" },
+        { "say": "pause the video" }
+      ]
+    },
+    {
+      "page": "article.html",
+      "steps": [
+        { "narrator": "For people who can't see the screen, Navi moves through a page by its structure, and reads it aloud." },
+        { "say": "list the headings" },
+        { "say": "go to the habitat section" },
+        { "say": "read this section" }
+      ]
+    },
+    {
+      "page": "shop.html",
+      "steps": [
+        { "narrator": "Anything else goes to an AI that clicks and types for you." },
+        { "say": "find me a standing desk under 400 dollars and add the best one to my cart", "ai": true }
+      ]
+    }
+  ],
+  "end": {
+    "heading": "Navi",
+    "lines": ["Speech recognition runs on your computer", "Off means off: the mic is closed", "github.com/Robert-Nartker/chrome_navigator"],
+    "narrator": "Speech recognition runs on your computer, and when Navi is off, the microphone is closed. Navi. The web, by voice."
+  }
+}

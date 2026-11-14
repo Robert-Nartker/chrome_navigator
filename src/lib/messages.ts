@@ -107,7 +107,7 @@ export type EarsRequest =
   | { type: "nano:status" }
   | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; muted?: boolean; phrases?: string[] };
 
-export type EarsTestAction = "final" | "state" | "session" | "speakerBusy" | "lastSaid" | "mute" | "fakeParakeet";
+export type EarsTestAction = "final" | "state" | "session" | "speakerBusy" | "lastSaid" | "mute" | "fakeParakeet" | "sounds";
 
 /** Worker -> views. */
 export type ViewEvent =

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Standing desks · Deskly</title>
+<style>
+  body { margin: 0; font: 15px/1.45 Inter, system-ui, sans-serif; background: #f6f7f9; color: #15171c; }
+  header { display: flex; align-items: center; gap: 18px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #e3e6ec; }
+  .logo { font-weight: 800; font-size: 20px; color: #1f6f5c; }
+  header input { flex: 1; max-width: 480px; padding: 9px 12px; border: 1px solid #d5d9e0; border-radius: 8px; font: inherit; }
+  .cart { margin-left: auto; font-weight: 600; }
+  main { padding: 20px 28px; }
+  h1 { font-size: 22px; margin: 0 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card { background: #fff; border: 1px solid #e3e6ec; border-radius: 12px; padding: 14px; display: grid; gap: 8px; }
+  .img { aspect-ratio: 4 / 3; border-radius: 8px; background: linear-gradient(160deg, #dfe7e3, #b9c9c2); }
+  .price { font-size: 20px; font-weight: 700; }
+  .rating { color: #8a6d00; font-size: 13px; }
+  button { padding: 9px; border: 0; border-radius: 8px; background: #1f6f5c; color: #fff; font: 600 14px Inter, system-ui, sans-serif; cursor: pointer; }
+  button.added { background: #e7f3ef; color: #1f6f5c; }
+</style></head>
+<body>
+  <header><span class="logo">Deskly</span><input type="search" placeholder="Search desks" aria-label="Search desks"><span class="cart" id="cart">Cart (0)</span></header>
+  <main>
+    <h1>Standing desks</h1>
+    <div class="grid" id="grid"></div>
+  </main>
+  <script>
+    const desks = [
+      ["Summit Electric Desk", 529, "4.7", "Dual motor, 4 memory presets"],
+      ["FlexDesk Pro", 379, "4.8", "Quiet single motor, bamboo top"],
+      ["Basic Lift Desk", 249, "4.1", "Manual crank, 48 inch top"],
+      ["Atlas Corner Desk", 689, "4.6", "L-shaped, triple motor"],
+      ["Nimbus Compact", 329, "4.4", "40 inch top, fits small rooms"],
+      ["Ridge Walnut Desk", 449, "4.9", "Solid walnut, dual motor"],
+    ];
+    let cart = 0;
+    const grid = document.getElementById("grid");
+    for (const [name, price, rating, note] of desks) {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = '<div class="img" aria-hidden="true"></div><div><b></b><div class="rating"></div></div><div class="price"></div>';
+      card.querySelector("b").textContent = name;
+      card.querySelector(".rating").textContent = "★ " + rating + " · " + note;
+      card.querySelector(".price").textContent = "$" + price;
+      const btn = document.createElement("button");
+      btn.textContent = "Add to cart";
+      btn.setAttribute("aria-label", "Add " + name + " to cart");
+      btn.onclick = () => {
+        cart++;
+        btn.textContent = "Added ✓";
+        btn.className = "added";
+        document.getElementById("cart").textContent = "Cart (" + cart + ")";
+      };
+      card.append(btn);
+      grid.append(card);
+    }
+  </script>
+</body></html>

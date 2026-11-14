@@ -10,3 +10,35 @@ export function parakeetModelFor(lang: string): string | undefined {
   if (base === "en") return "parakeet-tdt-0.6b-v2";
   return V3_LANGS.includes(base) ? "parakeet-tdt-0.6b-v3" : undefined;
 }
+
+/** The recognizers that run as a model on this computer (Chrome's own is the other choice). */
+export type ModelRecognizer = "parakeet" | "whisper";
+
+export const RECOGNIZER_NAMES: Record<ModelRecognizer, string> = { parakeet: "Parakeet", whisper: "Whisper" };
+
+/**
+ * OpenAI's Whisper small (via Transformers.js): English-only for English (more accurate at it), the
+ * multilingual one otherwise. On real people's single words through a Bluetooth headset it got far more
+ * right than Parakeet (bench/asr): 78% against 62%, and never came back empty.
+ */
+export function whisperModelFor(lang: string): string {
+  return lang.toLowerCase().startsWith("en") ? "Xenova/whisper-small.en" : "Xenova/whisper-small";
+}
+
+/** The model a recognizer uses for a language, or undefined if it doesn't speak it. */
+export function modelFor(kind: ModelRecognizer, lang: string): string | undefined {
+  return kind === "parakeet" ? parakeetModelFor(lang) : whisperModelFor(lang);
+}
+
+/**
+ * What a model wrote, minus what isn't words: Whisper labels sounds ("[BLANK_AUDIO]", "(static)",
+ * "*buzzing*", "♪") and, on very short audio, can loop a word ("stop stop stop stop"), which is one "stop".
+ */
+export function cleanTranscript(text: string): string {
+  const words = text
+    .replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|[♪♫]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const loop = /^(\S+?)[.,!?]?(?:\s+\1[.,!?]?){2,}$/i.exec(words);
+  return loop ? loop[1] : words;
+}

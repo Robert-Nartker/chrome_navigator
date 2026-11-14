@@ -11,6 +11,8 @@ export interface SpeechCallbacks {
   onRunningChange(running: boolean): void;
   onError(message: string, fatal: boolean): void;
   onInfo?(message: string): void;
+  /** Someone spoke (the speech detector heard a phrase) but no words came out of it: worth a "say again". */
+  onUnclear?(): void;
 }
 
 /** How a phrase came in: who ended it, how long it was spoken, and how long Navi waited after the last word. */
