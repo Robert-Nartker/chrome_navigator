@@ -123,7 +123,8 @@ export type WorkerRequest =
   /** A typed message (or, for tests and the benchmark, a command as if spoken). */
   | { type: "navi:run"; text: string; source?: "typed" | "voice" }
   /** The user turning Navi on or off (remembered across Chrome restarts). */
-  | { type: "navi:listen"; on: boolean }
+  /** `asleep`: on, but asleep (waiting for "wake up"), as it was before something turned it off for a while. */
+  | { type: "navi:listen"; on: boolean; asleep?: boolean }
   /** Listen for the name if Navi is on but not listening yet. */
   | { type: "navi:resume" }
   /** Dictate one phrase into the chat box. */

@@ -538,6 +538,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       return false;
     case "navi:listen":
       void setListening(msg.on, true)
+        .then(() => (msg.on && msg.asleep ? sendEars({ type: "ears:session", action: "sleep" }) : undefined))
         .catch((err: unknown) => log("error", `Couldn't turn the mic ${msg.on ? "on" : "off"}: ${String(err)}`))
         .finally(() => sendResponse(true));
       return true;

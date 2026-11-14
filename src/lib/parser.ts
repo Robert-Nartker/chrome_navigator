@@ -425,7 +425,7 @@ const RULES: Rule[] = [
   [/^switch back$|^(?:the )?other tab$|^(?:go |switch )?back to (?:the )?(?:other|previous|last) tab$/, () => ({ type: "switchBack" })],
   [/^how many tabs(?: do i have)?(?: open)?$/, () => ({ type: "listTabs" })],
   // A word the recognizer tacks on after it ("close this tab and", "close tab but"; bench/asr) isn't a tab's name.
-  [/^close (?:this |the |current )?(?:tab|table)(?: (?:and|but|is|it|so|then|now|please|uh|um|okay))?$/, () => ({ type: "closeTab" })],
+  [/^close (?:this |the |current )?tab(?: (?:and|but|is|it|so|then|now|please|uh|um|okay))?$/, () => ({ type: "closeTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:next|right) tab$/, () => ({ type: "nextTab" })],
   [/^(?:go to |switch to )?(?:the )?(?:previous|left) tab$/, () => ({ type: "prevTab" })],
   [/^(?:reopen|restore|undo close|bring back)(?: (?:the )?(?:last |closed |last closed )?tab)?$/, () => ({ type: "reopenTab" })],
@@ -451,6 +451,8 @@ const RULES: Rule[] = [
 
   // Clicking by number: "click 12", "number 12", "flag 12", "press twelve"
   // ("Click a 12": recognizers hear a short pause before the number as "a".)
+  // ("Click 12s": a plural "s" stuck to the number.)
+  [/^click (?:on )?(\d+)s$/, (m) => ({ type: "clickNumber", n: Number(m[1]) })],
   [new RegExp(`^(?:click|press|tap|select|choose|hit|open)(?: on| a)?(?: number| flag)? ${N}$|^flag ${N}$`), (m) => {
     const n = parseNumber(m[1] ?? m[2]);
     return n === null ? null : { type: "clickNumber", n };
@@ -824,8 +826,9 @@ function salvage(target: string): Intent | null {
     const intent = parseExact(t);
     return intent && !FREE_TEXT.some((key) => key in intent) ? intent : null;
   };
-  // "Unmute" heard as "a mute": the opposite of what dropping the "a" would do.
-  if (/^an? mute$/.test(target)) return parseExact("unmute");
+  // Recognizers write "a mute" for "mute" and for "unmute" (bench/asr): a guess either way could be the
+  // opposite, so it's the AI's to ask about.
+  if (/^an? mute$/.test(target)) return null;
   const stray = STRAY_FIRST.exec(target);
   if (stray && target.length > stray[0].length) {
     const rest = plain(target.slice(stray[0].length));

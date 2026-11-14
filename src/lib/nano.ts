@@ -79,15 +79,21 @@ const SILENT_MEMORY_MS = 60_000;
 export async function nanoStatus(): Promise<NanoStatus> {
   const lm = api();
   if (!lm) return "unsupported";
-  const asked = lm.availability(OPTIONS(true));
+  let asked: Promise<NanoStatus>;
+  try {
+    asked = Promise.resolve(lm.availability(OPTIONS(true)) as Promise<NanoStatus>);
+  } catch {
+    return "unavailable";
+  }
   // Any answer, even a late one, means Chrome is answering again.
   void asked.then(() => (silentUntil = 0), () => (silentUntil = 0));
-  if (Date.now() < silentUntil) return "silent";
+  // Recently silent: give it a moment (a recovered Chrome answers in milliseconds), not the full wait.
+  const waitMs = Date.now() < silentUntil ? 300 : STATUS_WAIT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const silent = new Promise<"silent">((resolve) => (timer = setTimeout(() => resolve("silent"), STATUS_WAIT_MS)));
+  const silent = new Promise<"silent">((resolve) => (timer = setTimeout(() => resolve("silent"), waitMs)));
   try {
     const status = await Promise.race([asked, silent]);
-    if (status === "silent") silentUntil = Date.now() + SILENT_MEMORY_MS;
+    if (status === "silent" && Date.now() >= silentUntil) silentUntil = Date.now() + SILENT_MEMORY_MS;
     return status;
   } catch {
     return "unavailable";

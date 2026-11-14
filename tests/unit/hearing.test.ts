@@ -316,8 +316,8 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("a play")).toEqual({ type: "media", action: "play" });
     expect(parseCommand("new tabs")).toEqual({ type: "newTab" });
   });
-  it("“a mute” is “unmute” misheard, not mute; a word tacked on after “close this tab” isn't a tab's name", () => {
-    expect(parseCommand("a mute")).toEqual({ type: "muteTab", muted: false });
+  it("“a mute” is heard for “mute” and for “unmute”, so it isn't guessed; a word tacked on after “close this tab” isn't a tab's name", () => {
+    expect(parseCommand("a mute")).toBeNull();
     expect(parseCommand("the mute")).toEqual({ type: "muteTab", muted: true });
     for (const said of ["close this tab and", "close this tab but", "close tab is", "close the tab uh"]) expect(parseCommand(said), said).toEqual({ type: "closeTab" });
     expect(parseCommand("close the recipe tab")).toMatchObject({ type: "closeNamedTab", query: "recipe" });
@@ -347,9 +347,11 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("Zoom-in.")).toEqual({ type: "zoom", direction: "in" });
     expect(parseCommand("open my-site.com")).toMatchObject({ type: "open", url: "https://my-site.com" });
     expect(parseCommand("Click a 12.")).toEqual({ type: "clickNumber", n: 12 });
+    expect(parseCommand("Click 12s.")).toEqual({ type: "clickNumber", n: 12 });
     expect(parseCommand("switch to top of three")).toEqual({ type: "switchTab", index: 3 });
     expect(parseCommand("Next, the heading.")).toEqual({ type: "structure", what: "heading", action: "next" });
-    expect(parseCommand("Close this table.")).toEqual({ type: "closeTab" });
+    // ("Close this table" stays the page's: a table view or dialog, for the AI to look at.)
+    expect(parseCommand("Close this table.")?.type).not.toBe("closeTab");
   });
   it("two command phrases that sound equally close and do the same thing aren't a tie", () => {
     // "close the tab" and "close this tab" are both closing the tab.

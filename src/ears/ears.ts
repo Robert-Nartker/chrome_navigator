@@ -531,7 +531,7 @@ export class Ears {
       const name = this.parakeet.name;
       this.out.log(
         "error",
-        `${message}. Chrome's recognizer is listening instead; ${tooSlow ? `to try it again, say “use Chrome's recognizer”, then “use ${name}”` : `Navi tries ${name} again later`}.`,
+        `${message}. Chrome's recognizer is listening instead; ${tooSlow ? `say “use ${name}” to try it again` : `Navi tries ${name} again later`}.`,
       );
       this.parakeet.dispose();
       this.parakeet = null;

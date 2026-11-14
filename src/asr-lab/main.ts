@@ -462,11 +462,8 @@ $<HTMLButtonElement>("#rec-start").addEventListener("click", async () => {
   // Asleep (waiting for "wake up") or awake: put back as it was.
   const hello = (await chrome.runtime.sendMessage({ type: "navi:hello" }).catch(() => null)) as { ears?: { awake?: boolean } } | null;
   const wasAsleep = hello?.ears?.awake === false;
-  const turnBackOn = () =>
-    void chrome.runtime
-      .sendMessage({ type: "navi:listen", on: true })
-      .then(() => wasAsleep && chrome.runtime.sendMessage({ type: "ears:session", action: "sleep" }))
-      .catch(() => undefined);
+  // One message, so it still happens when this tab is closing.
+  const turnBackOn = () => void chrome.runtime.sendMessage({ type: "navi:listen", on: true, asleep: wasAsleep }).catch(() => undefined);
   if (wasOn) {
     await chrome.runtime.sendMessage({ type: "navi:listen", on: false }).catch(() => undefined);
     // Closing this tab mid-recording mustn't leave Navi off.

@@ -1,6 +1,7 @@
 // Runs a command in Navi's background worker: personal and built-in commands first (instant, no AI), then
 // the router, then the AI (GPT or Claude with a key; Gemini Nano on Navi Free).
 
+import { modelFor } from "../voice/parakeet-langs";
 import { type AgentResult, NaviAgent } from "../lib/agent";
 import {
   activateTab,
@@ -1484,7 +1485,11 @@ export class Controller {
         // recognizer stands in, and saying so is the truth.
         const label = this.hooks.hearing?.() ?? "";
         const standingIn = now !== "chrome" && !!label && !label.startsWith(name(now));
-        if (!intent.to) {
+        // Chosen, but it doesn't speak this language: it never will be ready, so no promise that it will.
+        const lang = this.getSettings().lang;
+        if (now !== "chrome" && (intent.to === undefined || intent.to === now) && !modelFor(now, lang)) {
+          text = `${name(now)} doesn't recognize ${lang}, so Chrome's recognizer is hearing you.`;
+        } else if (!intent.to) {
           text = standingIn ? `${name(now)} is chosen, but Chrome's recognizer is hearing you until it's ready.` : `${name(now)} is hearing you.`;
         } else if (intent.to === now && standingIn) {
           this.hooks.retryRecognizer?.();

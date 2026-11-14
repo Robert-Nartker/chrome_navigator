@@ -17,5 +17,12 @@ describe("“close <name> tab”: which tab a name means", () => {
     expect(tabMatches(tab("Easy Pasta Recipes"), "recipe")).toBe(true);
     expect(tabMatches(tab("Countdown timer"), "down")).toBe(false);
     expect(tabMatches(tab("Target: weekly ad"), "get")).toBe(false);
+    // Only a plural ending, not any two letters: "set" isn't "Setup", "car" isn't "Cart".
+    expect(tabMatches(tab("Setup"), "set")).toBe(false);
+    expect(tabMatches(tab("Shopping Cart"), "car")).toBe(false);
+  });
+  it("a short name only as a site's whole name", () => {
+    expect(tabMatches(tab("Home / X", "https://x.com/home"), "x")).toBe(true);
+    expect(tabMatches(tab("Sign up", "https://example.com/"), "up")).toBe(false);
   });
 });

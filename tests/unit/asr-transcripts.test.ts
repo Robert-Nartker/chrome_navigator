@@ -20,7 +20,10 @@ describe("real recognizer transcripts of the speech benchmark, through Navi's pa
     const want = parseCommand(said);
     const got = parseCommand(cleanTranscript(heard));
     const right = plain(want) === plain(got);
-    const wrong = !right && !!got && (!want || got.type !== want.type);
+    // A different command, or the same one on a different target ("click 13" for "click 12"); not just the
+    // user's own words off (a search query, a tab's name), which the command then looks for and reports.
+    const ownWords = ["text", "query", "url", "label", "title", "name"].some((key) => got && key in got);
+    const wrong = !right && !!got && (!want || got.type !== want.type || !ownWords);
     return { heard, said, right, wrong };
   });
 
@@ -30,7 +33,7 @@ describe("real recognizer transcripts of the speech benchmark, through Navi's pa
 
   it("runs a different command for no more than it did then", () => {
     const wrong = results.filter((r) => r.wrong);
-    expect(wrong.length, wrong.map((r) => `${r.said} ← “${r.heard}”`).join("\n")).toBeLessThanOrEqual(66);
+    expect(wrong.length, wrong.map((r) => `${r.said} ← “${r.heard}”`).join("\n")).toBeLessThanOrEqual(79);
   });
 
   it("every exact transcript runs the command meant", () => {

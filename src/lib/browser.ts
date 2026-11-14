@@ -284,6 +284,7 @@ export async function findTab(query: string): Promise<chrome.tabs.Tab | undefine
   // wrong tab is easy to undo, but "switch to a" shouldn't pick the first tab with an "a" in it).
   const named = tabs.find((t) => tabMatches(t, query));
   if (named || compact.length < 4) return named;
+  // (Longer names: also letters inside a title, as before.)
   return (
     tabs.find((t) => (t.title ?? "").toLowerCase().includes(q)) ??
     tabs.find((t) => hostOf(t.url).includes(compact)) ??
@@ -304,16 +305,18 @@ export async function matchingTabs(query: string): Promise<chrome.tabs.Tab[]> {
 export function tabMatches(tab: { title?: string; url?: string }, query: string): boolean {
   const q = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   const compact = q.replace(/\s+/g, "");
-  if (compact.length < 3) return false;
+  if (!compact) return false;
+  const host = hostOf(tab.url).split(".");
+  // A short name ("x", "hn") only as a site's whole name: as a title word it's too often a mishearing ("up").
+  if (compact.length < 3) return host.includes(compact);
   const title = (tab.title ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ");
-  // Whole words, give or take a short ending ("recipe" for "Recipes"; not "down" for "Downloads"). Only
-  // letters, digits and spaces are left in the name, so it's safe in a pattern.
-  if (new RegExp(`(?:^|\\s)${q}\\p{L}{0,2}(?:\\s|$)`, "u").test(title)) return true;
+  // Whole words, give or take a plural ("recipe" for "Recipes"; not "set" for "Setup", "down" for
+  // "Downloads"). Only letters, digits and spaces are left in the name, so it's safe in a pattern.
+  if (new RegExp(`(?:^|\\s)${q}(?:s|es)?(?:\\s|$)`, "u").test(title)) return true;
   // Said as one word ("youtube") for a title with spaces ("You Tube").
   const words = title.split(" ");
   if (compact.length >= 5 && words.some((_, i) => [1, 2, 3].some((n) => words.slice(i, i + n).join("") === compact))) return true;
-  const close = (part: string) => part.startsWith(compact) && part.length - compact.length <= 2;
-  return hostOf(tab.url).split(".").some(close);
+  return host.some((part) => part === compact || part === `${compact}s`);
 }
 
 export function hostOf(url?: string): string {
