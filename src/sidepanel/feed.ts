@@ -309,6 +309,10 @@ export class Feed {
     } else if (turn.result !== "none") {
       label = `${turn.steps} step${turn.steps === 1 ? "" : "s"}`;
       time = took;
+    } else if (/…$/.test(turn.activity)) {
+      // Stopped mid-step ("Step 2…"): that step never finished, so it mustn't read as still going.
+      label = `${turn.steps} step${turn.steps === 1 ? "" : "s"}`;
+      time = took;
     } else {
       // No reply (ignored, not understood): the last step is the outcome, so show it.
       label = turn.activity;

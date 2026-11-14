@@ -716,6 +716,37 @@ test.describe("live caption", () => {
     release();
   });
 
+  test("a burst of commands, built-in and AI, said over each other: Navi ends idle, on the last one, with nothing stuck", async ({ panel, context }) => {
+    let release = () => {};
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    await mockClaude(context, { hold });
+    await useClaude(panel);
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    const said = [
+      "hit the subscribe thing for me", "scroll down", "hit the subscribe thing for me", "what time is it", "stop",
+      "subscribe to this channel for me", "scroll up", "hit the subscribe thing again", "new thread", "hit the subscribe thing for me",
+      "what time is it",
+    ];
+    const runs: Promise<void>[] = [];
+    for (const text of said) {
+      runs.push(run(panel, text));
+      await panel.waitForTimeout(120);
+    }
+    release();
+    await Promise.all(runs);
+    const busy = () => panel.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "busy" }));
+    await expect.poll(busy).toBe(false);
+    // Not stuck on "Working", no step still spinning, no failure; the last command is the one answered.
+    await expect(panel.locator("#status-text")).not.toHaveText("Working");
+    await expect(panel.locator("#log .trace-label").filter({ hasText: /…$/ })).toHaveCount(0);
+    await expect(panel.locator("#log li.error").filter({ hasText: /went wrong/i })).toHaveCount(0);
+    await expect(panel.locator("#log > li.turn").last().locator("li.user")).toContainText("what time is it");
+    await expect(panel.locator("#log > li.turn").last().locator("li.navi .text")).toHaveText(/^It's \d/);
+    // And the next command still works normally.
+    await run(panel, "scroll down");
+    await expect(panel.locator("#log > li.turn").last().locator("li.navi .text")).toHaveText("Scrolling down");
+  });
+
   test("turning Navi off stops what it's doing, and “stop” works however the recognizer spells it", async ({ panel, context }) => {
     let release = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
@@ -758,6 +789,8 @@ test.describe("live caption", () => {
     const second = run(panel, "no the other one");
     // No waiting in line: the first stops, the second is already being worked on.
     await expect(task("hit the subscribe thing").locator("li.info").last()).toHaveText("Stopped for what you said next.");
+    // The stopped card's summary doesn't still read "Step 2…", as if it were working.
+    await expect(task("hit the subscribe thing").locator(".trace-label")).toHaveText(/^\d+ steps?$/);
     await expect(task("no the other one").locator(".trace-label")).toHaveText("Step 2…");
     await expect(panel.locator("#log li.info").filter({ hasText: /^Next:/ })).toHaveCount(0);
     // The AI was told what the interrupted task had done, so it can carry on from there.
