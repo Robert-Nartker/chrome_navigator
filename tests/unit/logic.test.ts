@@ -27,6 +27,11 @@ describe("parseNumber", () => {
 describe("label matching", () => {
   it("scores exact over partial", () => {
     expect(scoreLabel("sign in", "Sign in")).toBe(1);
+    // A mishearing made only of little words ("press into", for "press enter") names no button.
+    expect(scoreLabel("into", "Log into your account")).toBe(0);
+    expect(scoreLabel("in", "Sign in")).toBe(0);
+    expect(scoreLabel("up", "Up")).toBe(1);
+    expect(scoreLabel("sign in", "Sign up")).toBeLessThan(0.8);
     expect(scoreLabel("sign in", "Sign in with Google")).toBeGreaterThanOrEqual(0.8);
     expect(scoreLabel("sign in", "Help")).toBe(0);
   });

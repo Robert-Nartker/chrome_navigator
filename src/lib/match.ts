@@ -4,6 +4,8 @@
 import type { ElementInfo } from "./protocol";
 
 const STOP_WORDS = new Set(["the", "a", "an", "on", "button", "link", "icon", "tab", "that", "this", "says"]);
+/** Words that name no button by themselves: a mishearing made of them alone ("press into", for "press enter") matches none. */
+const LITTLE_WORDS = new Set(["in", "into", "to", "of", "and", "for", "with", "at", "by", "it", "is", "up", "out", "off"]);
 
 function words(text: string): string[] {
   return text
@@ -17,6 +19,8 @@ export function scoreLabel(target: string, label: string): number {
   const t = words(target).join(" ");
   const l = words(label).join(" ");
   if (!t || !l) return 0;
+  // "Log into your account" is no answer to "press into"; an exact label ("Up") still is.
+  if (t !== l && t.split(" ").every((w) => LITTLE_WORDS.has(w))) return 0;
   if (t === l) return 1;
   if (l.startsWith(`${t} `) || l.endsWith(` ${t}`)) return 0.9;
   if (` ${l} `.includes(` ${t} `)) return 0.8;
