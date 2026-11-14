@@ -16,6 +16,9 @@ Everything runs offline on the processor with [sherpa-onnx](https://github.com/k
 | `transcribe.py` | Runs Parakeet TDT 0.6B v2 (what Navi uses), Whisper tiny/base/small, or Moonshine on a folder of clips; optional hotword biasing |
 | `vadsim.py` | Navi's speech detector (Silero VAD + `src/voice/phrases.ts`): does a command become a phrase at all? |
 | `kws.py` | A 3.3M-parameter keyword spotter, for comparison |
+| `navicut.py` | Cuts clips the way Navi's speech detector hands them to a model (lead-in and tail included). Give clips room around the speech first (a second of silence each side), then degrade, then cut |
+| `whisper_prompt.py` | Whisper small with a text prompt (the commands, as earlier context), for testing biasing |
+| `ingest.py` | Turns a recording from the recognizer tester ("Record your mic for Navi's speech tests") into a set to score |
 | `score.mjs` | Scores transcripts with Navi's parser: correct, wrong command, not understood, heard nothing, word error rate |
 
 ## Running it
@@ -29,6 +32,17 @@ python3 bench/asr/synth.py $D/phrases.json $D/models $D/clean
 python3 bench/asr/degrade.py $D/clean $D/deg $D/data/speech_commands/_background_noise_
 python3 bench/asr/transcribe.py parakeet $D/models $D/deg/cvsd $D/parakeet-cvsd.json
 node bench/asr/score.mjs $D/parser.mjs $D/phrases.json $D/parakeet-*.json --misses $D/misses.json
+```
+
+### Your own mic
+
+In Navi's recognizer tester (`asr-lab.html`), **Record your mic for Navi's speech tests** shows 36 commands one at a time and saves what the mic heard as one file. Then:
+
+```bash
+python3 bench/asr/ingest.py navi-mic-2026-11-14.json $D/mine
+node bench/asr/expect.mjs $D/parser.mjs $D/mine/phrases.txt > $D/mine-phrases.json
+for m in parakeet whisper-small; do python3 bench/asr/transcribe.py $m $D/models $D/mine $D/mine-$m.json; done
+node bench/asr/score.mjs $D/parser.mjs $D/mine-phrases.json $D/mine-*.json
 ```
 
 Results and what came of them: [docs/research/asr-benchmark.md](../../docs/research/asr-benchmark.md).

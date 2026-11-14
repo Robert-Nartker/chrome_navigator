@@ -251,14 +251,15 @@ export class Controller {
     if (helper.window !== undefined && focused?.id === helper.window) await this.say(text);
   }
 
-  /** Stops whatever Navi is doing or saying. */
-  cancel() {
+  /** Stops whatever Navi is doing or saying. Settles once a page that was auto-scrolling has stopped. */
+  cancel(): Promise<void> {
     this.queue = [];
-    if (this.autoScrolling) void this.autoScroll("stop").catch(() => undefined);
+    const scrolling = this.autoScrolling ? this.autoScroll("stop").then(() => undefined, () => undefined) : Promise.resolve();
     this.current?.abort();
     this.speechGen++;
     this.speaker.stop();
     if (this.gridOn) void this.grid({ type: "hide" }).catch(() => undefined);
+    return scrolling;
   }
 
   get gridShown() {
@@ -306,7 +307,7 @@ export class Controller {
     if (options.hearing && intent?.type !== "whatHeard" && intent?.type !== "misheard") this.lastHearing = options.hearing;
     if (intent?.type === "stop") {
       this.ui.log("user", command);
-      this.cancel();
+      await this.cancel();
       this.tutorialSaw({ command, intent: "stop" });
       return;
     }
@@ -958,7 +959,7 @@ export class Controller {
           const stopped = this.helpers.stop(intent.id);
           return { text: stopped ? `Stopped helper ${intent.id}.` : `Helper ${intent.id} isn't running.`, speak: true, ok: stopped };
         }
-        if (intent.everything) this.cancel();
+        if (intent.everything) void this.cancel();
         const stopped = this.helpers.stopAll();
         const what = stopped ? `Stopped ${stopped === 1 ? "the helper" : `${stopped} helpers`}` : "No helpers were running";
         return { text: intent.everything ? `${what}, and everything else.` : `${what}.`, speak: true, ok: true };
@@ -1418,9 +1419,11 @@ export class Controller {
       case "whereAmI": {
         const snap = await snapshot(tab).catch(() => null);
         const count = snap ? snap.elements.filter((e) => e.inViewport).length : 0;
-        const text = `You're on ${tab.title || "a page"}, at ${hostOf(tab.url) || "a browser page"}.${
-          snap ? ` There are ${count} things you can click on screen.` : ""
-        }`;
+        const onScreen =
+          count === 0
+            ? " Nothing to click on screen right now; “list the links” finds the rest of the page's."
+            : ` There ${count === 1 ? "is 1 thing" : `are ${count} things`} you can click on screen.`;
+        const text = `You're on ${tab.title || "a page"}, at ${hostOf(tab.url) || "a browser page"}.${snap ? onScreen : ""}`;
         this.navi(text);
         await this.say(text);
         return;

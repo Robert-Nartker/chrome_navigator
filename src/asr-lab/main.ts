@@ -1,6 +1,7 @@
 // Speech recognizer tester: pick a model, talk, and watch it transcribe live; switch models while talking.
 // "Compare" runs every loaded model on each finished phrase, so they're judged on the same audio.
 
+import { CLIP_S, PROMPTS, recordPrompts, recordingFile } from "./recorder";
 import type { QwenFilesRequest } from "./qwen-files";
 import { startDevReload } from "../lib/dev-reload";
 import { type Vad, loadVad } from "../voice/vad";
@@ -441,3 +442,46 @@ async function init() {
 }
 
 void init();
+
+// ---------- Recording the user's mic for the speech benchmark ----------
+
+let recording: AbortController | null = null;
+$<HTMLButtonElement>("#rec-start").addEventListener("click", async () => {
+  const button = $<HTMLButtonElement>("#rec-start");
+  const progress = $("#rec-progress");
+  const prompt = $("#rec-prompt");
+  if (recording) {
+    recording.abort();
+    return;
+  }
+  recording = new AbortController();
+  button.textContent = "Stop";
+  try {
+    const stored = (await chrome.storage.local.get("settings")).settings as { micDeviceId?: string } | undefined;
+    // Tests record shorter clips.
+    const seconds = Number(new URLSearchParams(location.search).get("clipSeconds")) || CLIP_S;
+    const { device, clips } = await recordPrompts(
+      stored?.micDeviceId ?? "",
+      (text, i) => {
+        prompt.textContent = `Say: “${text}”`;
+        progress.textContent = `${i + 1} of ${PROMPTS.length} · ${seconds} seconds each`;
+      },
+      recording.signal,
+      seconds,
+    );
+    prompt.textContent = "";
+    if (!clips.length) return;
+    const url = URL.createObjectURL(new Blob([recordingFile(device, clips)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `navi-mic-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    progress.textContent = `Saved ${clips.length} recordings from “${device || "the default mic"}” to your downloads.`;
+  } catch (err) {
+    progress.textContent = `Couldn't record: ${err instanceof Error ? err.message : String(err)}`;
+  } finally {
+    recording = null;
+    button.textContent = "Start recording";
+  }
+});

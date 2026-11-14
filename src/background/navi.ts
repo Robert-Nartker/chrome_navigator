@@ -146,7 +146,7 @@ async function setListening(on: boolean, byUser = false, stopWork = byUser) {
     await chrome.storage.local.set({ [OFF_KEY]: !on });
   }
   // Turned off: whatever Navi was doing stops too (off means off).
-  if (!on && stopWork) controller.cancel();
+  if (!on && stopWork) void controller.cancel();
   worker = { ...worker, listening: on };
   broadcastWorker();
   if (on && !(await earsOrProblem())) {
@@ -493,7 +493,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       void freshSettings().then(() => controller.run(msg.text, { source: "voice", alternatives: msg.alternatives, hearing: msg.hearing }));
       return false;
     case "ears:cancel":
-      controller.cancel();
+      void controller.cancel();
       return false;
     case "ears:state":
       ears = msg.state;

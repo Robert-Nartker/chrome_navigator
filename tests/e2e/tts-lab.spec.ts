@@ -403,3 +403,30 @@ test.describe("speech recognizer tester with a fan running", () => {
     expect(problems).toEqual([]);
   });
 });
+
+test("speech recognizer tester: records the user's mic saying Navi's commands, and saves them as one file", async ({
+  context,
+  extensionId,
+  problems,
+}) => {
+  const page = await watchedPage(context, problems);
+  await page.goto(`chrome-extension://${extensionId}/asr-lab.html?clipSeconds=0.1`);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Start recording" }).click();
+  await expect(page.locator("#rec-prompt")).toHaveText(/^Say: “.+”$/);
+  const file = await (await download).path();
+  const saved = JSON.parse(readFileSync(file, "utf8")) as { kind: string; device: string; rate: number; clips: { text: string; wav: string }[] };
+  expect(saved.kind).toBe("navi-mic-recording");
+  expect(saved.rate).toBe(16000);
+  expect(saved.clips).toHaveLength(36);
+  expect(saved.clips[0].text).toBe("pause");
+  // Each clip is a playable WAV with the fake mic's sound in it.
+  const wav = Buffer.from(saved.clips[0].wav, "base64");
+  expect(wav.toString("ascii", 0, 4)).toBe("RIFF");
+  expect(wav.readUInt32LE(24)).toBe(16000);
+  expect(wav.length).toBeGreaterThan(44 + 1000);
+  await expect(page.locator("#rec-progress")).toContainText("Saved 36 recordings");
+  await expect(page.getByRole("button", { name: "Start recording" })).toBeVisible();
+  expect(problems).toEqual([]);
+});
+

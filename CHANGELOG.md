@@ -18,6 +18,8 @@ What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md);
 - **Settings: switching between Free and Pro no longer undoes a choice made right after** (the page read the stored settings again, slowly, and filled them in over yours).
 - **A key saved a moment ago is used by the very next command.** A command could run with the settings from before (no AI, so nothing happened).
 - **The power button no longer disappears while listening** (it drew in the panel's own colour).
+- **Record your own mic for the speech tests.** In the recognizer tester, "Record your mic for Navi's speech tests" shows 36 commands one at a time, records each through the mic Navi uses, and saves them as one file on this computer. Sent to whoever tunes Navi, it replaces simulated headset audio with the real thing.
+- **"Where am I" on a part of the page with nothing to click** says so and points to "list the links", instead of "There are 0 things you can click".
 - **A demo video maker** ([scripts/demo-video](scripts/demo-video)): records the real extension on demo pages with narration and voices.
 
 ## 2026-11-13

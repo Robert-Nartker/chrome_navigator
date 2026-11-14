@@ -24,6 +24,9 @@
       .result { display: grid; grid-template-columns: 170px 1fr auto; gap: 10px; align-items: baseline; }
       .result .who { font-size: 12px; color: var(--muted); }
       .result .time { font: 12px var(--mono); color: var(--muted); }
+      #record { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; }
+      #record h2 { margin: 0; font-size: 16px; }
+      #rec-prompt { margin: 0; min-height: 1.4em; font-size: 28px; font-weight: 600; }
     </style>
   </head>
   <body class="page">
@@ -49,6 +52,12 @@
       </div>
       <p id="empty" class="hint">Finished phrases show up here, newest first.</p>
       <ol id="rows"></ol>
+      <section id="record" aria-labelledby="record-title">
+        <h2 id="record-title">Record your mic for Navi's speech tests</h2>
+        <p class="hint">Shows 36 commands, one every few seconds, for you to say aloud. They are recorded through the mic Navi uses (your headset's, if that's the one), then saves them as one file on this computer. Send that file to whoever is tuning Navi: it shows exactly what your mic does to your voice. Nothing is uploaded.</p>
+        <div class="controls"><button id="rec-start">Start recording</button> <span id="rec-progress" class="hint" aria-live="polite"></span></div>
+        <p id="rec-prompt" aria-live="assertive"></p>
+      </section>
       <p class="hint">The first click on a model downloads it once from Hugging Face; after that it loads from the browser. Every model but Chrome's re-reads your phrase as you talk, so its live text can change until you pause. Qwen3-ASR 0.6B is only published at full precision, so its first download is bigger and gets packed to 8 bits as it arrives.</p>
     </main>
     <script type="module" src="asr-lab.js"></script>
