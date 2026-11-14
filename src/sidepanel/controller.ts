@@ -174,6 +174,8 @@ export class Controller {
   private speech: Promise<void> = Promise.resolve();
   /** Bumped by "stop", so queued speech is dropped. */
   private speechGen = 0;
+  /** When the command running now first showed an answer (for its time in the usage log). */
+  private firstReplyAt: number | null = null;
   private readonly tutorial = new Tutorial();
 
   constructor(
@@ -371,6 +373,8 @@ export class Controller {
     this.current = controller;
     const started = performance.now();
     const elapsed = () => Math.round(performance.now() - started);
+    // A built-in command's time is until its answer shows, not until Navi has finished saying it.
+    this.firstReplyAt = null;
     let metric: Omit<CommandMetric, "t" | "command"> | null = null;
     let reply: string | null = null;
     let confirmation = false;
@@ -393,7 +397,8 @@ export class Controller {
       } else if (outcome.intent === "ignored" || outcome.intent === "unknown") {
         metric = { path: "ignored", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs, costUsd: routerCost };
       } else {
-        metric = { path: "fast", intent: outcome.intent, ms: elapsed(), routerMs: outcome.routerMs, costUsd: routerCost };
+        const answered = this.firstReplyAt === null ? elapsed() : Math.round(this.firstReplyAt - started);
+        metric = { path: "fast", intent: outcome.intent, ms: answered, routerMs: outcome.routerMs, costUsd: routerCost };
         this.ui.log("step", `${outcome.routerMs ? "Routed" : "Fast path"} · ${metric.ms} ms`);
       }
     } catch (err) {
@@ -1023,6 +1028,7 @@ export class Controller {
 
   /** Shows Navi's reply in the log and keeps it for "what did you say". */
   private navi(text: string, meta?: string) {
+    this.firstReplyAt ??= performance.now();
     this.lastMessage = text;
     this.turnMessage = text;
     this.ui.log("navi", text, meta);

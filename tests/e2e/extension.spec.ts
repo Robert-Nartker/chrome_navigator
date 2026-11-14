@@ -2855,3 +2855,11 @@ test("the AI clicking without an element number is told so, and the user never s
   expect(outputs.join("\n")).toContain("element_id must be the [number] of an element");
   await expect(panel.locator("#log li.step").filter({ hasText: /null/ })).toHaveCount(0);
 });
+
+test("a built-in command's time in the usage log is until its answer shows, not until Navi finishes saying it", async ({ panel }) => {
+  // The stand-in voice here takes about a second to say a reply.
+  await run(panel, "what time is it");
+  const metric = await panel.evaluate(() => (window as unknown as { navi: { metrics: { path: string; ms: number }[] } }).navi.metrics.at(-1));
+  expect(metric?.path).toBe("fast");
+  expect(metric!.ms).toBeLessThan(500);
+});
