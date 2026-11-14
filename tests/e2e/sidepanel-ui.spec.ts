@@ -716,6 +716,18 @@ test.describe("live caption", () => {
     release();
   });
 
+  test("recording your mic in the recognizer tester turns Navi off meanwhile, then back on asleep as it was", async ({ panel, context, extensionId }) => {
+    await onAsleep(panel);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    const lab = await context.newPage();
+    await lab.goto(`chrome-extension://${extensionId}/asr-lab.html?clipSeconds=0.05`);
+    const download = lab.waitForEvent("download");
+    await lab.getByRole("button", { name: "Start recording" }).click();
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "off");
+    await download;
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+  });
+
   test("a burst of commands, built-in and AI, said over each other: Navi ends idle, on the last one, with nothing stuck", async ({ panel, context }) => {
     let release = () => {};
     const hold = new Promise<void>((resolve) => (release = resolve));
