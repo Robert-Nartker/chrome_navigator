@@ -331,7 +331,10 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("chita grid")).toBeNull();
     // "Called down" was one sound from "close tab".
     for (const said of ["called down", "calli down"]) expect(parseCommand(said)?.type, said).not.toBe("closeTab");
+    // The "s" sound is part of "pause": "by the video" isn't "pause the video" with an "s" dropped.
+    expect(parseCommand("by the video")).toBeNull();
     // Still understood.
+    expect(parseCommand("goes back")).toEqual({ type: "back" });
     expect(parseCommand("clothes tab")).toEqual({ type: "closeTab" });
     expect(parseCommand("scroll through the comments")).toMatchObject({ type: "scroll", direction: "down" });
     expect(parseCommand("scroll op")).toMatchObject({ direction: "up" });

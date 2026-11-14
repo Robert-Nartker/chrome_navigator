@@ -66,9 +66,13 @@ function soundDistance(said: string[], phrase: string[]): number {
   for (let i = 0; i < said.length; i++) {
     const a = soundKey(said[i]);
     const b = soundKey(phrase[i]);
-    // An added or dropped "s" ("goes back") is free in a phrase; one word on its own must match
-    // ("flag" in a mail app isn't "flags").
-    const d = said.length > 1 && a.replace(/S$/, "") === b.replace(/S$/, "") ? 0 : distance(a, b);
+    // An added or dropped "s" ("goes back", "close tabs") is free in a phrase; one word on its own must
+    // match ("flag" in a mail app isn't "flags"). Only a written "s" ending: the "s" sound is part of
+    // "pause" itself, so "by the video" isn't "pause the video" with an "s" dropped.
+    const plural =
+      (said[i].endsWith("s") && !phrase[i].endsWith("s") && a.replace(/S$/, "") === b) ||
+      (phrase[i].endsWith("s") && !said[i].endsWith("s") && b.replace(/S$/, "") === a);
+    const d = said.length > 1 && plural ? 0 : distance(a, b);
     if (d > 1) return Infinity;
     cost += d;
   }
