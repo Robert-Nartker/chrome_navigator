@@ -67,7 +67,11 @@ A review of tonight's own code caught "open canva" opening Canvas, chatter cutti
   - "where am I" with nothing clickable in view says so;
   - the demo video is re-recorded with the new panel (draft 2, 1:55);
   - when the AI picks no element to click, it's told to look again (it used to show "Clicking number null");
-  - "by the video" no longer pauses (a sound-matching flaw where the "s" in "pause" was treated as optional).
+  - "by the video" no longer pauses (a sound-matching flaw where the "s" in "pause" was treated as optional);
+  - Whisper's way of writing things is understood: "Wake-up." (it wakes Navi), "What’s the date?" with a curly apostrophe, "Click a 12", "Next, the heading";
+  - the usage log and the command cards show a built-in command's real speed (a few milliseconds), not the time Navi spent saying the answer;
+  - in Free, while Chrome isn't answering about its on-device AI, commands no longer each wait 3 seconds;
+  - recording your mic puts Navi back asleep if it was asleep.
 
 ## Commits tonight
 
