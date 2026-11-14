@@ -51,6 +51,8 @@ What came back instead: Parakeet, nothing at all (44 of 520 through the headset,
 
 - **Turning the audio up before recognition:** no change (80% → 82%, noise 63% → 64%). Both models normalize their input.
 - **Contextual biasing (hotwords) for Parakeet:** noisy narrowband 56% → 68% correct, single words 25% → 50%, but wrong commands 8% → 13%, since it pulls noise toward command words. Promising with tuning, but it needs beam-search decoding Navi's Parakeet doesn't have yet.
+- **Giving Whisper the commands as a prompt** (as earlier context, the way Whisper's "initial prompt" works; `whisper_prompt.py`): real people's single words through a noisy headset, exactly right 57% → 68%, but words turned into a *different* command 4% → 11% ("off" heard as "up" 11 times of 40, "follow" and "on" as "pause"). Not shipped: a wrong command is worse than a missed one.
+- **Padding the audio with silence** before Parakeet (noisy headset, real people's single words): 0.5 s each side 63% → 66% understood, nothing heard 22% → 19%; 1.5 s each side much worse (40%, 54% nothing). More conditions running; see below.
 - **A keyword spotter built for commands** (3.3M parameters): 84–88% on clean or narrowband audio, but 36% with noise, and it fired on 7–13% of other phrases.
 
 ## What a user can do
