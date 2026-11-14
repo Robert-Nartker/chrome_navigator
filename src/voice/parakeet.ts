@@ -93,8 +93,8 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
   let busy = false;
   const waiting = new Map<number, (r: AsrReply) => void>();
   const transcribe = (pcm: Float32Array, final: boolean): Promise<string> => {
-    if (fake) return fake(pcm, final);
     if (kind === "parakeet") pcm = padded(pcm, PARAKEET_PAD_S);
+    if (fake) return fake(pcm, final);
     const run = queue.then(
       () =>
         new Promise<string>((resolve, reject) => {

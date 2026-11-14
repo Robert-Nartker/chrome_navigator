@@ -376,7 +376,7 @@ const RULES: Rule[] = [
   [/^(?:pause|stop)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "pause" })],
   // How Chrome hears "pause the video" (from real use), and other near sounds ("pulls the video" sounded
   // most like "play the video" by its consonants, the opposite).
-  [/^(?:paws|pauses|paused|pause|how'?s|house|pos|pods|pulls|pulse|polls|pours|pose|pas|post|boss|balls) (?:the |this |that |a )?video$/, () => ({ type: "media", action: "pause" })],
+  [/^(?:paws|pauses|paused|pause|how'?s|house|pos|pods|pulls|pulse|polls|pours|pas|boss|balls) (?:the |this |that |a )?video$/, () => ({ type: "media", action: "pause" })],
   [/^(?:make it |go )?full ?screen$/, () => ({ type: "media", action: "fullscreen" })],
   [/^(?:exit|leave|close|get out of) (?:the )?full ?screen$/, () => ({ type: "media", action: "exitFullscreen" })],
   [/^(?:speed (?:it |the video )?up|play (?:it )?faster|faster video)$/, () => ({ type: "media", action: "faster" })],

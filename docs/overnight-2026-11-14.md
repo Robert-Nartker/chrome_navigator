@@ -54,6 +54,8 @@ A review of tonight's own code caught "open canva" opening Canvas, chatter cutti
   - "close this tab and" looked for a tab with that name;
   - "close the tap" did nothing.
 - **A dictionary-wide sweep for opposite commands** found three systematic flaws ("scroll" + an unclear word scrolled down, spelling-alike phrases flipped show/hide, near-misses closed tabs), now fixed. That halves the variants that run a different command.
+- **Accessibility, checked by machine:** the standard axe checker now runs in the tests over the side panel, Settings, setup, the recognizer tester, the page caption, and the flags and grid, in light and dark mode. It found and I fixed two things: the conversation couldn't be scrolled from the keyboard, and faint grey text was just under the contrast minimum. A keyboard-only test tabs through all 17 panel controls and checks each is visible and named.
+- **Whisper beats Parakeet on a good mic too** (140 vs 124 of 160 single-word commands), so Settings now calls it the most accurate.
 - **Other fixes:**
   - "stop" waits until auto-scrolling has really stopped;
   - "where am I" with nothing clickable in view says so;

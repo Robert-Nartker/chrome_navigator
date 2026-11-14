@@ -459,7 +459,12 @@ $<HTMLButtonElement>("#rec-start").addEventListener("click", async () => {
   // Navi would act on the commands being read out ("close tab", "go back"): off while recording, and
   // back on afterwards if it was on.
   const wasOn = (await chrome.storage.local.get("naviOff")).naviOff === false;
-  if (wasOn) await chrome.runtime.sendMessage({ type: "navi:listen", on: false }).catch(() => undefined);
+  const turnBackOn = () => void chrome.runtime.sendMessage({ type: "navi:listen", on: true }).catch(() => undefined);
+  if (wasOn) {
+    await chrome.runtime.sendMessage({ type: "navi:listen", on: false }).catch(() => undefined);
+    // Closing this tab mid-recording mustn't leave Navi off.
+    addEventListener("pagehide", turnBackOn);
+  }
   try {
     const stored = (await chrome.storage.local.get("settings")).settings as { micDeviceId?: string } | undefined;
     // Tests record shorter clips.
@@ -487,6 +492,9 @@ $<HTMLButtonElement>("#rec-start").addEventListener("click", async () => {
   } finally {
     recording = null;
     button.textContent = "Start recording";
-    if (wasOn) void chrome.runtime.sendMessage({ type: "navi:listen", on: true }).catch(() => undefined);
+    if (wasOn) {
+      removeEventListener("pagehide", turnBackOn);
+      turnBackOn();
+    }
   }
 });

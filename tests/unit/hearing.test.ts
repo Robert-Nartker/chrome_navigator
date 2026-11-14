@@ -21,7 +21,7 @@ const MEANT: Record<string, string[]> = {
   "hide numbers": ["hide number", "hyde numbers", "height numbers"],
   "click 5": ["click five", "clique 5", "quick 5", "clicks 5", "click on 5", "click number 5"],
   pause: ["paws"],
-  "pause the video": ["paws the video", "how's the video", "pause video", "paused the video", "pauses the video", "pulls the video", "polls the video", "pours the video", "post the video", "pause that video"],
+  "pause the video": ["paws the video", "how's the video", "pause video", "paused the video", "pauses the video", "pulls the video", "polls the video", "pours the video", "pause that video"],
   // From the speech benchmark (bench/asr): a stray word in front, a plural at the end, a sound-alike.
   play: ["a play", "oh play"],
   "unmute": ["the unmute"],
@@ -272,6 +272,7 @@ describe("Whisper as a recognizer", async () => {
     expect(cleanTranscript(" Thanks for watching!")).toBe("");
     expect(cleanTranscript("Thank you.")).toBe("Thank you.");
     expect(cleanTranscript("you there")).toBe("you there");
+    expect(cleanTranscript("type 5 * 3 equals 15")).toBe("type 5 * 3 equals 15");
   });
 });
 

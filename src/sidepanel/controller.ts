@@ -307,7 +307,8 @@ export class Controller {
     if (options.hearing && intent?.type !== "whatHeard" && intent?.type !== "misheard") this.lastHearing = options.hearing;
     if (intent?.type === "stop") {
       this.ui.log("user", command);
-      await this.cancel();
+      // Waits for an auto-scrolling page to stop, but not on a page that doesn't answer.
+      await Promise.race([this.cancel(), sleep(1000)]);
       this.tutorialSaw({ command, intent: "stop" });
       return;
     }

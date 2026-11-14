@@ -41,7 +41,8 @@ const HALLUCINATED = /^(?:you|thanks for watching|thank you for watching|thank y
 export function cleanTranscript(text: string): string {
   const words = text
     .replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|[♪♫]/g, " ")
-    .replace(/[[(*][^\])*]*$/, " ")
+    // A label cut off at the end ("[BLANK_AUD"); not dictated text with a bracket or a sum in it ("5 * 3").
+    .replace(/[[(*](?![^\])*]*\d)[^\])*]*$/, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (HALLUCINATED.test(words)) return "";

@@ -100,9 +100,9 @@ export function soundsLike(
     const words = phrase.split(" ");
     const cost = soundDistance(said, words);
     if (cost === Infinity) continue;
+    if (strict(phrase) && soundKey(said[said.length - 1]) !== soundKey(words[words.length - 1])) continue;
     near.push({ phrase, cost });
     const length = words.reduce((n, w) => n + soundKey(w).length, 0);
-    if (strict(phrase) && soundKey(said[said.length - 1]) !== soundKey(words[words.length - 1])) continue;
     const allowed = words.length === 1 ? 0 : Math.floor(length / 5);
     if (cost > allowed) continue;
     if (cost < bestCost) {
