@@ -2867,6 +2867,8 @@ test("a built-in command's time in the usage log is until its answer shows, not 
   const metric = await panel.evaluate(() => (window as unknown as { navi: { metrics: { path: string; ms: number }[] } }).navi.metrics.at(-1));
   expect(metric?.path).toBe("fast");
   expect(metric!.ms).toBeLessThan(500);
+  // Its card's time too (a note logged after the answer was said doesn't stretch it).
+  await expect(panel.locator("#log > li.turn").last().locator(".trace-time")).toHaveText(/^\d+ ms$/);
   // "What did you say?" too.
   await run(panel, "what did you say");
   const repeat = await panel.evaluate(() => (window as unknown as { navi: { metrics: { intent?: string; ms: number }[] } }).navi.metrics.at(-1));

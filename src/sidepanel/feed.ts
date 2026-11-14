@@ -215,7 +215,9 @@ export class Feed {
         turn.trace.list.append(li);
         turn.steps++;
         turn.activity = entry.text;
-        if (t !== undefined) turn.end = t;
+        // A note after the answer (a built-in command's "Fast path · 4 ms", logged once Navi has said it)
+        // doesn't make the command look slower than it was.
+        if (t !== undefined && turn.result === "none") turn.end = t;
         break;
       }
       case "navi":
