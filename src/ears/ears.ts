@@ -522,9 +522,10 @@ export class Ears {
     if (this.parakeet && this.engine === this.parakeet && !/microphone access is blocked/i.test(message)) {
       // Too slow won't get better by itself: not again until the setting is chosen again.
       const tooSlow = /too slow/i.test(message);
+      const name = this.parakeet.name;
       this.out.log(
         "error",
-        `${message}. Chrome's recognizer is listening instead; ${tooSlow ? "choose Parakeet in Settings to try it again" : "Navi tries Parakeet again later"}.`,
+        `${message}. Chrome's recognizer is listening instead; ${tooSlow ? `to try it again, say “use Chrome's recognizer”, then “use ${name}”` : `Navi tries ${name} again later`}.`,
       );
       this.parakeet.dispose();
       this.parakeet = null;
