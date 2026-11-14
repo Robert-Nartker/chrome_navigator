@@ -73,7 +73,8 @@ export type Intent =
   /** Moving the mouse onto something (menus that open on hover): by flag number or by name. */
   | { type: "hover"; n?: number; text?: string }
   | { type: "ack"; reply?: string }
-  | { type: "voice"; change: "louder" | "quieter" | "faster" | "slower" }
+  /** `orVideo`: "slow down", which means the video when one is playing (or sped up), else Navi's voice. */
+  | { type: "voice"; change: "louder" | "quieter" | "faster" | "slower"; orVideo?: boolean }
   | { type: "autoScroll"; action: "start" | "stop" | "faster" | "slower" }
   | { type: "fasterSlower"; direction: "faster" | "slower" }
   | { type: "siteHome" }
@@ -279,10 +280,10 @@ const RULES: Rule[] = [
   [/^(?:cancel|skip|ignore|dismiss|never ?mind)(?: the)? (?:helper'?s? )?question$/, () => ({ type: "helperQuestion", action: "cancel" })],
 
   // Which recognizer hears
-  [/^(?:use|switch to|try|turn on)(?: the)? (?:parakeet|para keet|parakeets?)(?: recognizer| speech recognition)?$/, () => ({ type: "recognizer", to: "parakeet" })],
-  [/^(?:use|switch to|try|turn on)(?: the)? (?:whisper|whisperer|whispers)(?: recognizer| speech recognition)?$/, () => ({ type: "recognizer", to: "whisper" })],
-  [/^(?:use|switch to|switch back to|go back to|try)(?: the)? chrome(?:'s|s)?(?: own)?(?: recognizer| speech recognition| speech)?$/, () => ({ type: "recognizer", to: "chrome" })],
-  [/^(?:which|what) (?:recognizer|speech recognition)(?: are you using| is (?:on|listening)| do you use)?$/, () => ({ type: "recognizer" })],
+  [/^(?:use|switch to|try|turn on)(?: the)? (?:parakeet|para keet|parakeets?)(?: recogni[sz]er| speech recognition)?$/, () => ({ type: "recognizer", to: "parakeet" })],
+  [/^(?:use|switch to|try|turn on)(?: the)? (?:whisper|whisperer|whispers)(?: recogni[sz]er| speech recognition)?$/, () => ({ type: "recognizer", to: "whisper" })],
+  [/^(?:use|switch to|switch back to|go back to|try)(?: the)? chrome(?:'s|s)?(?: own)?(?: recogni[sz]er| speech recognition| speech)?$/, () => ({ type: "recognizer", to: "chrome" })],
+  [/^(?:which|what) (?:recogni[sz]er|speech recognition)(?: are you using| is (?:on|listening)| do you use)?$/, () => ({ type: "recognizer" })],
 
   // Talking with Navi
   [/^(?:no )?(?:that'?s|that is|that was) not what i said$|^(?:no )?you (?:misheard(?: me| that)?|heard (?:me|that) wrong)$|^(?:you )?misheard(?: me)?$|^wrong command$/, () => ({ type: "misheard" })],
@@ -304,7 +305,8 @@ const RULES: Rule[] = [
   [/^(?:(?:talk|speak) (?:louder|up)|louder|speak up)$/, () => ({ type: "voice", change: "louder" })],
   [/^(?:(?:talk|speak) (?:quieter|softer|more quietly)|quieter|softer|not so loud|too loud)$/, () => ({ type: "voice", change: "quieter" })],
   [/^(?:talk|speak) (?:faster|quicker)$/, () => ({ type: "voice", change: "faster" })],
-  [/^(?:talk|speak) (?:slower|more slowly)$|^slow down(?: talking)?$/, () => ({ type: "voice", change: "slower" })],
+  [/^(?:talk|speak) (?:slower|more slowly)$|^slow down talking$/, () => ({ type: "voice", change: "slower" })],
+  [/^slow down$/, () => ({ type: "voice", change: "slower", orVideo: true })],
   [/^what(?:'s| is) the time$|^what time is it$/, () => ({ type: "time" })],
   [/^what(?:'s| is) (?:the date|today'?s date)$|^what day is (?:it|today)$/, () => ({ type: "date" })],
   // Off, not asleep: the mic goes off until turned on again.
@@ -338,7 +340,7 @@ const RULES: Rule[] = [
     /^(?:go to sleep|sleep|stop listening|that's all|that is all|goodbye|good bye|bye|(?:thanks|thank you) that's all|dismiss|pause listening)$/,
     () => ({ type: "sleep" }),
   ],
-  [/^(?:help|what can (?:i|you) (?:say|do)|what are the commands|commands)$/, () => ({ type: "help" })],
+  [/^(?:help|help me|help please|what can (?:i|you) (?:say|do)|what are the commands|commands)$/, () => ({ type: "help" })],
 
   // Scrolling
   [/^(?:scroll |go )?(?:to )?(?:the )?(top|bottom)(?: of (?:the )?page)?$/, (m) => ({ type: "scroll", direction: m[1] as ScrollDirection, amount: "page" })],
@@ -366,6 +368,8 @@ const RULES: Rule[] = [
   // Media (before "go back" so "go back 10 seconds" matches here)
   [new RegExp(`^(?:skip|fast forward|jump|go)(?: ahead| forward)?(?: by)? ${N} seconds?$`), (m) => ({ type: "media", action: "forward", seconds: parseNumber(m[1]) ?? 10 })],
   [new RegExp(`^(?:rewind|go back|jump back|back)(?: by)? ${N} seconds?$`), (m) => ({ type: "media", action: "rewind", seconds: parseNumber(m[1]) ?? 10 })],
+  // Heard in the speech benchmark through a noisy headset: "give ahead 30 seconds", "kip ahead 30 seconds".
+  [new RegExp(`^(?:give|keep|kip|dip)(?: a)? ?(?:ahead|head) ${N} seconds?$`), (m) => ({ type: "media", action: "forward", seconds: parseNumber(m[1]) ?? 10 })],
   [/^(?:skip ahead|fast forward)$/, () => ({ type: "media", action: "forward", seconds: 10 })],
   [/^rewind$/, () => ({ type: "media", action: "rewind", seconds: 10 })],
   [/^(?:play|resume|unpause|keep playing)(?: (?:the )?(?:video|it|this|music))?$/, () => ({ type: "media", action: "play" })],
@@ -379,7 +383,7 @@ const RULES: Rule[] = [
   [/^(?:normal|regular) speed$/, () => ({ type: "media", action: "normalSpeed" })],
   // Only phrases that name the volume: "turn it up" or "turn it to 30" depend on what was just said, so
   // the router and AI, which know that, handle them.
-  [/^(?:turn (?:the volume|the video) up|volume up|turn up the (?:volume|video)|(?:raise|increase) the volume|louder video)(?: (?:some )?more| a (?:bit|little)(?: more)?)?$/, () => ({ type: "media", action: "volumeUp" })],
+  [/^(?:turn (?:the volume|the video) up|volume up|volume app|turn up the (?:volume|video)|(?:raise|increase) the volume|louder video)(?: (?:some )?more| a (?:bit|little)(?: more)?)?$/, () => ({ type: "media", action: "volumeUp" })],
   [/^(?:turn (?:the volume|the video) down|volume down|turn down the (?:volume|video)|(?:lower|decrease|reduce) the volume|quieter video)(?: (?:some )?more| a (?:bit|little)(?: more)?)?$/, () => ({ type: "media", action: "volumeDown" })],
   // "volume 45", "set the volume to 45 percent"
   [new RegExp(`^(?:(?:set|turn|put|change|bring)(?: the)?(?: video)? volume (?:to |at )?|(?:the )?volume (?:to |at )?)${N}(?: ?%| percent)?$`), (m) => {
@@ -423,6 +427,11 @@ const RULES: Rule[] = [
     const index = parseNumber(m[1]);
     return index === null ? null : { type: "switchTab", index };
   }],
+  // "tab" as recognizers hear it after "switch to" ("switch to top 3", "switch to taba 3"; bench/asr).
+  [new RegExp(`^switch to (?:tap|top|taba|tub|tad|tabs) (?:number )?${N}$`), (m) => {
+    const index = parseNumber(m[1]);
+    return index === null ? null : { type: "switchTab", index };
+  }],
   [/^(?:switch|go back|jump) to (?:the )?(.+?)(?: tab)?$/, (m) => ({ type: "switchTab", query: m[1] })],
   [/^(?:what|which) tabs (?:are|do i have) open$|^list (?:my |the )?tabs$|^read (?:me )?(?:my |the )?tabs$/, () => ({ type: "listTabs" })],
 
@@ -460,10 +469,11 @@ const RULES: Rule[] = [
   [/^(?:reset (?:the )?zoom|zoom reset|normal size|actual size)$/, () => ({ type: "zoom", direction: "reset" })],
 
   // Find text on the page, editing, printing
+  // Before "find <words>", which would look for the word "next".
+  [/^(?:find (?:the )?next(?: one)?|next match|next result)$/, () => ({ type: "find" })],
   [/^(?:find|look for|search (?:the |this )?page for|where does it say)(?: where it says)? (.+?)(?: on (?:the |this )?page)?$/, (m) =>
     // "Find me a recipe…", "look for a cheap flight": a task for the AI, not words on this page.
     /^(?:me|us|a|an|some|any|my)\b/.test(m[1]) ? null : { type: "find", text: m[1] }],
-  [/^(?:find (?:the )?next(?: one)?|next match|next result)$/, () => ({ type: "find" })],
   [/^select (?:all|everything)$/, () => ({ type: "edit", action: "selectAll" })],
   [/^undo(?: that)?$/, () => ({ type: "edit", action: "undo" })],
   // Correcting dictation: what Navi just typed, or the last few words.
@@ -511,11 +521,11 @@ const RULES: Rule[] = [
   // Opening sites: only when we can resolve the destination, otherwise the AI decides
   // The verb decides the tab: "open" (and "launch", "pull up") opens a new tab; "go to" (and "visit",
   // "take me to") stays in this one. "In a new tab" or "here" overrides either.
-  [/^(open|launch|pull up|bring up|go to|navigate to|take me to|visit|load)(?: up)? (.+?)( in (?:a )?new tab| in (?:a )?(?:new|separate|different) window| (?:in )?(?:this|the same) tab| here)?$/, (m) => {
+  [/^(open|launch|pull up|bring up|go to|navigate to|take me to|visit|load)(?: up)? (.+?)( in (?:a )?new (?:tab|tap|top|topic|tag|tub)| in (?:a )?(?:new|separate|different) window| (?:in )?(?:this|the same) tab| here)?$/, (m) => {
     const url = resolveSite(m[2]);
     if (!url) return null;
     if (m[3] && /window/.test(m[3])) return { type: "open", url, newTab: true, label: m[2], newWindow: true };
-    const newTab = m[3] ? /new tab/.test(m[3]) : OPENS_NEW_TAB.test(m[1]);
+    const newTab = m[3] ? / new /.test(m[3]) : OPENS_NEW_TAB.test(m[1]);
     return { type: "open", url, newTab, label: m[2] };
   }],
   [/^new tab (?:with |for |to )?(.+)$/, (m) => {
@@ -631,7 +641,7 @@ function looseIntent(t: string): Intent | null {
   if (words.length <= 5 && /\b(?:sleep|goodnight|good night|nap)\b/.test(t) && !/\bdon'?t\b|\bnot\b/.test(t)) {
     return { type: "sleep" };
   }
-  if (/\bscroll|^(?:go|move|page|keep going) (?:up|down)\b|^keep (?:scrolling|going)/.test(t) && words.length <= 8) {
+  if (/\bscroll|^(?:go|move|page|keep going|roll) (?:up|down)\b|^keep (?:scrolling|going)/.test(t) && words.length <= 8) {
     const direction: ScrollDirection = /\btop\b/.test(t)
       ? "top"
       : /\bbottom\b/.test(t)
@@ -672,7 +682,17 @@ const CANONICAL = [
 ];
 
 /** Phrases matched by how they sound when nothing matched by spelling ("clothes tab", "go bag", "paws"). */
-const SOUND_PHRASES = [...CANONICAL, "stop", "flags", "show the flags", "close the tab", "go back a page"];
+const SOUND_PHRASES = [
+  ...CANONICAL, "stop", "flags", "show the flags", "close the tab", "go back a page",
+  // Heard wrong in the speech benchmark (bench/asr): "delete the lost word", "lauder", "raid this section", "go to maine content".
+  "delete the last word", "delete that", "louder", "quieter", "read this section", "go to main content", "full screen",
+  "list the headings", "next heading", "pause the video", "play the video", "close this tab", "stay awake", "wake up",
+];
+/**
+ * A word recognizers put in front of a short command ("a play", "the mute", "it's louder", "oh stop"):
+ * dropped only when what's left is a command in so many words with nothing of the user's own in it.
+ */
+const STRAY_FIRST = /^(?:a|an|the|oh|ah|it'?s|he'?s|she'?s|that'?s)\s+/;
 /** Words Chrome sometimes runs together at the start of a command ("scrollup", "newtab"); never inside the user's own words. */
 const GLUED = /^(scroll|zoom|go|close|new|next|page)(up|down|in|out|back|forward|tab)\b/;
 /** Agreement noises, not "huh?" (which asks Navi to repeat). */
@@ -781,6 +801,28 @@ export function isCommandStart(text: string): boolean {
   return !!t && !parseCommand(text) && CANONICAL.some((phrase) => phrase.startsWith(`${t} `));
 }
 
+/**
+ * What a recognizer commonly adds to a command, taken off when the rest is a command in so many words (and
+ * one with nothing of the user's own in it, so nothing is guessed): a stray first word ("a play", "it's
+ * louder"), or a plural at the end ("new tabs", "go to main contents", "click fives").
+ */
+function salvage(target: string): Intent | null {
+  const plain = (t: string) => {
+    const intent = parseExact(t);
+    return intent && !FREE_TEXT.some((key) => key in intent) ? intent : null;
+  };
+  const stray = STRAY_FIRST.exec(target);
+  if (stray && target.length > stray[0].length) {
+    const rest = plain(target.slice(stray[0].length));
+    // "It's louder" is a mishearing; "it's up", "he's back" are people talking.
+    const pronoun = !/^(?:a|an|the|oh|ah)\s/.test(stray[0]);
+    if (rest && (!pronoun || ["media", "voice", "stop"].includes(rest.type))) return rest;
+  }
+  const plural = /^(.+\S)s$/.exec(target);
+  if (plural && !/ss$/.test(target)) return plain(plural[1]);
+  return null;
+}
+
 /** A command, said in so many words or nearly: looser phrasings, near-misses in spelling, then in sound. */
 export function parseCommand(text: string): Intent | null {
   const exact = parseExact(text);
@@ -789,6 +831,8 @@ export function parseCommand(text: string): Intent | null {
   if (!target) return null;
   const loose = looseIntent(target);
   if (loose) return loose;
+  const salvaged = salvage(target);
+  if (salvaged) return salvaged;
   const near = closestPhrase(target, CANONICAL);
   if (near) return matchRules(near);
   // "clique 5", "quick 5": a word that sounds like "click", then a number (which makes "click" likely).

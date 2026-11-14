@@ -176,6 +176,15 @@ async function micAllowed(): Promise<boolean> {
 }
 
 /** Listens for the wake name, unless the user turned Navi off (or the mic isn't allowed yet). */
+/**
+ * The settings as saved right now. A command runs with these, not with what the change listener has
+ * delivered so far: a key saved a moment ago (setup, Settings, a test) is used by the very next command.
+ */
+async function freshSettings() {
+  await settingsLoaded;
+  settings = await loadSettings();
+}
+
 /** Settled once a new Chrome session has set whether Navi starts off (so nothing resumes from last session's state). */
 let sessionStarted: Promise<void> = Promise.resolve();
 
@@ -481,7 +490,7 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       })();
       return false;
     case "ears:command":
-      void controller.run(msg.text, { source: "voice", alternatives: msg.alternatives, hearing: msg.hearing });
+      void freshSettings().then(() => controller.run(msg.text, { source: "voice", alternatives: msg.alternatives, hearing: msg.hearing }));
       return false;
     case "ears:cancel":
       controller.cancel();
@@ -509,8 +518,8 @@ function onMessage(msg: Message, sendResponse: (response?: unknown) => void, sen
       return true;
     case "navi:run":
       // Always answers: a view waiting on a reply that never comes gets "message channel closed".
-      void controller
-        .run(msg.text, { source: msg.source ?? "typed" })
+      void freshSettings()
+        .then(() => controller.run(msg.text, { source: msg.source ?? "typed" }))
         .catch((err: unknown) => log("error", `Something went wrong: ${err instanceof Error ? err.message : String(err)}`))
         .finally(() => sendResponse({ metrics }));
       return true;

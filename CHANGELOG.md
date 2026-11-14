@@ -2,6 +2,22 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-14
+
+- **Measured, not guessed: a speech benchmark.** 80 things people say to Navi, in 28 voices, through what a Bluetooth headset does to a mic (phone-call quality, room noise, a soft voice), plus 520 recordings of real people saying single words, each run through the recognizers and then Navi's own parser. Results: [docs/research/asr-benchmark.md](docs/research/asr-benchmark.md); scripts: [bench/asr](bench/asr). The headset mic is the main cause of mishearing, and single words suffer most.
+- **Whisper as a third recognizer.** Whisper small heard real people's single words through a headset mic better than Parakeet (78% vs 62% exactly right; 57% vs 38% with room noise) and never came back empty. Say "use Whisper" (or choose it in Settings → Listening); the headset warning now suggests it. It downloads once (about 1 GB) and runs on the graphics chip when it can.
+- **A "didn't catch that" sound** when Parakeet or Whisper hears speech but can't make words of it, instead of silence.
+- **Navi recovers more of what's misheard** in the benchmark: a stray first word ("a play", "the mute", "it's louder"), a stray plural ("new tabs", "go to main contents"), near-misses of site names ("open youtuber", "open redit"), "switch to top 3", "give ahead 30 seconds", "volume app", "roll up", "open gmail in a new topic", "help me", and more said by sound ("delete the lost word", "raid this section"). On the benchmark: clean audio 88% → 90% of commands right, a headset mic 83% → 85%, a noisy headset 60% → 61%; single words +3 to +4 points; wrong commands no higher. A stray "it's" or "he's" is dropped only before media and stop commands ("it's louder"), so "it's up" or "he's back" said nearby stays talk.
+- **Every built-in command, tested by voice.** A new test says each command the AI router knows about on real pages and checks that none errors or hangs (median 33 ms each on the fast path). It found:
+  - **"Find next" looked for the word "next"** instead of the next match.
+  - **"Slow down" slowed Navi's voice even while a video played** (after "speed up" had sped the video up). Now it slows a video that's playing or sped up, and Navi's voice otherwise.
+  - **A reply could wait seconds behind earlier ones.** Thread, window and helper commands answer at once without waiting to be said, so their spoken replies piled up, and the next command's answer came after all of them. Now anything new you say cuts off what Navi was still saying.
+  - **A video that can't play says so in plain words** ("This video can't play: its file didn't load…", or that Chrome wants a click on the page first) instead of the browser's own error.
+- **Settings: switching between Free and Pro no longer undoes a choice made right after** (the page read the stored settings again, slowly, and filled them in over yours).
+- **A key saved a moment ago is used by the very next command.** A command could run with the settings from before (no AI, so nothing happened).
+- **The power button no longer disappears while listening** (it drew in the panel's own colour).
+- **A demo video maker** ([scripts/demo-video](scripts/demo-video)): records the real extension on demo pages with narration and voices.
+
 ## 2026-11-13
 
 - **No waiting in line: what you say next takes over at once.** A command given while Navi works stops what it's doing and runs now. The AI is told what the stopped task had already done, so "no, the other one" carries on from there, while something unrelated simply replaces it. Helper reports still wait for a quiet moment.

@@ -426,6 +426,15 @@ test.describe("threads", () => {
   const type = (panel: Page, text: string) => panel.evaluate((t) => (window as unknown as Hooks).navi.run(t, "typed"), text);
   const feedText = (panel: Page) => panel.locator("#log").innerText();
 
+  test("a key saved a moment ago is used by the very next command", async ({ panel, context }) => {
+    const chats = await mockChat(context);
+    // No waiting for the change to reach Navi's background: the command right after uses the key.
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "off" } }));
+    await type(panel, "what's a good name for a cat");
+    expect(chats).toHaveLength(1);
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Answer to: what's a good name for a cat");
+  });
+
   test("each thread has its own feed and AI conversation: new thread, back by name, list", async ({ panel, context }) => {
     const chats = await mockChat(context);
     await useClaude(panel);

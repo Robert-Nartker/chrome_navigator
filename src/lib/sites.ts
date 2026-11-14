@@ -113,8 +113,25 @@ export function resolveSite(spoken: string): string | null {
   if (compact.replace(/\.com$/, "") in SITES && compact.endsWith(".com")) {
     return SITES[compact.replace(/\.com$/, "")];
   }
+  if (compact in SITES) return SITES[compact];
+  // A recognizer's slip on a known site ("youtuber" for "youtube"): one letter off a name of five or more,
+  // and no other site as close.
+  const near = Object.keys(SITES).filter((site) => site.length >= 5 && !site.includes(" ") && editDistance(site, compact) === 1);
+  if (near.length === 1 && !compact.includes(".")) return SITES[near[0]];
   if (/^https?:\/\//.test(compact)) return compact;
   if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/.test(compact)) return `https://${compact}`;
   if (/^(?:localhost|\d{1,3}(?:\.\d{1,3}){3})(:\d+)?(\/\S*)?$/.test(compact)) return `http://${compact}`;
   return null;
+}
+
+/** Letters to add, remove or change to turn one word into the other. */
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 1) return 2;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
 }

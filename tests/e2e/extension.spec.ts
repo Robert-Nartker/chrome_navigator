@@ -2638,3 +2638,109 @@ test.describe("Navi's on-device voice", () => {
     await expect(panel.locator("#engine-label")).toContainText("Speaks: System voice");
   });
 });
+
+/**
+ * Every built-in command the router lists, said on pages it applies to: none may crash, error or hang, and each
+ * one's time is printed (a benchmark of the fast path, with no AI). Commands that end the test's setup (closing
+ * the panel or tab, turning Navi off, a print dialog, new windows) are tested on their own elsewhere.
+ */
+test("sweep: every built-in command runs by voice without an error, and how long each takes", async ({ panel, site, context, baseUrl }) => {
+  test.setTimeout(300_000);
+  const problems: string[] = [];
+  site.on("pageerror", (err) => problems.push(`page error: ${err.message}`));
+  const groups: [string, string[]][] = [
+    [
+      "structure.html",
+      [
+        "scroll down", "scroll up", "scroll to the bottom", "scroll to the top", "scroll down a little", "scroll up a lot",
+        "page down", "page up", "start scrolling", "scroll faster", "scroll slower", "stop scrolling",
+        "find pricing", "find next", "select all", "undo", "what did you say", "what did you hear", "that's not what I said",
+        "talk louder", "talk quieter", "talk faster", "talk slower", "what time is it", "what's the date",
+        "flags", "click 3", "hide flags", "show grid", "hide grid", "hover over help", "next heading", "next heading",
+        "previous heading", "first heading", "last link", "next link", "next field", "next button", "next region",
+        "list the headings", "list the links", "list the fields", "list the buttons", "list the regions",
+        "go to the pricing heading", "go to the reviews section", "go to the email field", "type hello world",
+        "delete the last word", "delete that", "type hello", "new line", "clear it", "escape", "go to main content",
+        "read this section", "read this page", "where am I", "what can I say", "zoom in", "zoom out", "reset zoom",
+        "what tabs are open", "new thread", "new thread about desks", "list threads", "previous thread",
+        "rename this thread to desks", "switch to the desks thread", "pin Navi to this window", "unpin Navi",
+        "stay awake", "sleep when I'm quiet", "which recognizer are you using", "how are the helpers doing",
+        "stop helpers", "what does the helper want", "cancel the question", "describe the screen", "stop",
+        "click pricing", "go home", "go back", "go forward", "refresh",
+      ],
+    ],
+    [
+      "video.html",
+      [
+        "play", "pause", "skip ahead 30 seconds", "rewind 10 seconds", "mute", "unmute", "speed up", "slow down",
+        "normal speed", "volume up", "volume down", "volume 40", "restart the video", "full screen", "exit full screen",
+      ],
+    ],
+    [
+      "index.html",
+      [
+        "new tab", "next tab", "previous tab", "first tab", "last tab", "switch back", "switch to tab 1", "duplicate tab",
+        "pin tab", "close other tabs", "reopen closed tab", "switch to navi test", "search this site for shoes",
+        "click sign in", "next page", "go back 2 pages",
+      ],
+    ],
+  ];
+  const timings: [string, number, string][] = [];
+  for (const [page, commands] of groups) {
+    // The last group's "refresh" or "go back" may still be loading.
+    await site.waitForTimeout(1000);
+    await site.goto(`${baseUrl}/${page}`);
+    if (page === "video.html") await site.locator("#player").evaluate((v: HTMLVideoElement, url) => (v.src = url), `${baseUrl}/stalled.mp4`);
+    for (const said of commands) {
+      await site.bringToFront();
+      const before = await panel.locator("#log li").count();
+      const start = Date.now();
+      await run(panel, said);
+      const ms = Date.now() - start;
+      const added = await panel.locator("#log li").evaluateAll((lis, n) => lis.slice(n).map((li) => `${li.className}: ${li.textContent?.trim()}`), before);
+      timings.push([said, ms, added.join(" | ").slice(0, 140)]);
+      for (const line of added) if (/something went wrong|undefined|null|NaN|\[object/i.test(line)) problems.push(`${said}: ${line}`);
+      if (ms > 8000) problems.push(`${said}: took ${ms} ms`);
+      // Back to the one test tab, in case the command opened or moved one.
+      for (const p of context.pages()) if (p !== site && p !== panel && !p.url().startsWith("chrome-extension")) await p.close().catch(() => {});
+      if (site.isClosed()) break;
+    }
+  }
+  console.log(timings.map(([said, ms, reply]) => `${String(ms).padStart(5)} ms  ${said.padEnd(30)} ${reply}`).join("\n"));
+  const sorted = timings.map((t) => t[1]).sort((a, b) => a - b);
+  console.log(`median ${sorted[Math.floor(sorted.length / 2)]} ms, 90th percentile ${sorted[Math.floor(sorted.length * 0.9)]} ms, slowest ${sorted.at(-1)} ms`);
+  expect(problems).toEqual([]);
+});
+
+test("a new command's answer doesn't wait behind replies Navi was still saying", async ({ panel }) => {
+  // Thread, window and helper commands answer at once and aren't waited for: their spoken replies used to
+  // queue, so the next command's answer came seconds late (each says about a second here).
+  for (const said of ["list threads", "pin Navi to this window", "unpin Navi", "how are the helpers doing", "list threads"]) await run(panel, said);
+  const start = Date.now();
+  await run(panel, "what time is it");
+  expect(Date.now() - start).toBeLessThan(2500);
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^It's \d/);
+});
+
+test("“slow down” slows a video that's playing or sped up, and otherwise Navi's voice", async ({ panel, site, baseUrl }) => {
+  await site.goto(`${baseUrl}/video.html`);
+  const rate = () => site.locator("#player").evaluate((v: HTMLVideoElement) => v.playbackRate);
+  await site.bringToFront();
+  await run(panel, "speed up");
+  await expect.poll(rate).toBe(1.25);
+  await run(panel, "slow down");
+  await expect.poll(rate).toBe(1);
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("Speed 1x");
+  // Paused at normal speed: it's Navi's voice.
+  await run(panel, "slow down");
+  await expect(panel.locator("#log li.navi .text").last()).toHaveText("Okay, a bit slower.");
+  expect(await rate()).toBe(1);
+});
+
+test("a video that can't play says so in plain words", async ({ panel, site, baseUrl }) => {
+  await site.goto(`${baseUrl}/video.html`);
+  await site.locator("#player").evaluate((v: HTMLVideoElement, url) => (v.src = url), `${baseUrl}/missing.mp4`);
+  await site.bringToFront();
+  await run(panel, "play");
+  await expect(panel.locator("#log li.error .text").last()).toHaveText(/^This video can't play: its file didn't load, or Chrome can't play it\.?$/);
+});

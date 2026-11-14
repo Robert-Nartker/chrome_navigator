@@ -367,11 +367,18 @@ function mainVideo(): HTMLVideoElement | null {
 
 /** Starts the video, but doesn't wait forever: a video still loading (or held by the site) can take its time. */
 async function play(video: HTMLVideoElement): Promise<void> {
-  await Promise.race([video.play(), new Promise((resolve) => setTimeout(resolve, 3000))]);
+  const started = video.play().catch((err: unknown) => {
+    const name = err instanceof DOMException ? err.name : "";
+    if (name === "NotAllowedError") throw new Error("Chrome won't let this video start until the page has been clicked or a key pressed once.");
+    if (name === "NotSupportedError") throw new Error("This video can't play: its file didn't load, or Chrome can't play it.");
+    throw err;
+  });
+  await Promise.race([started, new Promise((resolve) => setTimeout(resolve, 3000))]);
 }
 
-export async function media(action: MediaAction, seconds = 10, volume = 50): Promise<string> {
+export async function media(action: MediaAction, seconds = 10, volume = 50, ifPlaying = false): Promise<string> {
   const video = mainVideo();
+  if (ifPlaying && (!video || (video.paused && video.playbackRate === 1))) return "";
   if (!video) throw new Error("There's no video on this page.");
   switch (action) {
     case "play":

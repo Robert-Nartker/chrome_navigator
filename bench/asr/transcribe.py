@@ -13,6 +13,7 @@ ap.add_argument("model"); ap.add_argument("models"); ap.add_argument("clips"); a
 ap.add_argument("--hotwords"); ap.add_argument("--hotword-score", type=float, default=1.5)
 ap.add_argument("--threads", type=int, default=4)
 ap.add_argument("--normalize", type=float, help="bring the loudest 100 ms of speech to this level (dBFS) first")
+ap.add_argument("--pad", type=float, default=0, help="seconds of silence added before and after each clip")
 a = ap.parse_args()
 M, T = a.models, a.threads
 
@@ -58,6 +59,10 @@ for i in range(0, len(index), BATCH):
             win = int(sr * 0.1)
             loud = max((float(np.sqrt(np.mean(x[i:i + win] ** 2))) for i in range(0, max(1, len(x) - win), win // 2)), default=0) + 1e-9
             x = np.clip(x * (10 ** (a.normalize / 20) / loud), -1, 1).astype("float32")
+        if a.pad:
+            import numpy as np
+            z = np.zeros(int(sr * a.pad), dtype="float32")
+            x = np.concatenate([z, x, z])
         s = rec.create_stream()
         s.accept_waveform(sr, x)
         streams.append(s)
@@ -65,6 +70,6 @@ for i in range(0, len(index), BATCH):
     for it, s in zip(items, streams):
         results.append({**it, "heard": s.result.text.strip()})
 elapsed = time.time() - started
-json.dump({"model": a.model + (" +hotwords" if a.hotwords else "") + (f" +norm{a.normalize:g}" if a.normalize is not None else ""), "clips": a.clips, "seconds": elapsed, "audio_seconds": audio_s,
+json.dump({"model": a.model + (" +hotwords" if a.hotwords else "") + (f" +norm{a.normalize:g}" if a.normalize is not None else "") + (f" +pad{a.pad:g}" if a.pad else ""), "clips": a.clips, "seconds": elapsed, "audio_seconds": audio_s,
            "results": results}, open(a.out, "w"), indent=0)
 print(f"{a.model} {os.path.basename(a.clips)}: {len(results)} clips in {elapsed:.0f}s ({audio_s / elapsed:.1f}x realtime)", flush=True)

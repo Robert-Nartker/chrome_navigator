@@ -26,6 +26,16 @@ const words = (s) => String(s).toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split
 const NUM = { five: "5", twelve: "12", three: "3", thirty: "30", ten: "10" };
 const canonWords = (s) => words(s).map((w) => NUM[w] ?? w);
 
+/** The same command, but its own words (a search, what to type) came out differently. */
+function sameCommand(a, b) {
+  if (!a || !b || a.type !== b.type) return false;
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (k === "type" || FREE.includes(k)) continue;
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) return false;
+  }
+  return true;
+}
+
 function same(a, b) {
   if (!a || !b || a.type !== b.type) return false;
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
@@ -56,7 +66,7 @@ for (const file of files) {
   const tally = {};
   const bump = (group, key) => {
     for (const g of [group, "all"]) {
-      tally[g] ??= { n: 0, correct: 0, wrong: 0, missed: 0, empty: 0, werErr: 0, werN: 0 };
+      tally[g] ??= { n: 0, correct: 0, words: 0, wrong: 0, missed: 0, empty: 0, werErr: 0, werN: 0 };
       tally[g][key]++;
     }
   };
@@ -68,9 +78,10 @@ for (const file of files) {
     if (!r.heard.trim()) outcome = "empty";
     else if (p.intent === null) outcome = got ? "wrong" : "correct";
     else if (same(got, p.intent)) outcome = "correct";
+    else if (sameCommand(got, p.intent)) outcome = "words";
     else outcome = got ? "wrong" : "missed";
     for (const g of [p.group, "all"]) {
-      tally[g] ??= { n: 0, correct: 0, wrong: 0, missed: 0, empty: 0, werErr: 0, werN: 0 };
+      tally[g] ??= { n: 0, correct: 0, words: 0, wrong: 0, missed: 0, empty: 0, werErr: 0, werN: 0 };
       tally[g].n++;
       tally[g][outcome]++;
       tally[g].werErr += w.errors;
@@ -82,10 +93,13 @@ for (const file of files) {
 }
 
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : "–");
-const lines = ["| Recognizer | Audio | Correct | Wrong command | Not understood | Heard nothing | WER | Single words correct | Speed |", "|---|---|---|---|---|---|---|---|---|"];
+const lines = [
+  "| Recognizer | Audio | Correct | Right command, words off | Wrong command | Not understood | Heard nothing | WER | Single words correct | Speed |",
+  "|---|---|---|---|---|---|---|---|---|---|",
+];
 for (const r of rows) {
   const t = r.tally.all, s = r.tally.single ?? { n: 0, correct: 0 };
-  lines.push(`| ${r.model} | ${r.condition} | ${pct(t.correct, t.n)} | ${pct(t.wrong, t.n)} | ${pct(t.missed, t.n)} | ${pct(t.empty, t.n)} | ${pct(t.werErr, t.werN)} | ${pct(s.correct, s.n)} | ${r.speed.toFixed(1)}x |`);
+  lines.push(`| ${r.model} | ${r.condition} | ${pct(t.correct, t.n)} | ${pct(t.words, t.n)} | ${pct(t.wrong, t.n)} | ${pct(t.missed, t.n)} | ${pct(t.empty, t.n)} | ${pct(t.werErr, t.werN)} | ${pct(s.correct, s.n)} | ${r.speed.toFixed(1)}x |`);
 }
 const md = lines.join("\n");
 console.log(md);

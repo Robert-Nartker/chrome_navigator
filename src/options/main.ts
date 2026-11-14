@@ -136,9 +136,21 @@ function fillModeFields(s: Settings) {
   updateModelNote();
 }
 
+/**
+ * The stored settings, read once: choosing Free or Pro fills in that mode's fields straight away, so a
+ * choice made right after (by a fast hand or a screen reader) isn't overwritten by a slow read.
+ */
+let stored: Promise<Partial<Settings>> = loadStoredSettings();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.settings) stored = loadStoredSettings();
+});
+
 // Choosing Free or Pro shows that mode's own settings (saving keeps them for that mode).
 field<HTMLSelectElement>("aiMode").addEventListener("change", async () => {
-  fillModeFields(normalizeSettings(await loadStoredSettings(), field<HTMLSelectElement>("aiMode").value as AiMode));
+  const mode = field<HTMLSelectElement>("aiMode").value as AiMode;
+  const s = await stored;
+  // Only if still the mode chosen (a second change may have come meanwhile).
+  if (field<HTMLSelectElement>("aiMode").value === mode) fillModeFields(normalizeSettings(s, mode));
 });
 
 async function fill() {

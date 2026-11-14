@@ -320,6 +320,12 @@ export class Controller {
       await this.tutorialAction(control);
       return;
     }
+    // The user has moved on: what Navi was still saying (an instant command's reply isn't waited for) is
+    // dropped, so this command's answer comes at once instead of after it.
+    if (options.source === "voice" || options.source === "typed") {
+      this.speechGen++;
+      this.speaker.stop();
+    }
     await Promise.all([this.threads.ready, this.pin.ready]);
     // Threads and pinning don't wait: a command already running finishes in its own thread and window.
     if (isInstant(intent) && options.source !== "step") {
@@ -1501,6 +1507,14 @@ export class Controller {
         } else this.speaker.sound("done");
         return;
       case "voice": {
+        // "Slow down" while a video plays (or after "speed up") means the video.
+        if (intent.orVideo) {
+          const res = await pageRequest(tab, { kind: "media", action: "slower", ifPlaying: true }).catch(() => null);
+          if (res?.detail) {
+            await this.confirm(res.detail.charAt(0).toUpperCase() + res.detail.slice(1));
+            return;
+          }
+        }
         const change = await this.adjustVoice(intent.change);
         // Let the next reply use the new settings, then demonstrate them.
         await sleep(50);

@@ -10,7 +10,7 @@ const MEANT: Record<string, string[]> = {
   "scroll up": ["scrolled up", "school up", "scrollup", "stroll up", "skull up", "scroll op", "scroll app"],
   "go back": ["goback", "go bag", "go buck", "go pack", "Go back!", "go bak", "go beck"],
   "close tab": ["clothes tab", "close tap", "closed tab", "close the tab", "clothes tap", "closetab", "close tub", "close top"],
-  "new tab": ["newtab", "new tap", "knew tab", "new tub", "new top", "new dab"],
+  "new tab": ["newtab", "new tap", "knew tab", "new tub", "new top", "new dab", "new tabs"],
   "next tab": ["nexttab", "next tap", "next top", "next tub"],
   refresh: ["refreshed", "reload"],
   "zoom in": ["zoomin", "zoom inn"],
@@ -22,6 +22,14 @@ const MEANT: Record<string, string[]> = {
   "click 5": ["click five", "clique 5", "quick 5", "clicks 5", "click on 5", "click number 5"],
   pause: ["paws"],
   "pause the video": ["paws the video", "how's the video", "pause video", "paused the video", "pauses the video"],
+  // From the speech benchmark (bench/asr): a stray word in front, a plural at the end, a sound-alike.
+  play: ["a play", "oh play"],
+  "unmute": ["the unmute"],
+  louder: ["lauder", "it's louder"],
+  "delete the last word": ["delete the lost word"],
+  "read this section": ["raid this section"],
+  "go to main content": ["go to maine content", "go to main contents"],
+  "full screen": ["a full screen"],
   mute: ["mewt", "moot"],
   "where am i": ["wear am i"],
   "scroll to the top": ["scroll to the tap"],
@@ -256,5 +264,37 @@ describe("Whisper as a recognizer", async () => {
     expect(cleanTranscript("Stop. Stop. Stop.")).toBe("Stop");
     expect(cleanTranscript("go go")).toBe("go go");
     expect(cleanTranscript("Pause the video.")).toBe("Pause the video.");
+  });
+});
+
+describe("more of what the speech benchmark heard (bench/asr)", () => {
+  it("a near-miss on a known site still opens it, but only a clear one", () => {
+    for (const said of ["open youtuber", "open you tube"]) expect(parseCommand(said), said).toMatchObject({ type: "open", url: "https://www.youtube.com" });
+    expect(parseCommand("open redit")).toMatchObject({ url: "https://www.reddit.com" });
+    expect(parseCommand("open the news")).toBeNull();
+  });
+  it("“tab” as recognizers hear it after “switch to”", () => {
+    for (const said of ["switch to top 3", "switch to taba 3", "switch to top three"]) expect(parseCommand(said), said).toEqual({ type: "switchTab", index: 3 });
+  });
+  it("British spelling", () => {
+    expect(parseCommand("which recogniser are you using")).toEqual({ type: "recognizer" });
+  });
+  it("a stray “it's” or “he's” is dropped only for media and stop: the rest is people talking", () => {
+    expect(parseCommand("it's louder")).toEqual({ type: "voice", change: "louder" });
+    expect(parseCommand("it's pause")).toEqual({ type: "media", action: "pause" });
+    for (const said of ["it's up", "he's back", "she's down", "it's enter", "that's back", "its back", "hes up"]) expect(parseCommand(said), said).toBeNull();
+  });
+  it("what a noisy headset made of a few commands", () => {
+    expect(parseCommand("help me")).toEqual({ type: "help" });
+    expect(parseCommand("give ahead 30 seconds")).toEqual({ type: "media", action: "forward", seconds: 30 });
+    expect(parseCommand("volume app")).toEqual({ type: "media", action: "volumeUp" });
+    expect(parseCommand("roll up")).toEqual({ type: "scroll", direction: "up", amount: "page" });
+    expect(parseCommand("open gmail in a new topic")).toMatchObject({ type: "open", url: "https://mail.google.com", newTab: true });
+    expect(parseCommand("go to gmail in a new top")).toMatchObject({ type: "open", newTab: true });
+    // Still not commands: these are someone talking.
+    for (const said of ["help me find a recipe", "give me a second", "keep ahead of the game"]) {
+      const intent = parseCommand(said);
+      expect(intent === null || !["help", "media"].includes(intent.type), said).toBe(true);
+    }
   });
 });

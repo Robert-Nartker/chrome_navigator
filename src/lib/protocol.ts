@@ -67,7 +67,8 @@ export type ContentRequest =
   | { kind: "typeKeys"; text: string; submit: boolean }
   | { kind: "unsaved" }
   | { kind: "readPage"; maxChars: number }
-  | { kind: "media"; action: MediaAction; seconds?: number; volume?: number }
+  /** `ifPlaying`: only if a video is playing or sped up (else an empty detail and nothing done). */
+  | { kind: "media"; action: MediaAction; seconds?: number; volume?: number; ifPlaying?: boolean }
   // Cells are keypad numbers 1-9, one per grid level: [5, 3] is block 3 inside block 5.
   // `image` (on show) is a picture of the tab taken before the grid covers it, to magnify small blocks.
   | { kind: "grid"; action: GridAction; cells?: number[]; image?: string }

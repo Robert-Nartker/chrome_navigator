@@ -31,7 +31,7 @@ open <site or URL> (opens it in a new tab); go to <site or URL> (in this tab); s
 flags (numbered tags on everything clickable); hide flags; click <number>; click <button or link name>; hover over <name>; hover <number> (menus that open under the mouse)
 show grid; hide grid
 type <text>; type <text> and press enter; press enter; escape
-pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down; normal speed; volume up; volume down; volume <0-100>; restart the video
+pause; play; skip ahead <n> seconds; rewind <n> seconds; mute; unmute; full screen; exit full screen; speed up; slow down (a playing video, else Navi's voice); normal speed; volume up; volume down; volume <0-100>; restart the video
 zoom in; zoom out; reset zoom
 read this page; where am I; what can I say
 next heading / link / field / button / region; previous heading (and so on); first heading; last link; list the headings (links, fields, buttons, regions); go to the <name> heading / section / link / field / button; go to main content; read this section
