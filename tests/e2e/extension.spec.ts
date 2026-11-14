@@ -2836,3 +2836,22 @@ test("keyboard only: Tab reaches every panel control, each visible and named, an
   const reached = seen.join("\n");
   for (const id of ["mic", "stay-awake", "command-input", "send", "log"]) expect(reached, `${id} not reachable`).toContain(`${id}:`);
 });
+
+test("the AI clicking without an element number is told so, and the user never sees “Clicking number null”", async ({ panel, site, context }) => {
+  const outputs: string[] = [];
+  await context.route("https://api.openai.com/v1/responses", (route) => {
+    const body = route.request().postDataJSON() as { input: { type?: string; output?: string }[] };
+    const done = body.input.filter((i) => i.type === "function_call_output").map((i) => i.output ?? "");
+    outputs.push(...done);
+    if (!done.length) {
+      return route.fulfill(openaiReply([{ type: "function_call", id: "fc_1", call_id: "call_1", name: "click", arguments: JSON.stringify({ element_id: null }) }]));
+    }
+    return route.fulfill(openaiReply([{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Sorry, I couldn't tell which one." }] }]));
+  });
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { openaiKey: "sk-openai-test", model: "gpt-6.1-sol", routerModel: "off" } }));
+  await site.bringToFront();
+  await run(panel, "click the thing for me");
+  await expect(panel.locator("#log li.navi").last()).toContainText("couldn't tell which one");
+  expect(outputs.join("\n")).toContain("element_id must be the [number] of an element");
+  await expect(panel.locator("#log li.step").filter({ hasText: /null/ })).toHaveCount(0);
+});

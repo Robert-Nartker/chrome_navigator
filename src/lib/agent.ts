@@ -832,6 +832,10 @@ export class NaviAgent {
     const settings = this.getSettings();
     const tab = await this.tab();
     const id = input.element_id as number;
+    // A model can send no number or a made-up one: tell it, instead of showing "Clicking number null".
+    if (["click", "type_text", "select_option"].includes(name) && !(Number.isInteger(id) && id > 0)) {
+      return `element_id must be the [number] of an element from the page's list, not ${JSON.stringify(input.element_id ?? null)}. Look at the page again and use one of its numbers.`;
+    }
     switch (name) {
       case "click": {
         hooks.onStep?.(`Clicking ${this.label(id)}`);
