@@ -280,6 +280,10 @@ export async function findTab(query: string): Promise<chrome.tabs.Tab | undefine
   const q = query.toLowerCase().replace(/\s+/g, " ").trim();
   const compact = q.replace(/\s+/g, "");
   const tabs = await listTabs();
+  // A tab named in whole words first; letters inside a title only for a longer name (switching to the
+  // wrong tab is easy to undo, but "switch to a" shouldn't pick the first tab with an "a" in it).
+  const named = tabs.find((t) => tabMatches(t, query));
+  if (named || compact.length < 4) return named;
   return (
     tabs.find((t) => (t.title ?? "").toLowerCase().includes(q)) ??
     tabs.find((t) => hostOf(t.url).includes(compact)) ??
@@ -293,9 +297,9 @@ export async function matchingTabs(query: string): Promise<chrome.tabs.Tab[]> {
 }
 
 /**
- * Whether a tab is the one named: the name starts a word of its title ("recipe" in "Easy Pasta Recipe"),
- * or a part of its site's address ("youtube" in youtube.com). Not letters inside a word: "close up",
- * misheard "close tab", mustn't close a tab called "Setup".
+ * Whether a tab is the one named: whole words of its title ("recipe" in "Easy Pasta Recipes"), or a part of
+ * its site's address ("youtube" in youtube.com). Not letters inside a word: "close up", misheard "close
+ * tab", mustn't close a tab called "Setup".
  */
 export function tabMatches(tab: { title?: string; url?: string }, query: string): boolean {
   const q = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
