@@ -289,15 +289,27 @@ export async function findTab(query: string): Promise<chrome.tabs.Tab | undefine
 
 /** All tabs whose title or site matches the name (for actions that must not guess). */
 export async function matchingTabs(query: string): Promise<chrome.tabs.Tab[]> {
-  const q = query.toLowerCase().replace(/\s+/g, " ").trim();
+  return (await listTabs()).filter((t) => tabMatches(t, query));
+}
+
+/**
+ * Whether a tab is the one named: the name starts a word of its title ("recipe" in "Easy Pasta Recipe"),
+ * or a part of its site's address ("youtube" in youtube.com). Not letters inside a word: "close up",
+ * misheard "close tab", mustn't close a tab called "Setup".
+ */
+export function tabMatches(tab: { title?: string; url?: string }, query: string): boolean {
+  const q = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   const compact = q.replace(/\s+/g, "");
-  if (!compact) return [];
-  return (await listTabs()).filter(
-    (t) =>
-      (t.title ?? "").toLowerCase().includes(q) ||
-      hostOf(t.url).includes(compact) ||
-      (t.title ?? "").toLowerCase().replace(/\s+/g, "").includes(compact),
-  );
+  if (compact.length < 3) return false;
+  const title = (tab.title ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ");
+  // Whole words, give or take a short ending ("recipe" for "Recipes"; not "down" for "Downloads"). Only
+  // letters, digits and spaces are left in the name, so it's safe in a pattern.
+  if (new RegExp(`(?:^|\\s)${q}\\p{L}{0,2}(?:\\s|$)`, "u").test(title)) return true;
+  // Said as one word ("youtube") for a title with spaces ("You Tube").
+  const words = title.split(" ");
+  if (compact.length >= 5 && words.some((_, i) => [1, 2, 3].some((n) => words.slice(i, i + n).join("") === compact))) return true;
+  const close = (part: string) => part.startsWith(compact) && part.length - compact.length <= 2;
+  return hostOf(tab.url).split(".").some(close);
 }
 
 export function hostOf(url?: string): string {
