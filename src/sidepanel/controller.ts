@@ -1506,6 +1506,7 @@ export class Controller {
       }
       case "repeat": {
         const text = this.lastMessage || "I haven't said anything yet.";
+        this.firstReplyAt ??= performance.now();
         this.ui.log("navi", text, "Repeated");
         await this.say(text);
         return;

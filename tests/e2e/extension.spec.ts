@@ -2867,4 +2867,9 @@ test("a built-in command's time in the usage log is until its answer shows, not 
   const metric = await panel.evaluate(() => (window as unknown as { navi: { metrics: { path: string; ms: number }[] } }).navi.metrics.at(-1));
   expect(metric?.path).toBe("fast");
   expect(metric!.ms).toBeLessThan(500);
+  // "What did you say?" too.
+  await run(panel, "what did you say");
+  const repeat = await panel.evaluate(() => (window as unknown as { navi: { metrics: { intent?: string; ms: number }[] } }).navi.metrics.at(-1));
+  expect(repeat?.intent).toBe("repeat");
+  expect(repeat!.ms).toBeLessThan(500);
 });
