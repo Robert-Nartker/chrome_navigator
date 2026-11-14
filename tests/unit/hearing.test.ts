@@ -264,6 +264,14 @@ describe("Whisper as a recognizer", async () => {
     expect(cleanTranscript("Stop. Stop. Stop.")).toBe("Stop");
     expect(cleanTranscript("go go")).toBe("go go");
     expect(cleanTranscript("Pause the video.")).toBe("Pause the video.");
+    // Seen in the benchmark on noise alone: labels cut off, and Whisper's "you".
+    expect(cleanTranscript("[BLANK_AUD")).toBe("");
+    expect(cleanTranscript("(scissors snipping")).toBe("");
+    expect(cleanTranscript("Scroll down (static")).toBe("Scroll down");
+    expect(cleanTranscript("you")).toBe("");
+    expect(cleanTranscript(" Thanks for watching!")).toBe("");
+    expect(cleanTranscript("Thank you.")).toBe("Thank you.");
+    expect(cleanTranscript("you there")).toBe("you there");
   });
 });
 

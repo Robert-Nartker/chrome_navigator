@@ -30,15 +30,21 @@ export function modelFor(kind: ModelRecognizer, lang: string): string | undefine
   return kind === "parakeet" ? parakeetModelFor(lang) : whisperModelFor(lang);
 }
 
+/** What Whisper writes for noise or silence, from the videos it learned on: never something said to Navi. */
+const HALLUCINATED = /^(?:you|thanks for watching|thank you for watching|thank you so much for watching|please subscribe|subscribe)[.!]?$/i;
+
 /**
  * What a model wrote, minus what isn't words: Whisper labels sounds ("[BLANK_AUDIO]", "(static)",
- * "*buzzing*", "♪") and, on very short audio, can loop a word ("stop stop stop stop"), which is one "stop".
+ * "*buzzing*", "♪"), sometimes cut off ("[BLANK_AUD"), writes "you" or "thanks for watching" for noise,
+ * and on very short audio can loop a word ("stop stop stop stop"), which is one "stop".
  */
 export function cleanTranscript(text: string): string {
   const words = text
     .replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*|[♪♫]/g, " ")
+    .replace(/[[(*][^\])*]*$/, " ")
     .replace(/\s+/g, " ")
     .trim();
+  if (HALLUCINATED.test(words)) return "";
   const loop = /^(\S+?)[.,!?]?(?:\s+\1[.,!?]?){2,}$/i.exec(words);
   return loop ? loop[1] : words;
 }

@@ -29,7 +29,27 @@ for f in ("lexicon-us-en.txt", "lexicon-gb-en.txt"):
     for line in open(f"{kokoro}/{f}", encoding="utf8"):
         lexicon.add(line.split(" ", 1)[0].lower())
 
+ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
+TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+def number_words(n):
+    """Numbers as words, below a million (Kokoro's sherpa-onnx frontend skips digits)."""
+    if n < 20:
+        return ONES[n]
+    if n < 100:
+        return TENS[n // 10] + ("" if n % 10 == 0 else " " + ONES[n % 10])
+    if n < 1000:
+        return ONES[n // 100] + " hundred" + ("" if n % 100 == 0 else " " + number_words(n % 100))
+    return number_words(n // 1000) + " thousand" + ("" if n % 1000 == 0 else " " + number_words(n % 1000))
+
+def spell_numbers(text):
+    text = re.sub(r"\$(\d+)\b", lambda m: number_words(int(m.group(1))) + " dollars", text)
+    text = re.sub(r"\b(\d+)K\b", lambda m: number_words(int(m.group(1))) + " thousand", text)
+    return re.sub(r"\b\d{1,6}\b", lambda m: number_words(int(m.group(0))), text)
+
 def spoken(text):
+    # Kokoro's sherpa-onnx frontend skips words stuck to brackets, and "·": both are pauses when said.
+    text = spell_numbers(re.sub(r"\s*[·()]\s*", ", ", text)).replace(", ,", ",")
     out_words = []
     for raw in text.split():
         core = re.sub(r"^[^\w$']+|[^\w']+$", "", raw).lower()
