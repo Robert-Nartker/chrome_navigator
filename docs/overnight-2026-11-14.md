@@ -56,7 +56,7 @@ A review of tonight's own code caught "open canva" opening Canvas, chatter cutti
 - **A dictionary-wide sweep for opposite commands** found three systematic flaws ("scroll" + an unclear word scrolled down, spelling-alike phrases flipped show/hide, near-misses closed tabs), now fixed. That halves the variants that run a different command.
 - **Accessibility, checked by machine:** the standard axe checker now runs in the tests over the side panel, Settings, setup, the recognizer tester, the page caption, and the flags and grid, in light and dark mode. It found and I fixed two things: the conversation couldn't be scrolled from the keyboard, and faint grey text was just under the contrast minimum. A keyboard-only test tabs through all 17 panel controls and checks each is visible and named.
 - **Whisper beats Parakeet on a good mic too** (140 vs 124 of 160 single-word commands), so Settings now calls it the most accurate.
-- **Whisper on longer commands:** it doesn't lose on them (87% vs Parakeet's 85% through a headset; tied on a good mic). With room noise it gets more right but runs a wrong command a little more often (5% vs 3%); the usage log will show whether that matters in practice.
+- **Whisper on longer commands:** it doesn't lose on them (86% vs Parakeet's 85% through a headset; tied on a good mic). With room noise it gets more right but runs a wrong command a little more often (5% vs 3%); the usage log will show whether that matters in practice.
 - **Stress test:** eleven commands, built-in and AI, said over each other. Navi ends idle, on the last one, with no errors. It found one visual bug, now fixed: a card stopped by the next command could keep showing "Step 2…" as if it were still working. That's probably part of the "it's off but still Working" you saw on your first try.
 - **A review of today's code** caught a few more issues, all fixed or noted in CHANGELOG.md:
   - "stop" could wait up to 20 s on a frozen page;
@@ -74,6 +74,7 @@ A review of tonight's own code caught "open canva" opening Canvas, chatter cutti
   - recording your mic puts Navi back asleep if it was asleep;
   - "which recognizer are you using?" tells the truth while Whisper is still loading (Chrome's recognizer stands in), and the panel says "Whisper loading", not "Parakeet";
   - safer handling of misheard names. "Close up" (for "close tab") could close the only tab titled "Setup", and "press into" (for "press enter") could click "Log into your account". Names now have to match whole words.
+- **A second review (of the evening's work)** fixed nine more things. The two that mattered: "close set" could still close a "Setup" tab, and "A mute" (for a spoken "mute") was unmuting. That last one came from my own change last night: recognizers write "a mute" for both, so Navi now leaves it to the AI.
 - **A regression guard for the parser:** 1,961 real transcripts from the benchmark are a test fixture now, so a future change that understands less, or runs more wrong commands, fails the tests.
 
 ## Commits tonight

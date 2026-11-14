@@ -69,8 +69,8 @@ Wrong commands stayed at 1–3% in every column.
 | Audio | Parakeet (padded): correct / wrong / single words | Whisper small: correct / wrong / single words |
 |---|---|---|
 | Clean | 90% / 1% / 80% | 89% / 1% / 80% |
-| Bluetooth narrowband | 85% / 1% / 66% | **87%** / 1% / **77%** |
-| Narrowband + room noise | 55% / 3% / 29% | **62%** / 5% / **35%** |
+| Bluetooth narrowband | 85% / 1% / 65% | **86%** / 1% / **77%** |
+| Narrowband + room noise | 55% / 3% / 29% | **62%** / 5% / **34%** |
 
 Whisper doesn't lose on longer commands. With room noise it gets more right, but also runs a wrong command slightly more often (5% vs 3%), something to watch in the usage log.
 
