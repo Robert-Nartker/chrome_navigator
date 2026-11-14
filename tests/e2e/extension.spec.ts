@@ -2,6 +2,7 @@
 // side panel's command pipeline against local test pages.
 
 import { type BrowserContext, type Page, type Route, chromium, expect, test as base } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
@@ -2748,4 +2749,56 @@ test("a video that can't play says so in plain words", async ({ panel, site, bas
   await site.bringToFront();
   await run(panel, "play");
   await expect(panel.locator("#log li.error .text").last()).toHaveText(/^This video can't play: its file didn't load, or Chrome can't play it\.?$/);
+});
+
+test("accessibility audit: Navi's pages pass axe's WCAG 2 A and AA checks", async ({ panel, site, context, extensionId }) => {
+  const axe = readFileSync(path.resolve("node_modules/axe-core/axe.min.js"), "utf8");
+  const audit = async (page: Page) => {
+    // Extension pages don't allow injected script tags; evaluated code runs anyway.
+    await page.evaluate(axe);
+    return page.evaluate(async () => {
+      const result = await (window as unknown as { axe: { run: (c: unknown, o: unknown) => Promise<{ violations: { id: string; impact: string; help: string; nodes: { target: string[]; failureSummary: string }[] }[] }> } }).axe.run(document, {
+        runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+      });
+      return result.violations.flatMap((v) =>
+        v.nodes.map((n) => {
+          const data = (n as unknown as { any: { data?: { fgColor?: string; bgColor?: string; contrastRatio?: number } }[] }).any[0]?.data;
+          const colors = data?.contrastRatio ? ` (${data.fgColor} on ${data.bgColor}: ${data.contrastRatio}:1)` : "";
+          return `${v.id} (${v.impact}): ${v.help} at ${n.target.join(" ")}${colors}`;
+        }),
+      );
+    });
+  };
+  const problems: string[] = [];
+  // The panel with a conversation in it: commands, replies, an error.
+  await run(panel, "scroll down");
+  await run(panel, "what time is it");
+  await run(panel, "switch back");
+  for (const scheme of ["light", "dark"] as const) {
+    await panel.bringToFront();
+    await panel.emulateMedia({ colorScheme: scheme });
+    // Colors fade between themes: audit the settled ones.
+    await panel.waitForTimeout(1000);
+    problems.push(...(await audit(panel)).map((p) => `panel (${scheme}): ${p}`));
+    for (const name of ["options.html", "setup.html", "asr-lab.html"]) {
+      const page = await context.newPage();
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(`chrome-extension://${extensionId}/${name}`);
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.waitForTimeout(500);
+      problems.push(...(await audit(page)).map((p) => `${name} (${scheme}): ${p}`));
+      await page.close();
+    }
+  }
+  // What Navi draws on web pages (number flags, the grid), in their shadow roots; not the page's own faults.
+  await panel.emulateMedia({ colorScheme: "light" });
+  await site.bringToFront();
+  for (const [command, undo] of [["flags", "hide flags"], ["show grid", "hide grid"]]) {
+    await run(panel, command);
+    await site.waitForTimeout(300);
+    problems.push(...(await audit(site)).filter((p) => /navi-/.test(p)).map((p) => `web page with “${command}”: ${p}`));
+    await run(panel, undo);
+  }
+  console.log(problems.join("\n"));
+  expect(problems).toEqual([]);
 });

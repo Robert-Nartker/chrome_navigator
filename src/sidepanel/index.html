@@ -133,7 +133,8 @@
     </section>
 
     <p id="feed-empty" class="feed-empty" hidden>New thread. Talk to Navi or type below; the other threads keep their own history.</p>
-    <ol id="log" class="feed" aria-label="Activity"></ol>
+    <!-- Focusable, so the conversation can be scrolled with the keyboard (arrow keys, Page Up/Down). -->
+    <ol id="log" class="feed" aria-label="Conversation" tabindex="0"></ol>
     <!-- Screen readers hear Navi's replies and errors, not every step. -->
     <div id="announcer" class="sr-only" aria-live="polite" aria-relevant="additions"></div>
 

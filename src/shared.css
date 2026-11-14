@@ -5,7 +5,7 @@
   --border: #e4e4e7;
   --border-strong: #d4d4d8;
   --text: #18181b;
-  --muted: #71717a;
+  --muted: #6b6b74; /* 4.8:1 on --surface, 5.3:1 on white (WCAG AA) */
   --accent: #5b5bd6;
   --accent-text: #ffffff;
   --good: #1a7f4b;
