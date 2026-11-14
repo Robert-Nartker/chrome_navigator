@@ -18,8 +18,8 @@ export const RECOGNIZER_NAMES: Record<ModelRecognizer, string> = { parakeet: "Pa
 
 /**
  * OpenAI's Whisper small (via Transformers.js): English-only for English (more accurate at it), the
- * multilingual one otherwise. On real people's single words through a Bluetooth headset it got far more
- * right than Parakeet (bench/asr): 78% against 62%, and never came back empty.
+ * multilingual one otherwise. On real people's single-word commands, cut as Navi cuts them, it got the most
+ * right on every mic (bench/asr): 140 of 160 on a good mic (Parakeet 124), 114 through a Bluetooth headset (96).
  */
 export function whisperModelFor(lang: string): string {
   return lang.toLowerCase().startsWith("en") ? "Xenova/whisper-small.en" : "Xenova/whisper-small";

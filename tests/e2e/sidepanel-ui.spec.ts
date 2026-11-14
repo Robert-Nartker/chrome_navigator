@@ -2,6 +2,7 @@
 // Set NAVI_SCREENSHOTS=1 to also save the screenshots in docs/screenshots/.
 
 import { type BrowserContext, type Page, type Route, chromium, expect, test as base } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
@@ -958,6 +959,14 @@ test.describe("live caption", () => {
     await expect(text).toHaveText(/It's \d/);
     // The pill never takes clicks, and the AI never sees it.
     expect(await pill.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+    // It passes the same accessibility checks as Navi's pages (contrast, names), in its shadow root.
+    await site.evaluate(readFileSync(path.resolve("node_modules/axe-core/axe.min.js"), "utf8"));
+    const pillProblems = await site.evaluate(async () => {
+      const axe = (window as unknown as { axe: { run(c: unknown, o: unknown): Promise<{ violations: { id: string; nodes: { target: unknown[] }[] }[] }> } }).axe;
+      const r = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } });
+      return r.violations.flatMap((v) => v.nodes.map((n) => `${v.id} at ${JSON.stringify(n.target)}`)).filter((p) => p.includes("navi-"));
+    });
+    expect(pillProblems).toEqual([]);
 
     // Reopening the panel shows the same command.
     const reopened = await context.newPage();

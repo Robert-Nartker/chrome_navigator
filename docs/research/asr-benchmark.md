@@ -53,7 +53,7 @@ The tables above give each recognizer a ready-cut clip. In Navi, the speech dete
 
 | Audio | Detector found it | Parakeet: exact / commands | Parakeet + silence padding | Whisper small |
 |---|---|---|---|---|
-| Their mic | 98% | 75% / 118 of 160 | 79% / 124 | – |
+| Their mic | 98% | 75% / 118 of 160 | 79% / 124 | **85% / 140** |
 | Bluetooth narrowband | 89% | 58% / 83 | 61% / 96 | **68% / 114** |
 | Narrowband + room noise | 95% | 41% / 54 | 43% / 55 | **58% / 88** |
 
@@ -61,7 +61,7 @@ Wrong commands stayed at 1–3% in every column.
 
 - **The detector loses 11% of single words through a narrowband headset** before any recognizer sees them. Mostly it starts on them and then discards them as too short (under 150 ms of clear voice). A looser setting (start 0.35, 64 ms) found 95% and raised exact words 61% → 65%, but in noise it split five times as many recordings into an extra phrase (9 → 36 of 520), each a possible stray "didn't catch that". Not shipped; see the roadmap.
 - **Silence padding for Parakeet (shipped, 0.25 s):** better on real people (above), mixed on synthetic voices (multi-word commands about the same; single words through narrowband 73% → 65% on 96 clips). The effect on short words is partly a reshuffle of near-misses, so expect a small gain, not a fix.
-- **Whisper is the clear win on headset audio**, by 18 commands of 160 through narrowband and 33 with room noise.
+- **Whisper is the clear win**, on a good mic too (16 more commands of 160), and most on headset audio: 18 more through narrowband, 33 more with room noise. Its cost is the bigger download (about 1 GB on a graphics chip) and more work per phrase.
 - **Noise alone:** on 144 clips of dishes, a running tap, an exercise bike and white or pink noise, Navi's detector started no phrase at all. Run directly, neither model produced a command; Whisper wrote "you" five times and sound labels, which Navi now drops.
 
 ## Things tried that didn't help (enough)

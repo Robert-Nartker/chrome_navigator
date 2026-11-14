@@ -2802,3 +2802,37 @@ test("accessibility audit: Navi's pages pass axe's WCAG 2 A and AA checks", asyn
   console.log(problems.join("\n"));
   expect(problems).toEqual([]);
 });
+
+test("keyboard only: Tab reaches every panel control, each visible and named, and nothing traps the focus", async ({ panel }) => {
+  await run(panel, "what time is it");
+  await panel.bringToFront();
+  await panel.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const seen: string[] = [];
+  for (let i = 0; i < 60; i++) {
+    await panel.keyboard.press("Tab");
+    const info = await panel.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body) return null;
+      const r = el.getBoundingClientRect();
+      const labelled = el.getAttribute("aria-labelledby");
+      const name =
+        el.getAttribute("aria-label") ||
+        (labelled ? labelled.split(" ").map((id) => document.getElementById(id)?.textContent ?? "").join(" ") : "") ||
+        (el as HTMLInputElement).labels?.[0]?.textContent ||
+        el.getAttribute("title") ||
+        el.getAttribute("placeholder") ||
+        el.textContent ||
+        "";
+      return { id: el.id || el.tagName.toLowerCase(), name: name.replace(/\s+/g, " ").trim(), visible: r.width > 0 && r.height > 0 };
+    });
+    if (!info) break;
+    const entry = `${info.id}: ${info.name}`;
+    if (seen.includes(entry)) break; // wrapped around
+    seen.push(entry);
+    expect(info.name, `${info.id} has no name`).not.toBe("");
+    expect(info.visible, `${info.id} is focused but not visible`).toBe(true);
+  }
+  console.log(seen.join("\n"));
+  const reached = seen.join("\n");
+  for (const id of ["mic", "stay-awake", "command-input", "send", "log"]) expect(reached, `${id} not reachable`).toContain(`${id}:`);
+});
