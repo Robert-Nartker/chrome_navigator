@@ -319,6 +319,20 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     for (const said of ["close this tab and", "close this tab but", "close tab is", "close the tab uh"]) expect(parseCommand(said), said).toEqual({ type: "closeTab" });
     expect(parseCommand("close the recipe tab")).toMatchObject({ type: "closeNamedTab", query: "recipe" });
   });
+  it("unsure is never the opposite command, nor closing a tab (bench/asr/sweep-sounds.mjs)", () => {
+    // "Scroll up" heard with a strange last word scrolled down; now it's read by sound, as "scroll up".
+    for (const said of ["scroll ohio", "scroll oahu", "scroll aho"]) expect(parseCommand(said), said).toMatchObject({ direction: "up" });
+    // Spelled like "hide grid", sounds like "show grid".
+    expect(parseCommand("shine grid")).toBeNull();
+    // One sound from both "show grid" and "hide grid": neither.
+    expect(parseCommand("chita grid")).toBeNull();
+    // "Called down" was one sound from "close tab".
+    for (const said of ["called down", "calli down"]) expect(parseCommand(said)?.type, said).not.toBe("closeTab");
+    // Still understood.
+    expect(parseCommand("clothes tab")).toEqual({ type: "closeTab" });
+    expect(parseCommand("scroll through the comments")).toMatchObject({ type: "scroll", direction: "down" });
+    expect(parseCommand("scroll op")).toMatchObject({ direction: "up" });
+  });
   it("two command phrases that sound equally close and do the same thing aren't a tie", () => {
     // "close the tab" and "close this tab" are both closing the tab.
     expect(parseCommand("close the tap")).toEqual({ type: "closeTab" });

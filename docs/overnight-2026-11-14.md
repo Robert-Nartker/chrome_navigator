@@ -7,13 +7,14 @@ What I did while you were away, what I found, and what needs you. Everything is 
 1. **Try Whisper with your AirPods.** Say "use Whisper" (or Settings → Listening → Recognizer). It downloads once (about 1 GB), then says "Whisper is ready." Try the single words that failed before ("pause", "stop", "play", "mute") and a few multi-word ones. This is the change most likely to fix what you hit; it couldn't be tried in a real browser here (Hugging Face, where the model lives, is blocked from this sandbox).
 2. **Try the laptop mic** with whichever recognizer is better on it.
 3. **Send the usage log** (Settings → Export usage log CSV) after a session: it now records which recognizer heard each command, which is the real-world version of tonight's benchmark.
-4. **Watch the demo video draft** (sent earlier as `navi-demo-draft1.mp4`) and say what to change.
+4. **Watch the demo video draft** (draft 2, sent today) and say what to change.
+5. **Optional, very useful: record your mic** (see below) and send me the file.
 
 ## The speech problem: measured, not guessed
 
 Full results: [research/asr-benchmark.md](research/asr-benchmark.md). Method and scripts: [bench/asr](../bench/asr/README.md). In short:
 
-- **The headset's mic is the main cause.** Bluetooth headsets record at phone-call quality. Through that, with a bit of room noise, Parakeet + Navi got about 60% of commands and 25–40% of single words right, which is what you saw. Navi's speech detector isn't the problem (it catches 99–100% of phrases).
+- **The headset's mic is the main cause.** Bluetooth headsets record at phone-call quality. Through that, with a bit of room noise, Parakeet + Navi got about 60% of commands and 25–40% of single words right, which is what you saw. Navi's speech detector catches nearly every synthetic phrase, but loses about 11% of real people's short words through a headset (see below).
 - **Whisper small hears headset audio better than Parakeet.** Real people's single words, exactly right: 78% vs 62% through narrowband Bluetooth, 57% vs 38% with room noise. It never returns nothing, where Parakeet returned nothing for 22% of noisy single words. Navi now offers Whisper as a third recognizer.
 - **When a model hears speech but no words**, Navi now plays its short "didn't catch that" sound instead of staying silent.
 - **The parser recovers more mishearings** (from the benchmark's misses): +2 points overall, more on single words, no more wrong commands, and checked against chatter so talk nearby stays talk.
@@ -39,6 +40,24 @@ Also fixed:
 - **The power button no longer disappears while listening.**
 
 A review of tonight's own code caught "open canva" opening Canvas, chatter cutting Navi off mid-sentence, and "oh back" said nearby going back. All three are fixed.
+
+## After you checked in (15:45 UTC on)
+
+- **End-to-end speech results.** The benchmark now cuts audio exactly as Navi's speech detector does before scoring. Through a narrowband headset, real people's single words: **Whisper 114 of 160 commands right, Parakeet 96** (83 before today); with room noise, **88 vs 55**. Whisper is the clear choice for AirPods.
+- **Navi's speech detector drops 11% of short words through a headset** before any recognizer runs. A looser setting catches more but adds stray phrases in noise, so it's not changed yet; your own recordings would settle it.
+- **Record your own mic:** in the recognizer tester (the "Try speech recognizers" link in Navi's Settings), "Record your mic for Navi's speech tests" reads 36 commands from you through your AirPods and saves one file. Send it to me and I'll run every recognizer on your real voice and headset. Navi stops listening while you record.
+- **Parakeet:** a quarter second of silence around each phrase, a small gain on real voices.
+- **Whisper:** its noise words ("you", "thanks for watching", cut-off labels) are dropped.
+- **Mishearings that ran the wrong command, fixed:**
+  - "pulls the video" played instead of pausing;
+  - "a mute" muted instead of unmuting;
+  - "close this tab and" looked for a tab with that name;
+  - "close the tap" did nothing.
+- **A dictionary-wide sweep for opposite commands** found three systematic flaws ("scroll" + an unclear word scrolled down, spelling-alike phrases flipped show/hide, near-misses closed tabs), now fixed. That halves the variants that run a different command.
+- **Other fixes:**
+  - "stop" waits until auto-scrolling has really stopped;
+  - "where am I" with nothing clickable in view says so;
+  - the demo video is re-recorded with the new panel (draft 2, 1:55).
 
 ## Commits tonight
 

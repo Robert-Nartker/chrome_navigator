@@ -79,19 +79,30 @@ function soundDistance(said: string[], phrase: string[]): number {
  * The command phrase `text` sounds like, if exactly one is close enough: a one-word command must sound
  * the same ("paws" for "pause", but not "hello" for "help"); longer ones may be off by a little.
  * `same`: whether two phrases do the same thing ("close the tab", "close this tab"), so equally close
- * ones aren't a tie.
+ * ones aren't a tie. `strict`: phrases whose last word must sound just the same ("close tab": "clothes tab"
+ * is it, "called down" isn't).
  */
-export function soundsLike(text: string, phrases: readonly string[], same: (a: string, b: string) => boolean = (a, b) => a === b): string | null {
+export function soundsLike(
+  text: string,
+  phrases: readonly string[],
+  same: (a: string, b: string) => boolean = (a, b) => a === b,
+  strict: (phrase: string) => boolean = () => false,
+): string | null {
   const said = text.toLowerCase().split(/\s+/).filter(Boolean);
   if (!said.length || said.length > 5) return null;
   let best: string | null = null;
   let bestCost = Infinity;
   let tie = false;
+  // Every phrase as close as it sounds, allowed or not: "chita grid" is one sound from "hide grid" (long
+  // enough to allow it) and from "show grid" (too short to), so it's neither.
+  const near: { phrase: string; cost: number }[] = [];
   for (const phrase of phrases) {
     const words = phrase.split(" ");
     const cost = soundDistance(said, words);
     if (cost === Infinity) continue;
+    near.push({ phrase, cost });
     const length = words.reduce((n, w) => n + soundKey(w).length, 0);
+    if (strict(phrase) && soundKey(said[said.length - 1]) !== soundKey(words[words.length - 1])) continue;
     const allowed = words.length === 1 ? 0 : Math.floor(length / 5);
     if (cost > allowed) continue;
     if (cost < bestCost) {
@@ -100,5 +111,8 @@ export function soundsLike(text: string, phrases: readonly string[], same: (a: s
       tie = false;
     } else if (cost === bestCost && best !== null && !same(phrase, best)) tie = true;
   }
-  return tie ? null : best;
+  if (tie || best === null) return null;
+  const chosen = best;
+  if (bestCost > 0 && near.some((n) => n.cost <= bestCost && !same(n.phrase, chosen))) return null;
+  return chosen;
 }

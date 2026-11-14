@@ -19,6 +19,7 @@ Everything runs offline on the processor with [sherpa-onnx](https://github.com/k
 | `navicut.py` | Cuts clips the way Navi's speech detector hands them to a model (lead-in and tail included). Give clips room around the speech first (a second of silence each side), then degrade, then cut |
 | `whisper_prompt.py` | Whisper small with a text prompt (the commands, as earlier context), for testing biasing |
 | `ingest.py` | Turns a recording from the recognizer tester ("Record your mic for Navi's speech tests") into a set to score |
+| `sweep-sounds.mjs` | Swaps each word of 44 short commands for every dictionary word that sounds close, and lists the ones that run a *different* command (opposites are the dangerous ones). Needs a word list, such as Kokoro's `lexicon-us-en.txt` |
 | `usage.py` | Summarizes Navi's own usage log (Settings → Export usage log) by recognizer, and lists what went wrong in real use |
 | `score.mjs` | Scores transcripts with Navi's parser: correct, wrong command, not understood, heard nothing, word error rate |
 

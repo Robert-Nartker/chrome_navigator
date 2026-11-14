@@ -657,7 +657,8 @@ function looseIntent(t: string): Intent | null {
               : "down";
     // No direction said: down, unless a word may be a misheard direction ("scroll op", "scroll a", "scroll to
     // the tap"): a short unexplained one, or one that sounds like "up" or "top".
-    const unclear = (w: string) => !SCROLL_WORDS.has(w) && (w.length <= 2 || soundsClose(w, "up") || soundsClose(w, "top"));
+    // ("scroll ohio" was "scroll up": a word one sound from "up" is as unclear as one that sounds just like it.)
+    const unclear = (w: string) => !SCROLL_WORDS.has(w) && (w.length <= 2 || soundsClose(w, "up", 1) || soundsClose(w, "top"));
     if (direction === "down" && !/\bdown\b/.test(t) && (words.some(unclear) || words.at(-1) === "a")) return null;
     const amount: ScrollAmount = /\b(?:little|bit|slightly|tad|touch|smidge)\b/.test(t)
       ? "small"
@@ -720,8 +721,13 @@ export function similarity(a: string, b: string): number {
 function closestPhrase(t: string, phrases: string[], threshold = 0.8): string | null {
   let best: string | null = null;
   let bestScore = threshold;
+  const said = t.split(" ");
   for (const phrase of phrases) {
     if (Math.abs(phrase.length - t.length) > Math.max(3, phrase.length * 0.3)) continue;
+    // Close in spelling but not in sound is another command: "shine grid" is spelled like "hide grid" but
+    // sounds like "show grid". Word for word, each word that differs must sound near the command's.
+    const words = phrase.split(" ");
+    if (words.length === said.length && words.some((w, i) => w !== said[i] && !soundsClose(w, said[i], 1))) continue;
     const score = similarity(t, phrase);
     if (score >= bestScore) {
       best = phrase;
@@ -847,6 +853,8 @@ export function parseCommand(text: string): Intent | null {
   const number = rest.length ? parseBareNumber(rest.join(" ")) : null;
   if (number !== null && soundsClose(first, "click", 1)) return matchRules(`click ${number}`);
   const same = (a: string, b: string) => JSON.stringify(matchRules(a)) === JSON.stringify(matchRules(b));
-  const sounds = soundsLike(target, SOUND_PHRASES, same);
+  // Closing a tab or going quiet can't be undone by voice as easily as a wrong scroll: their last word must
+  // sound just right ("clothes tab" is "close tab"; "called down", one sound from it, isn't).
+  const sounds = soundsLike(target, SOUND_PHRASES, same, (phrase) => /^(?:close|turn off|go to sleep)\b/.test(phrase));
   return sounds ? matchRules(sounds) : null;
 }

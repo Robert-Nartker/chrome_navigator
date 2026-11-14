@@ -1,7 +1,7 @@
 // Loads the built extension (dist/) into Chromium and drives it through the
 // side panel's command pipeline against local test pages.
 
-import { type BrowserContext, type Page, chromium, expect, test as base } from "@playwright/test";
+import { type BrowserContext, type Page, type Route, chromium, expect, test as base } from "@playwright/test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { tmpdir } from "node:os";
@@ -504,7 +504,7 @@ test("YOLO: the panel's switch turns it on; the AI is then told to act without a
 
 test("setup: connecting a key checks it, then turns on that provider's recommended models", async ({ panel, context, extensionId }) => {
   const seen: string[] = [];
-  await context.route("https://api.anthropic.com/v1/models**", (route) => {
+  const anthropic = (route: Route) => {
     const key = route.request().headers()["x-api-key"];
     seen.push(key);
     if (key !== "sk-ant-good") return route.fulfill({ status: 401, json: { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } } });
@@ -516,14 +516,19 @@ test("setup: connecting a key checks it, then turns on that provider's recommend
         last_id: "claude-sonnet-5-5",
       },
     });
-  });
-  await context.route("https://api.openai.com/v1/models", (route) => route.fulfill({ json: { data: [{ id: "gpt-6.1-sol" }] } }));
+  };
+  const openai = (route: Route) => route.fulfill({ json: { data: [{ id: "gpt-6.1-sol" }] } });
+  await context.route("https://api.anthropic.com/v1/models**", anthropic);
+  await context.route("https://api.openai.com/v1/models", openai);
 
   // The panel's banner leads straight to this step.
   await expect(panel.locator("#key-banner")).toBeVisible();
   const [setup] = await Promise.all([context.waitForEvent("page"), panel.locator("#open-settings-inline").click()]);
   await setup.waitForLoadState();
   expect(setup.url()).toBe(`chrome-extension://${extensionId}/setup.html#ai`);
+  // Playwright doesn't always attach to a tab Navi opens itself in time to stand in for the network (the
+  // key check then reached the real Anthropic, which rejects a made-up key): load it again under its watch.
+  await setup.reload();
   const key = setup.locator("#ai-key");
   const result = setup.locator("#ai-result");
 
