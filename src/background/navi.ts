@@ -175,7 +175,6 @@ async function micAllowed(): Promise<boolean> {
   }
 }
 
-/** Listens for the wake name, unless the user turned Navi off (or the mic isn't allowed yet). */
 /**
  * The settings as saved right now. A command runs with these, not with what the change listener has
  * delivered so far: a key saved a moment ago (setup, Settings, a test) is used by the very next command.
@@ -188,6 +187,7 @@ async function freshSettings() {
 /** Settled once a new Chrome session has set whether Navi starts off (so nothing resumes from last session's state). */
 let sessionStarted: Promise<void> = Promise.resolve();
 
+/** Listens for the wake name, unless the user turned Navi off (or the mic isn't allowed yet). */
 async function resume() {
   await sessionStarted;
   if (worker.listening || (await turnedOff()) || !(await micAllowed())) return;

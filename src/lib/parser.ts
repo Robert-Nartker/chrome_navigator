@@ -815,11 +815,14 @@ function salvage(target: string): Intent | null {
   if (stray && target.length > stray[0].length) {
     const rest = plain(target.slice(stray[0].length));
     // "It's louder" is a mishearing; "it's up", "he's back" are people talking.
+    // and "oh back", "the help" are too, said in passing: those leave the page or talk at length.
     const pronoun = !/^(?:a|an|the|oh|ah)\s/.test(stray[0]);
-    if (rest && (!pronoun || ["media", "voice", "stop"].includes(rest.type))) return rest;
+    const safe = ["media", "voice", "stop"].includes(rest?.type ?? "") || (!pronoun && !["back", "forward", "help", "reload"].includes(rest?.type ?? ""));
+    if (rest && safe) return rest;
   }
+  // Only after a few words ("new tabs"): "ups", "helps" alone are just words.
   const plural = /^(.+\S)s$/.exec(target);
-  if (plural && !/ss$/.test(target)) return plain(plural[1]);
+  if (plural && !/ss$/.test(target) && target.includes(" ")) return plain(plural[1]);
   return null;
 }
 

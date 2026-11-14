@@ -321,8 +321,9 @@ export class Controller {
       return;
     }
     // The user has moved on: what Navi was still saying (an instant command's reply isn't waited for) is
-    // dropped, so this command's answer comes at once instead of after it.
-    if (options.source === "voice" || options.source === "typed") {
+    // dropped, so this command's answer comes at once instead of after it. Only for a command: speech the
+    // router may still find was someone else talking, or an "okay", leaves Navi talking.
+    if (options.source === "typed" || (options.source === "voice" && intent && intent.type !== "ack")) {
       this.speechGen++;
       this.speaker.stop();
     }
@@ -1507,9 +1508,13 @@ export class Controller {
         } else this.speaker.sound("done");
         return;
       case "voice": {
-        // "Slow down" while a video plays (or after "speed up") means the video.
+        // "Slow down" while a video plays (or after "speed up") means the video. A page that doesn't answer
+        // quickly (loading, frozen) has no video playing worth waiting for.
         if (intent.orVideo) {
-          const res = await pageRequest(tab, { kind: "media", action: "slower", ifPlaying: true }).catch(() => null);
+          const res = await Promise.race([
+            pageRequest(tab, { kind: "media", action: "slower", ifPlaying: true }).catch(() => null),
+            sleep(1500).then(() => null),
+          ]);
           if (res?.detail) {
             await this.confirm(res.detail.charAt(0).toUpperCase() + res.detail.slice(1));
             return;

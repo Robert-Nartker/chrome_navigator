@@ -9,7 +9,6 @@ import {
   type Settings,
   activeSettings,
   aiModeOf,
-  loadSettings,
   loadStoredSettings,
   normalizeSettings,
   providersWithKeys,
@@ -154,7 +153,7 @@ field<HTMLSelectElement>("aiMode").addEventListener("change", async () => {
 });
 
 async function fill() {
-  const s = await loadSettings();
+  const s = normalizeSettings(await stored);
   field<HTMLSelectElement>("aiMode").value = aiModeOf(s);
   void nanoStatus().then((status) => (document.getElementById("nano-note")!.textContent = `On-device AI: ${NANO_STATUS_TEXT[status]}`));
   field<HTMLInputElement>("apiKey").value = s.apiKey;

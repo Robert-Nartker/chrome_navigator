@@ -284,6 +284,14 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("it's pause")).toEqual({ type: "media", action: "pause" });
     for (const said of ["it's up", "he's back", "she's down", "it's enter", "that's back", "its back", "hes up"]) expect(parseCommand(said), said).toBeNull();
   });
+  it("a real site one letter from a listed one opens itself (“canva” isn't “canvas”)", () => {
+    expect(parseCommand("open canva")).toMatchObject({ url: "https://www.canva.com" });
+  });
+  it("said in passing, a stray word before back, forward or help, or a lone plural, stays talk", () => {
+    for (const said of ["oh back", "oh help", "ups", "downs"]) expect(parseCommand(said), said).toBeNull();
+    expect(parseCommand("a play")).toEqual({ type: "media", action: "play" });
+    expect(parseCommand("new tabs")).toEqual({ type: "newTab" });
+  });
   it("what a noisy headset made of a few commands", () => {
     expect(parseCommand("help me")).toEqual({ type: "help" });
     expect(parseCommand("give ahead 30 seconds")).toEqual({ type: "media", action: "forward", seconds: 30 });

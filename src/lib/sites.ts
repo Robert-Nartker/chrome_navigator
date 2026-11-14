@@ -40,6 +40,8 @@ const SITES: Record<string, string> = {
   slack: "https://app.slack.com",
   "whatsapp": "https://web.whatsapp.com",
   canvas: "https://osu.instructure.com",
+  // One letter from "canvas", so listed: the near-miss below would otherwise take it there.
+  canva: "https://www.canva.com",
   carmen: "https://carmen.osu.edu",
   "carmen canvas": "https://osu.instructure.com",
   weather: "https://weather.com",
@@ -114,9 +116,9 @@ export function resolveSite(spoken: string): string | null {
     return SITES[compact.replace(/\.com$/, "")];
   }
   if (compact in SITES) return SITES[compact];
-  // A recognizer's slip on a known site ("youtuber" for "youtube"): one letter off a name of five or more,
-  // and no other site as close.
-  const near = Object.keys(SITES).filter((site) => site.length >= 5 && !site.includes(" ") && editDistance(site, compact) === 1);
+  // A recognizer's slip on a known site ("youtuber" for "youtube"): one letter off a name of six or more,
+  // and no other site as close. (Shorter names are too often another real site one letter away.)
+  const near = Object.keys(SITES).filter((site) => site.length >= 6 && !site.includes(" ") && editDistance(site, compact) === 1);
   if (near.length === 1 && !compact.includes(".")) return SITES[near[0]];
   if (/^https?:\/\//.test(compact)) return compact;
   if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/.test(compact)) return `https://${compact}`;
