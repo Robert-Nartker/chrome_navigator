@@ -122,6 +122,9 @@ export function normalize(text: string): string {
   let t = text
     .toLowerCase()
     .replace(/[“”"]/g, "")
+    // Curly apostrophes (Whisper writes "what’s"), and a dash a recognizer leaves at either end ("- stop").
+    .replace(/[‘’ʼ]/g, "'")
+    .replace(/^[\s\-–—]+|[\s\-–—]+$/g, "")
     .replace(/[.!?,;]+$/g, "")
     .replace(/,/g, "")
     .replace(/\s+/g, " ")

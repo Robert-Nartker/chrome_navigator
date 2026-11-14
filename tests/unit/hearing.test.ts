@@ -340,6 +340,9 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("scroll op")).toMatchObject({ direction: "up" });
   });
   it("how Whisper writes a few commands through a headset (bench/asr)", () => {
+    expect(parseCommand("What’s the date?")).toEqual(parseCommand("what's the date"));
+    expect(parseCommand("That’s not what I said.")).toEqual(parseCommand("that's not what i said"));
+    expect(parseCommand("- Stop.")).toEqual({ type: "stop" });
     expect(parseCommand("Wake-up.")).toEqual({ type: "wake" });
     expect(parseCommand("Zoom-in.")).toEqual({ type: "zoom", direction: "in" });
     expect(parseCommand("open my-site.com")).toMatchObject({ type: "open", url: "https://my-site.com" });
