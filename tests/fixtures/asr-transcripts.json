@@ -1,0 +1,7849 @@
+{
+"about": "What Parakeet TDT 0.6B v2 and Whisper small wrote for Navi's benchmark phrases (bench/asr: 28 and 8 Kokoro voices; clean, Bluetooth narrowband, narrowband with room noise), as [heard, said] pairs, each once.",
+"pairs": [
+[
+"",
+"click 12"
+],
+[
+"",
+"close tab"
+],
+[
+"",
+"flags"
+],
+[
+"",
+"go back"
+],
+[
+"",
+"help"
+],
+[
+"",
+"new tab"
+],
+[
+"",
+"pause"
+],
+[
+"",
+"scroll up"
+],
+[
+"",
+"stop"
+],
+[
+"",
+"volume down"
+],
+[
+"",
+"wake up"
+],
+[
+"",
+"where am i"
+],
+[
+"",
+"zoom in"
+],
+[
+"",
+"zoom out"
+],
+[
+"\"repersection.\"",
+"read this section"
+],
+[
+"\"utility\"",
+"use parakeet"
+],
+[
+"(inaudible)",
+"quieter"
+],
+[
+"(inaudible)",
+"where am i"
+],
+[
+"12",
+"help"
+],
+[
+"30 meters allows you to do.",
+"search youtube for lofi beats"
+],
+[
+"30, please.",
+"go to sleep"
+],
+[
+"5",
+"pause"
+],
+[
+"6 12",
+"click 12"
+],
+[
+"6-5",
+"click 5"
+],
+[
+"612.",
+"click 12"
+],
+[
+"A bold screen.",
+"full screen"
+],
+[
+"A close tabernacle",
+"close tab"
+],
+[
+"A down.",
+"page down"
+],
+[
+"A full screen.",
+"full screen"
+],
+[
+"A go-to sleeper.",
+"go to sleep"
+],
+[
+"A grid.",
+"grid"
+],
+[
+"A height number.",
+"hide numbers"
+],
+[
+"A help?",
+"help"
+],
+[
+"A mute",
+"mute"
+],
+[
+"A mute.",
+"mute"
+],
+[
+"A mute.",
+"unmute"
+],
+[
+"A new tab",
+"new tab"
+],
+[
+"A new tab.",
+"new tab"
+],
+[
+"A new tag.",
+"new tab"
+],
+[
+"A page down.",
+"page down"
+],
+[
+"A pause.",
+"pause"
+],
+[
+"A play.",
+"play"
+],
+[
+"A search YouTube for low-fee beats.",
+"search youtube for lofi beats"
+],
+[
+"A show grid.",
+"show grid"
+],
+[
+"A third to YouTube for low PD.",
+"search youtube for lofi beats"
+],
+[
+"Abbreviate tab.",
+"previous tab"
+],
+[
+"Add this to my God.",
+"add this to my cart"
+],
+[
+"Add this to my car.",
+"add this to my cart"
+],
+[
+"Add this to my card.",
+"add this to my cart"
+],
+[
+"Add this to my cards.",
+"add this to my cart"
+],
+[
+"Add this to my cart",
+"add this to my cart"
+],
+[
+"Add this to my cart.",
+"add this to my cart"
+],
+[
+"Add this to my cause.",
+"add this to my cart"
+],
+[
+"Add this to my chart.",
+"add this to my cart"
+],
+[
+"Add this to my coat.",
+"add this to my cart"
+],
+[
+"Add this to my cod.",
+"add this to my cart"
+],
+[
+"Add this to my cost.",
+"add this to my cart"
+],
+[
+"Add this to my cot.",
+"add this to my cart"
+],
+[
+"Add this to my cough.",
+"add this to my cart"
+],
+[
+"Add this to my cow.",
+"add this to my cart"
+],
+[
+"Add this to my cup.",
+"add this to my cart"
+],
+[
+"Add this to my cut.",
+"add this to my cart"
+],
+[
+"Add this to my plant.",
+"add this to my cart"
+],
+[
+"Age down.",
+"page down"
+],
+[
+"Agreed not.",
+"grid"
+],
+[
+"All the over count.",
+"hover over account"
+],
+[
+"All the video",
+"pause the video"
+],
+[
+"Allowed it.",
+"louder"
+],
+[
+"Alright.",
+"pause"
+],
+[
+"Although they count.",
+"hover over account"
+],
+[
+"Amen.",
+"zoom in"
+],
+[
+"Amuse.",
+"unmute"
+],
+[
+"And click a twelve",
+"click 12"
+],
+[
+"And click a twelve uh",
+"click 12"
+],
+[
+"And go back.",
+"go back"
+],
+[
+"And go to sleep.",
+"go to sleep"
+],
+[
+"And next link.",
+"next link"
+],
+[
+"And stop.",
+"stop"
+],
+[
+"And stuff.",
+"stop"
+],
+[
+"And type Diaz there, thanks.",
+"type dear sarah thanks"
+],
+[
+"And we're praying.",
+"refresh"
+],
+[
+"Applied to the emofay factory.",
+"reply to this email saying thanks"
+],
+[
+"Bad this to my cost.",
+"add this to my cart"
+],
+[
+"Ball.",
+"pause"
+],
+[
+"Balls.",
+"pause"
+],
+[
+"Bard",
+"pause"
+],
+[
+"Be a target.",
+"use parakeet"
+],
+[
+"Be about.",
+"reload"
+],
+[
+"Be open closed tabs.",
+"reopen closed tab"
+],
+[
+"Be quieter.",
+"quieter"
+],
+[
+"Beam out.",
+"zoom out"
+],
+[
+"Believe after you.",
+"delete that"
+],
+[
+"Believe that",
+"delete that"
+],
+[
+"Believe that.",
+"delete that"
+],
+[
+"Believe the last word.",
+"delete the last word"
+],
+[
+"Belt it.",
+"stop"
+],
+[
+"Bermuda",
+"mute"
+],
+[
+"Bermuda.",
+"mute"
+],
+[
+"Bill followed.",
+"go forward"
+],
+[
+"Birds for peaks are mammals.",
+"search for pizza near me"
+],
+[
+"Blade",
+"play"
+],
+[
+"Blame.",
+"play"
+],
+[
+"Blay",
+"play"
+],
+[
+"Blick 12.",
+"click 12"
+],
+[
+"Blidge to top three.",
+"switch to tab 3"
+],
+[
+"Blind",
+"flags"
+],
+[
+"Blind.",
+"flags"
+],
+[
+"Blood",
+"flags"
+],
+[
+"Blood.",
+"flags"
+],
+[
+"Blue Starbucks.",
+"close tab"
+],
+[
+"Blue tab.",
+"close tab"
+],
+[
+"Blues tab.",
+"close this tab"
+],
+[
+"Board.",
+"pause"
+],
+[
+"Body",
+"louder"
+],
+[
+"Bold extreme.",
+"full screen"
+],
+[
+"Bold screen.",
+"full screen"
+],
+[
+"Bone",
+"volume up"
+],
+[
+"Boom in.",
+"zoom in"
+],
+[
+"Boom out.",
+"zoom out"
+],
+[
+"Boom.",
+"flags"
+],
+[
+"Both grains.",
+"full screen"
+],
+[
+"Both green.",
+"full screen"
+],
+[
+"Both remain content.",
+"go to main content"
+],
+[
+"Both screens.",
+"full screen"
+],
+[
+"Bounding",
+"louder"
+],
+[
+"Bowdy.",
+"louder"
+],
+[
+"Boy.",
+"pause"
+],
+[
+"Boys",
+"pause"
+],
+[
+"Boys.",
+"pause"
+],
+[
+"Boys?",
+"pause"
+],
+[
+"Boz",
+"pause"
+],
+[
+"Brazenda",
+"press enter"
+],
+[
+"Brazinda.",
+"press enter"
+],
+[
+"Breath into.",
+"press enter"
+],
+[
+"Breathe the pain.",
+"read this page"
+],
+[
+"Breathe this section.",
+"read this section"
+],
+[
+"Breathe.",
+"grid"
+],
+[
+"Bring detection.",
+"read this section"
+],
+[
+"Britain",
+"grid"
+],
+[
+"Bullets green.",
+"full screen"
+],
+[
+"But",
+"pause"
+],
+[
+"But I am",
+"where am i"
+],
+[
+"But end of",
+"press enter"
+],
+[
+"But play!",
+"play"
+],
+[
+"But remain content.",
+"go to main content"
+],
+[
+"But...",
+"mute"
+],
+[
+"Buy me a standing desk and a four hundred dollars.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Buy me a standing desk and a$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Buy me a standing desk under four hundred dollars.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Buy me a standing desk under$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"By me, standing desks under $400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Bye-lo.",
+"reload"
+],
+[
+"Bye.",
+"pause"
+],
+[
+"Call it over the count.",
+"hover over account"
+],
+[
+"Chill grid.",
+"show grid"
+],
+[
+"Chrome up.",
+"scroll up"
+],
+[
+"Chuck grinned.",
+"show grid"
+],
+[
+"Class and that.",
+"press enter"
+],
+[
+"Class over.",
+"press enter"
+],
+[
+"Clay Talbot.",
+"close tab"
+],
+[
+"Cleanse this target.",
+"close this tab"
+],
+[
+"Click \"12\".",
+"click 12"
+],
+[
+"Click \"12s\".",
+"click 12"
+],
+[
+"Click \"5\"",
+"click 5"
+],
+[
+"Click 12",
+"click 12"
+],
+[
+"Click 12.",
+"click 12"
+],
+[
+"Click 12s.",
+"click 12"
+],
+[
+"Click 5",
+"click 5"
+],
+[
+"Click 5.",
+"click 5"
+],
+[
+"Click Find.",
+"click 5"
+],
+[
+"Click Fine In.",
+"click sign in"
+],
+[
+"Click Five",
+"click 5"
+],
+[
+"Click Five.",
+"click 12"
+],
+[
+"Click Five.",
+"click 5"
+],
+[
+"Click Fives.",
+"click 5"
+],
+[
+"Click Sign In",
+"click sign in"
+],
+[
+"Click Sign In.",
+"click sign in"
+],
+[
+"Click Sign in.",
+"click sign in"
+],
+[
+"Click Signing.",
+"click sign in"
+],
+[
+"Click Size.",
+"click 5"
+],
+[
+"Click a 12",
+"click 12"
+],
+[
+"Click a 12.",
+"click 12"
+],
+[
+"Click a twelve.",
+"click 12"
+],
+[
+"Click by.",
+"click 5"
+],
+[
+"Click find in.",
+"click sign in"
+],
+[
+"Click five",
+"click 5"
+],
+[
+"Click five.",
+"click 5"
+],
+[
+"Click on.",
+"click 5"
+],
+[
+"Click sign in",
+"click sign in"
+],
+[
+"Click sign in.",
+"click sign in"
+],
+[
+"Click significant.",
+"click sign in"
+],
+[
+"Click twelve.",
+"click 12"
+],
+[
+"Close Tab",
+"close tab"
+],
+[
+"Close Tab.",
+"close tab"
+],
+[
+"Close Tabby.",
+"close tab"
+],
+[
+"Close Tabu",
+"close tab"
+],
+[
+"Close carbon.",
+"close tab"
+],
+[
+"Close down.",
+"close tab"
+],
+[
+"Close dub.",
+"close tab"
+],
+[
+"Close job.",
+"close tab"
+],
+[
+"Close out of",
+"close tab"
+],
+[
+"Close pad.",
+"close tab"
+],
+[
+"Close tab",
+"close tab"
+],
+[
+"Close tab it",
+"close tab"
+],
+[
+"Close tab.",
+"close tab"
+],
+[
+"Close tabby.",
+"close tab"
+],
+[
+"Close tabe.",
+"close tab"
+],
+[
+"Close table.",
+"close tab"
+],
+[
+"Close tarbour.",
+"close tab"
+],
+[
+"Close target.",
+"close tab"
+],
+[
+"Close this cabin.",
+"close this tab"
+],
+[
+"Close this guy.",
+"close this tab"
+],
+[
+"Close this tab",
+"close this tab"
+],
+[
+"Close this tab and",
+"close this tab"
+],
+[
+"Close this tab it",
+"close this tab"
+],
+[
+"Close this tab.",
+"close this tab"
+],
+[
+"Close this tabby.",
+"close this tab"
+],
+[
+"Close this taber.",
+"close this tab"
+],
+[
+"Close this table.",
+"close this tab"
+],
+[
+"Close this tablet.",
+"close this tab"
+],
+[
+"Close this taboo.",
+"close this tab"
+],
+[
+"Close this tabu.",
+"close this tab"
+],
+[
+"Close this target.",
+"close this tab"
+],
+[
+"Close this time.",
+"close this tab"
+],
+[
+"Close this top but",
+"close this tab"
+],
+[
+"Close this tower.",
+"close this tab"
+],
+[
+"Close this tub.",
+"close this tab"
+],
+[
+"Close this up.",
+"close this tab"
+],
+[
+"Close to habit.",
+"close tab"
+],
+[
+"Close to it.",
+"close tab"
+],
+[
+"Close tobacco",
+"close tab"
+],
+[
+"Close tobacco.",
+"close tab"
+],
+[
+"Close top.",
+"close tab"
+],
+[
+"Close up.",
+"close tab"
+],
+[
+"Closed tab.",
+"close tab"
+],
+[
+"Closed tab.",
+"close this tab"
+],
+[
+"Closed up.",
+"close tab"
+],
+[
+"Closest tablet.",
+"close this tab"
+],
+[
+"Clothes padded.",
+"close tab"
+],
+[
+"Cloud down the front.",
+"scroll down a little"
+],
+[
+"Clue Tarby.",
+"close tab"
+],
+[
+"Clue tab.",
+"close tab"
+],
+[
+"Cold screen.",
+"full screen"
+],
+[
+"Come here.",
+"mute"
+],
+[
+"Come on.",
+"pause"
+],
+[
+"Confident tab.",
+"close this tab"
+],
+[
+"Contaminated.",
+"close tab"
+],
+[
+"Control X.",
+"scroll up"
+],
+[
+"Could find him.",
+"click sign in"
+],
+[
+"Court time.",
+"close tab"
+],
+[
+"Craig hello world.",
+"type hello world"
+],
+[
+"Crash Enter.",
+"press enter"
+],
+[
+"Creepiest towers.",
+"previous tab"
+],
+[
+"Current on.",
+"turn off"
+],
+[
+"Danger away",
+"stay awake"
+],
+[
+"Daughty Play",
+"go to sleep"
+],
+[
+"Day awake.",
+"stay awake"
+],
+[
+"Day away.",
+"stay awake"
+],
+[
+"Dedissection.",
+"read this section"
+],
+[
+"Deep down.",
+"page down"
+],
+[
+"Deepest pain.",
+"read this page"
+],
+[
+"Definitely.",
+"describe the screen"
+],
+[
+"Defrive the screen.",
+"describe the screen"
+],
+[
+"Delete set.",
+"delete that"
+],
+[
+"Delete that.",
+"delete that"
+],
+[
+"Delete the last word, excuse me.",
+"delete the last word"
+],
+[
+"Delete the last word.",
+"delete the last word"
+],
+[
+"Delete the last words.",
+"delete the last word"
+],
+[
+"Delete the lock word.",
+"delete the last word"
+],
+[
+"Delete the locked word.",
+"delete the last word"
+],
+[
+"Delete the lost word.",
+"delete the last word"
+],
+[
+"Delete the lost words.",
+"delete the last word"
+],
+[
+"Delieve that.",
+"delete that"
+],
+[
+"Denise thought.",
+"delete that"
+],
+[
+"Describe discrete.",
+"describe the screen"
+],
+[
+"Describe the screen.",
+"describe the screen"
+],
+[
+"Describe the screens.",
+"describe the screen"
+],
+[
+"Describe the tree.",
+"describe the screen"
+],
+[
+"Dip ahead 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Do for me.",
+"go forward"
+],
+[
+"Do men",
+"zoom in"
+],
+[
+"Do men.",
+"zoom in"
+],
+[
+"Do mount.",
+"zoom out"
+],
+[
+"Do the same.",
+"read this page"
+],
+[
+"Do you mean?",
+"zoom in"
+],
+[
+"Do you tab.",
+"previous tab"
+],
+[
+"Do you tell me?",
+"previous tab"
+],
+[
+"Dobby.",
+"stop"
+],
+[
+"Dog",
+"stop"
+],
+[
+"Dominic.",
+"stop"
+],
+[
+"Domit",
+"stop"
+],
+[
+"Don't",
+"stop"
+],
+[
+"Don't fool it.",
+"go forward"
+],
+[
+"Don't have to do it all.",
+"scroll up a little"
+],
+[
+"Don't we",
+"stop"
+],
+[
+"Don't.",
+"stop"
+],
+[
+"Done.",
+"stop"
+],
+[
+"Doom and",
+"zoom in"
+],
+[
+"Doom in.",
+"zoom in"
+],
+[
+"Doom out.",
+"zoom out"
+],
+[
+"Dop the video.",
+"stop the video"
+],
+[
+"Dope.",
+"help"
+],
+[
+"Double",
+"stop"
+],
+[
+"Doug.",
+"stop"
+],
+[
+"Dub.",
+"stop"
+],
+[
+"Dumb.",
+"stop"
+],
+[
+"Dummy",
+"stop"
+],
+[
+"Dunk.",
+"stop"
+],
+[
+"Eat the video.",
+"mute the video"
+],
+[
+"Eclosix Harbour.",
+"close this tab"
+],
+[
+"Ecolog.",
+"type hello world"
+],
+[
+"Elbert.",
+"help"
+],
+[
+"Enemy mouth.",
+"zoom out"
+],
+[
+"Ex-finance",
+"click sign in"
+],
+[
+"Face down.",
+"page down"
+],
+[
+"Fade down.",
+"page down"
+],
+[
+"Fair enough.",
+"turn off"
+],
+[
+"Feel great.",
+"show grid"
+],
+[
+"Fighter",
+"quieter"
+],
+[
+"Fill back 10 seconds.",
+"go back 10 seconds"
+],
+[
+"Finally a standing desk and a $400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Finally a standing desk under four hundred dollars.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find a video.",
+"play the video"
+],
+[
+"Find me a standing debt and a$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing debt under$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing deck and a$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing depth of a 400 length.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk and a $400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk and a$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk on a $400 dollar.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk on a $400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk on a 400 dollar.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk on the$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk under $400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk under four hundred dollars.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me a standing desk under$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find me standing down under $400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Find the standing desk on the 400 goalies.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Finding a standing debt under$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Finding a standing deck on the$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"Fine.",
+"play"
+],
+[
+"First for me the moment.",
+"search for pizza near me"
+],
+[
+"Five",
+"pause"
+],
+[
+"Five.",
+"pause"
+],
+[
+"Fives.",
+"pause"
+],
+[
+"Flag",
+"flags"
+],
+[
+"Flag is.",
+"flags"
+],
+[
+"Flag!",
+"flags"
+],
+[
+"Flag.",
+"flags"
+],
+[
+"Flagged",
+"flags"
+],
+[
+"Flags",
+"flags"
+],
+[
+"Flags isn't.",
+"flags"
+],
+[
+"Flags.",
+"flags"
+],
+[
+"Flat endor.",
+"press enter"
+],
+[
+"Flaude",
+"louder"
+],
+[
+"Fluose diving.",
+"close tab"
+],
+[
+"Flutter",
+"louder"
+],
+[
+"Flying.",
+"flags"
+],
+[
+"Follow your map",
+"volume up"
+],
+[
+"For you.",
+"mute"
+],
+[
+"Foscreen.",
+"full screen"
+],
+[
+"Found it.",
+"louder"
+],
+[
+"Four three",
+"full screen"
+],
+[
+"Free dissections.",
+"read this section"
+],
+[
+"Fruit and joy.",
+"press enter"
+],
+[
+"Fuck this power.",
+"close this tab"
+],
+[
+"Full green.",
+"full screen"
+],
+[
+"Full screen",
+"full screen"
+],
+[
+"Full screen.",
+"full screen"
+],
+[
+"Full screens.",
+"full screen"
+],
+[
+"Full three and",
+"full screen"
+],
+[
+"Fully map.",
+"volume up"
+],
+[
+"Get fired.",
+"go forward"
+],
+[
+"Gibba had 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Gibba had thirty seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Gip ahead thirty seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Gipper had 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Girl Danny Little",
+"scroll down a little"
+],
+[
+"Give a head 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Give ahead 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Give ahead thirty seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Give me the last word.",
+"delete the last word"
+],
+[
+"Glick 12",
+"click 12"
+],
+[
+"Glick 12.",
+"click 12"
+],
+[
+"Glick five.",
+"click 5"
+],
+[
+"Glue stub.",
+"close tab"
+],
+[
+"Gluestab.",
+"close tab"
+],
+[
+"Go Danny Little.",
+"scroll down a little"
+],
+[
+"Go Grid!",
+"show grid"
+],
+[
+"Go back",
+"go back"
+],
+[
+"Go back 10 seconds",
+"go back 10 seconds"
+],
+[
+"Go back 10 seconds.",
+"go back 10 seconds"
+],
+[
+"Go back and",
+"go back"
+],
+[
+"Go back ten seconds.",
+"go back 10 seconds"
+],
+[
+"Go back!",
+"go back"
+],
+[
+"Go back.",
+"go back"
+],
+[
+"Go down the bank.",
+"scroll down a little"
+],
+[
+"Go down.",
+"scroll down"
+],
+[
+"Go falling.",
+"go forward"
+],
+[
+"Go farther.",
+"go forward"
+],
+[
+"Go follow me.",
+"go forward"
+],
+[
+"Go follow.",
+"go forward"
+],
+[
+"Go followed.",
+"go forward"
+],
+[
+"Go for the raising second.",
+"go to the reviews section"
+],
+[
+"Go forward",
+"go forward"
+],
+[
+"Go forward.",
+"go forward"
+],
+[
+"Go human content.",
+"go to main content"
+],
+[
+"Go number.",
+"show numbers"
+],
+[
+"Go numbers.",
+"show numbers"
+],
+[
+"Go on,",
+"scroll down a little"
+],
+[
+"Go on.",
+"go forward"
+],
+[
+"Go on.",
+"scroll up"
+],
+[
+"Go ready.",
+"show grid"
+],
+[
+"Go to Fleet.",
+"go to sleep"
+],
+[
+"Go to Main Content.",
+"go to main content"
+],
+[
+"Go to Main Contents.",
+"go to main content"
+],
+[
+"Go to Main content.",
+"go to main content"
+],
+[
+"Go to Maine Consent.",
+"go to main content"
+],
+[
+"Go to Maine Contents.",
+"go to main content"
+],
+[
+"Go to Maine and Tent.",
+"go to main content"
+],
+[
+"Go to Maine and test.",
+"go to main content"
+],
+[
+"Go to Maine contempt.",
+"go to main content"
+],
+[
+"Go to Maine content",
+"go to main content"
+],
+[
+"Go to Maine content.",
+"go to main content"
+],
+[
+"Go to Maine to pet.",
+"go to main content"
+],
+[
+"Go to Sleeba.",
+"go to sleep"
+],
+[
+"Go to main contact.",
+"go to main content"
+],
+[
+"Go to main content",
+"go to main content"
+],
+[
+"Go to main content.",
+"go to main content"
+],
+[
+"Go to main contents.",
+"go to main content"
+],
+[
+"Go to me in contempt.",
+"go to main content"
+],
+[
+"Go to mean content.",
+"go to main content"
+],
+[
+"Go to name content.",
+"go to main content"
+],
+[
+"Go to sleep",
+"go to sleep"
+],
+[
+"Go to sleep.",
+"go to sleep"
+],
+[
+"Go to sleeper.",
+"go to sleep"
+],
+[
+"Go to sleeping.",
+"go to sleep"
+],
+[
+"Go to the \"Rayview\" section.",
+"go to the reviews section"
+],
+[
+"Go to the RAID News section.",
+"go to the reviews section"
+],
+[
+"Go to the Raise Me section.",
+"go to the reviews section"
+],
+[
+"Go to the Raise Muse section.",
+"go to the reviews section"
+],
+[
+"Go to the Raise New section.",
+"go to the reviews section"
+],
+[
+"Go to the Raise U section.",
+"go to the reviews section"
+],
+[
+"Go to the Raising section.",
+"go to the reviews section"
+],
+[
+"Go to the Rave View section.",
+"go to the reviews section"
+],
+[
+"Go to the Ray View section.",
+"go to the reviews section"
+],
+[
+"Go to the Ray Views section.",
+"go to the reviews section"
+],
+[
+"Go to the Rayview section",
+"go to the reviews section"
+],
+[
+"Go to the Rayview section.",
+"go to the reviews section"
+],
+[
+"Go to the Review section.",
+"go to the reviews section"
+],
+[
+"Go to the Reviews section.",
+"go to the reviews section"
+],
+[
+"Go to the Way View section.",
+"go to the reviews section"
+],
+[
+"Go to the radius section.",
+"go to the reviews section"
+],
+[
+"Go to the raid and section.",
+"go to the reviews section"
+],
+[
+"Go to the raise you section.",
+"go to the reviews section"
+],
+[
+"Go to the raised feed section.",
+"go to the reviews section"
+],
+[
+"Go to the raised section.",
+"go to the reviews section"
+],
+[
+"Go to the raising section.",
+"go to the reviews section"
+],
+[
+"Go to the review section.",
+"go to the reviews section"
+],
+[
+"Go to your",
+"go to sleep"
+],
+[
+"Go too fleet.",
+"go to sleep"
+],
+[
+"Go up in the garden.",
+"scroll up a little"
+],
+[
+"Going back.",
+"go back"
+],
+[
+"Going down.",
+"scroll down"
+],
+[
+"Good",
+"grid"
+],
+[
+"Good",
+"pause"
+],
+[
+"Good enough.",
+"grid"
+],
+[
+"Good five.",
+"click 5"
+],
+[
+"Good luck!",
+"pause"
+],
+[
+"Good sign in.",
+"click sign in"
+],
+[
+"Good thing.",
+"refresh"
+],
+[
+"Good.",
+"go back"
+],
+[
+"Grading off.",
+"grid"
+],
+[
+"Grano",
+"grid"
+],
+[
+"Grave this section.",
+"read this section"
+],
+[
+"Great North",
+"grid"
+],
+[
+"Great ahead.",
+"grid"
+],
+[
+"Great atmosphere.",
+"grid"
+],
+[
+"Great deal.",
+"grid"
+],
+[
+"Great enough",
+"grid"
+],
+[
+"Great enough.",
+"grid"
+],
+[
+"Great help.",
+"grid"
+],
+[
+"Great it",
+"grid"
+],
+[
+"Great it.",
+"grid"
+],
+[
+"Great job.",
+"close tab"
+],
+[
+"Great news.",
+"grid"
+],
+[
+"Great off.",
+"turn off"
+],
+[
+"Great up.",
+"grid"
+],
+[
+"Great.",
+"grid"
+],
+[
+"Great.",
+"play"
+],
+[
+"Greater",
+"grid"
+],
+[
+"Greater.",
+"grid"
+],
+[
+"Greatest",
+"grid"
+],
+[
+"Greedy assumption.",
+"previous tab"
+],
+[
+"Greek.",
+"grid"
+],
+[
+"Green low.",
+"reload"
+],
+[
+"Green.",
+"grid"
+],
+[
+"Greener.",
+"grid"
+],
+[
+"Greetings.",
+"grid"
+],
+[
+"Gretel",
+"grid"
+],
+[
+"Grid",
+"grid"
+],
+[
+"Grid L",
+"grid"
+],
+[
+"Grid it",
+"grid"
+],
+[
+"Grid up.",
+"grid"
+],
+[
+"Grid.",
+"grid"
+],
+[
+"Grid?",
+"grid"
+],
+[
+"Gridder",
+"grid"
+],
+[
+"Griddin'",
+"grid"
+],
+[
+"Griddle.",
+"grid"
+],
+[
+"Griddle?",
+"grid"
+],
+[
+"Grill.",
+"grid"
+],
+[
+"Grin.",
+"grid"
+],
+[
+"Grinnell.",
+"grid"
+],
+[
+"Grinner",
+"grid"
+],
+[
+"Grino",
+"grid"
+],
+[
+"Grit.",
+"grid"
+],
+[
+"Gritter",
+"grid"
+],
+[
+"Grob",
+"scroll up"
+],
+[
+"Grol up.",
+"scroll up"
+],
+[
+"Groll Danny Little.",
+"scroll down a little"
+],
+[
+"Groll up a little.",
+"scroll up a little"
+],
+[
+"Groll up and",
+"scroll up"
+],
+[
+"Groosed Habit.",
+"close tab"
+],
+[
+"Gross in the background.",
+"scroll to the top"
+],
+[
+"Grove to the back.",
+"scroll to the top"
+],
+[
+"Grow Luppy Little",
+"scroll up a little"
+],
+[
+"Grow to the top.",
+"scroll to the top"
+],
+[
+"Grow up a little.",
+"scroll up a little"
+],
+[
+"Grow up in this one.",
+"scroll up a little"
+],
+[
+"Grow up.",
+"scroll up"
+],
+[
+"Growing down.",
+"scroll down"
+],
+[
+"Growth animated.",
+"scroll down a little"
+],
+[
+"Harvard over account.",
+"hover over account"
+],
+[
+"Hava over a count",
+"hover over account"
+],
+[
+"Hava over account.",
+"hover over account"
+],
+[
+"Hava over count.",
+"hover over account"
+],
+[
+"Have an overcount.",
+"hover over account"
+],
+[
+"Have the Uber account.",
+"hover over account"
+],
+[
+"He don't.",
+"page down"
+],
+[
+"He's down there.",
+"page down"
+],
+[
+"He's down.",
+"page down"
+],
+[
+"Healthy.",
+"help"
+],
+[
+"Height numbers.",
+"hide numbers"
+],
+[
+"Helbert",
+"help"
+],
+[
+"Helbert.",
+"help"
+],
+[
+"Hell no.",
+"help"
+],
+[
+"Hell, but",
+"help"
+],
+[
+"Hello fee beads.",
+"search youtube for lofi beats"
+],
+[
+"Hello.",
+"help"
+],
+[
+"Help",
+"help"
+],
+[
+"Help and",
+"help"
+],
+[
+"Help her.",
+"help"
+],
+[
+"Help him.",
+"help"
+],
+[
+"Help it.",
+"help"
+],
+[
+"Help me.",
+"help"
+],
+[
+"Help them",
+"help"
+],
+[
+"Help them f",
+"help"
+],
+[
+"Help us.",
+"help"
+],
+[
+"Help with",
+"help"
+],
+[
+"Help!",
+"help"
+],
+[
+"Help.",
+"help"
+],
+[
+"Help?",
+"help"
+],
+[
+"Helped",
+"help"
+],
+[
+"Helper",
+"help"
+],
+[
+"Helpers.",
+"help"
+],
+[
+"Helpin'",
+"help"
+],
+[
+"Hey down.",
+"page down"
+],
+[
+"Hey, hello, world.",
+"type hello world"
+],
+[
+"Hey, though.",
+"page down"
+],
+[
+"Hi Palo World.",
+"type hello world"
+],
+[
+"Hi to Lo World.",
+"type hello world"
+],
+[
+"Hi, Hello World!",
+"type hello world"
+],
+[
+"Hi, Tom.",
+"hide numbers"
+],
+[
+"Hi, dear Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Hi, hello world.",
+"type hello world"
+],
+[
+"Hi, hello, world.",
+"type hello world"
+],
+[
+"Hi, yes, Sarah Thanks.",
+"type dear sarah thanks"
+],
+[
+"Hi.",
+"pause"
+],
+[
+"Hide number",
+"hide numbers"
+],
+[
+"Hide number.",
+"hide numbers"
+],
+[
+"Hide numbers",
+"hide numbers"
+],
+[
+"Hide numbers Hide numbers",
+"hide numbers"
+],
+[
+"Hide numbers.",
+"hide numbers"
+],
+[
+"High number.",
+"hide numbers"
+],
+[
+"High numbers.",
+"hide numbers"
+],
+[
+"Hiking is very fun.",
+"type dear sarah thanks"
+],
+[
+"Hmm.",
+"pause"
+],
+[
+"Hmm.",
+"zoom out"
+],
+[
+"Hoba over a count.",
+"hover over account"
+],
+[
+"Hold it into account.",
+"hover over account"
+],
+[
+"Hold.",
+"pause"
+],
+[
+"Hoping you feel this.",
+"open youtube"
+],
+[
+"Hopping up over again.",
+"hover over account"
+],
+[
+"Hover Over Account.",
+"hover over account"
+],
+[
+"Hover over Account.",
+"hover over account"
+],
+[
+"Hover over Count.",
+"hover over account"
+],
+[
+"Hover over a camera.",
+"hover over account"
+],
+[
+"Hover over a camp.",
+"hover over account"
+],
+[
+"Hover over a count",
+"hover over account"
+],
+[
+"Hover over a count.",
+"hover over account"
+],
+[
+"Hover over account",
+"hover over account"
+],
+[
+"Hover over account.",
+"hover over account"
+],
+[
+"Hover over accounts",
+"hover over account"
+],
+[
+"Hover over accounts.",
+"hover over account"
+],
+[
+"Hover over count.",
+"hover over account"
+],
+[
+"Hover over the camera.",
+"hover over account"
+],
+[
+"Hover over the counter.",
+"hover over account"
+],
+[
+"How about over a count?",
+"hover over account"
+],
+[
+"How about over a parent?",
+"hover over account"
+],
+[
+"How about over accounts?",
+"hover over account"
+],
+[
+"How about over the count?",
+"hover over account"
+],
+[
+"How about overcount?",
+"hover over account"
+],
+[
+"How can you do that?",
+"open youtube"
+],
+[
+"How can you use it?",
+"open youtube"
+],
+[
+"How did...",
+"louder"
+],
+[
+"How do you",
+"help"
+],
+[
+"How even he is there a thing?",
+"type dear sarah thanks"
+],
+[
+"How old is it?",
+"scroll to the top"
+],
+[
+"How the overkill?",
+"hover over account"
+],
+[
+"Howdy.",
+"louder"
+],
+[
+"Hubba over a count.",
+"hover over account"
+],
+[
+"Hubber either account.",
+"hover over account"
+],
+[
+"Human",
+"zoom in"
+],
+[
+"Human.",
+"zoom in"
+],
+[
+"Hype Hello World",
+"type hello world"
+],
+[
+"Hype Hello World.",
+"type hello world"
+],
+[
+"Hype be a fair thing.",
+"type dear sarah thanks"
+],
+[
+"Hypello World",
+"type hello world"
+],
+[
+"I Polo World",
+"type hello world"
+],
+[
+"I appreciate you.",
+"pause the video"
+],
+[
+"I can go where it",
+"type hello world"
+],
+[
+"I click 12.",
+"click 12"
+],
+[
+"I click Sign In.",
+"click sign in"
+],
+[
+"I dear, sir. Thanks.",
+"type dear sarah thanks"
+],
+[
+"I death are a thing.",
+"type dear sarah thanks"
+],
+[
+"I did Sarah Thanks.",
+"type dear sarah thanks"
+],
+[
+"I did.",
+"louder"
+],
+[
+"I do surround.",
+"type dear sarah thanks"
+],
+[
+"I don't know.",
+"turn off"
+],
+[
+"I felt grid.",
+"show grid"
+],
+[
+"I fly to the scene of saying thanks.",
+"reply to this email saying thanks"
+],
+[
+"I hear a thing.",
+"type dear sarah thanks"
+],
+[
+"I help",
+"help"
+],
+[
+"I helped.",
+"help"
+],
+[
+"I hide numbers.",
+"hide numbers"
+],
+[
+"I keep ahead 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"I knew.",
+"unmute"
+],
+[
+"I lift you to my God.",
+"add this to my cart"
+],
+[
+"I listen to my thoughts.",
+"add this to my cart"
+],
+[
+"I me a standing desk under$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"I mean",
+"mute"
+],
+[
+"I need a video.",
+"play the video"
+],
+[
+"I need standing deck on a 400 god.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"I scroll up.",
+"scroll up"
+],
+[
+"I show grid",
+"show grid"
+],
+[
+"I view your time.",
+"type dear sarah thanks"
+],
+[
+"I'd be a Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"I'd be a Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"I'd be a fellow thanks.",
+"type dear sarah thanks"
+],
+[
+"I'd be a thorough thank.",
+"type dear sarah thanks"
+],
+[
+"I'd dear Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"I'd number.",
+"hide numbers"
+],
+[
+"I'd numbers.",
+"hide numbers"
+],
+[
+"I'll be in YouTuber.",
+"open youtube"
+],
+[
+"I'll put every count.",
+"hover over account"
+],
+[
+"I'll put up over account.",
+"hover over account"
+],
+[
+"I'll show Grid.",
+"show grid"
+],
+[
+"I'll show grid",
+"show grid"
+],
+[
+"I'll show grid.",
+"show grid"
+],
+[
+"I'll stop the video.",
+"stop the video"
+],
+[
+"I'm Luke",
+"unmute"
+],
+[
+"I'm gritting.",
+"grid"
+],
+[
+"I'm mute.",
+"mute"
+],
+[
+"I'm mute.",
+"unmute"
+],
+[
+"I'm you.",
+"unmute"
+],
+[
+"Idea there are things.",
+"type dear sarah thanks"
+],
+[
+"Idea, Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"If I had 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"If I had but exactly.",
+"skip ahead 30 seconds"
+],
+[
+"Is it?",
+"zoom in"
+],
+[
+"It refreshed.",
+"refresh"
+],
+[
+"It show numbers.",
+"show numbers"
+],
+[
+"It worked.",
+"pause"
+],
+[
+"It's a lease dust.",
+"delete that"
+],
+[
+"It's brash.",
+"refresh"
+],
+[
+"It's growl up.",
+"scroll up"
+],
+[
+"It's hit five.",
+"click 5"
+],
+[
+"It's in Wikipedia.",
+"open wikipedia"
+],
+[
+"It's louder.",
+"louder"
+],
+[
+"It's open Wikiped.",
+"open wikipedia"
+],
+[
+"It's the headings.",
+"list the headings"
+],
+[
+"Joe Brim.",
+"show grid"
+],
+[
+"Joe Grid",
+"show grid"
+],
+[
+"Joe Grid.",
+"show grid"
+],
+[
+"Joe Numbers",
+"show numbers"
+],
+[
+"Joe grinned.",
+"show grid"
+],
+[
+"Joe numbers.",
+"show numbers"
+],
+[
+"Joe quick.",
+"show grid"
+],
+[
+"Jolly.",
+"scroll up"
+],
+[
+"Journal.",
+"turn off"
+],
+[
+"June on",
+"turn off"
+],
+[
+"Just recognize where you're using.",
+"which recognizer are you using"
+],
+[
+"Just usually for low TB.",
+"search youtube for lofi beats"
+],
+[
+"Keep ahead 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Kip ahead 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"LOUD DAY",
+"louder"
+],
+[
+"LOUDER",
+"louder"
+],
+[
+"Lads.",
+"flags"
+],
+[
+"Lags",
+"flags"
+],
+[
+"Lags.",
+"flags"
+],
+[
+"Lauda",
+"louder"
+],
+[
+"Laude",
+"louder"
+],
+[
+"Laude.",
+"louder"
+],
+[
+"Lauder",
+"louder"
+],
+[
+"Lauders",
+"louder"
+],
+[
+"Learn for feet in a mail.",
+"search for pizza near me"
+],
+[
+"Let's reload.",
+"reload"
+],
+[
+"Let's sign in.",
+"click sign in"
+],
+[
+"Let's use your follow-up PD.",
+"search youtube for lofi beats"
+],
+[
+"Lewis Tabby.",
+"close tab"
+],
+[
+"Lift the heading button.",
+"list the headings"
+],
+[
+"Lift the heading.",
+"list the headings"
+],
+[
+"Lift the headings.",
+"list the headings"
+],
+[
+"Like",
+"play"
+],
+[
+"Like fun.",
+"click sign in"
+],
+[
+"Like twelve.",
+"click 12"
+],
+[
+"List for headings.",
+"list the headings"
+],
+[
+"List of a headings.",
+"list the headings"
+],
+[
+"List of headings.",
+"list the headings"
+],
+[
+"List the heading",
+"list the headings"
+],
+[
+"List the headings",
+"list the headings"
+],
+[
+"List the headings a",
+"list the headings"
+],
+[
+"List the headings of",
+"list the headings"
+],
+[
+"List the headings.",
+"list the headings"
+],
+[
+"Loman.",
+"zoom in"
+],
+[
+"Lost habit.",
+"close tab"
+],
+[
+"Louded.",
+"louder"
+],
+[
+"Louder",
+"louder"
+],
+[
+"Louder and",
+"louder"
+],
+[
+"Louder.",
+"louder"
+],
+[
+"Louder?",
+"louder"
+],
+[
+"Louders",
+"louder"
+],
+[
+"Loudest",
+"louder"
+],
+[
+"Loudest.",
+"louder"
+],
+[
+"Louisa.",
+"delete that"
+],
+[
+"Luis Tabas",
+"close tab"
+],
+[
+"Lumen",
+"zoom in"
+],
+[
+"Lumen.",
+"zoom in"
+],
+[
+"Marvel.",
+"louder"
+],
+[
+"Matter.",
+"louder"
+],
+[
+"Mauder.",
+"louder"
+],
+[
+"Max padding.",
+"next heading"
+],
+[
+"Maybe back.",
+"go back"
+],
+[
+"Maybe.",
+"grid"
+],
+[
+"Me oda",
+"mute"
+],
+[
+"Meal",
+"mute"
+],
+[
+"Meanwhile.",
+"mute"
+],
+[
+"Mew.",
+"mute"
+],
+[
+"Miota.",
+"mute"
+],
+[
+"Mirror.",
+"mute"
+],
+[
+"Miss the heading.",
+"list the headings"
+],
+[
+"Miss the headings.",
+"list the headings"
+],
+[
+"Missed the headings.",
+"list the headings"
+],
+[
+"Mix the headings.",
+"list the headings"
+],
+[
+"Mm-hmm.",
+"grid"
+],
+[
+"Mm-hmm.",
+"mute"
+],
+[
+"Mm-hmm.",
+"mute the video"
+],
+[
+"Mm-hmm.",
+"scroll up"
+],
+[
+"Mm-hmm.",
+"turn off"
+],
+[
+"Mm.",
+"mute"
+],
+[
+"Most habits.",
+"close tab"
+],
+[
+"Most this tab.",
+"close this tab"
+],
+[
+"Move down.",
+"page down"
+],
+[
+"Move up.",
+"new tab"
+],
+[
+"Moving back",
+"mute"
+],
+[
+"Mr. Dorby.",
+"stop"
+],
+[
+"Mule",
+"mute"
+],
+[
+"Muse.",
+"mute"
+],
+[
+"Muta.",
+"mute"
+],
+[
+"Mutab.",
+"new tab"
+],
+[
+"Mute",
+"mute"
+],
+[
+"Mute her.",
+"mute"
+],
+[
+"Mute her.",
+"new tab"
+],
+[
+"Mute out.",
+"new tab"
+],
+[
+"Mute the video",
+"mute the video"
+],
+[
+"Mute the video.",
+"mute the video"
+],
+[
+"Mute up.",
+"mute"
+],
+[
+"Mute.",
+"mute"
+],
+[
+"Muter",
+"mute"
+],
+[
+"Muter.",
+"mute"
+],
+[
+"Mutil.",
+"new tab"
+],
+[
+"Muto.",
+"mute"
+],
+[
+"Mutual",
+"mute"
+],
+[
+"My dear Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Neck heading.",
+"next heading"
+],
+[
+"Neckfield.",
+"next field"
+],
+[
+"Negro to",
+"next heading"
+],
+[
+"New Parkie.",
+"use parakeet"
+],
+[
+"New PowerPoint.",
+"use parakeet"
+],
+[
+"New Tab",
+"new tab"
+],
+[
+"New Tab.",
+"new tab"
+],
+[
+"New Taba",
+"new tab"
+],
+[
+"New Tabits.",
+"new tab"
+],
+[
+"New Tabour.",
+"new tab"
+],
+[
+"New Tarba.",
+"new tab"
+],
+[
+"New Tarber.",
+"new tab"
+],
+[
+"New Target",
+"new tab"
+],
+[
+"New Tub",
+"new tab"
+],
+[
+"New authority.",
+"use parakeet"
+],
+[
+"New carbon.",
+"new tab"
+],
+[
+"New carpet.",
+"use parakeet"
+],
+[
+"New cash.",
+"new tab"
+],
+[
+"New heart.",
+"new tab"
+],
+[
+"New parody.",
+"use parakeet"
+],
+[
+"New party.",
+"use parakeet"
+],
+[
+"New tab",
+"new tab"
+],
+[
+"New tab.",
+"new tab"
+],
+[
+"New tables.",
+"new tab"
+],
+[
+"New task.",
+"new tab"
+],
+[
+"New thousand.",
+"new tab"
+],
+[
+"New top.",
+"new tab"
+],
+[
+"New topic.",
+"new tab"
+],
+[
+"New tub",
+"new tab"
+],
+[
+"New tub.",
+"new tab"
+],
+[
+"New tub?",
+"new tab"
+],
+[
+"News",
+"mute"
+],
+[
+"News Harbor.",
+"new tab"
+],
+[
+"News Parakeet",
+"use parakeet"
+],
+[
+"News Power",
+"use parakeet"
+],
+[
+"News Power Team",
+"use parakeet"
+],
+[
+"News parity.",
+"use parakeet"
+],
+[
+"Newt Harbour.",
+"new tab"
+],
+[
+"Next Field",
+"next field"
+],
+[
+"Next Hab",
+"next tab"
+],
+[
+"Next Hutter",
+"next heading"
+],
+[
+"Next Top",
+"next tab"
+],
+[
+"Next a tub.",
+"next tab"
+],
+[
+"Next album.",
+"next tab"
+],
+[
+"Next blink.",
+"next link"
+],
+[
+"Next blow.",
+"next link"
+],
+[
+"Next deal.",
+"next field"
+],
+[
+"Next field",
+"next field"
+],
+[
+"Next field is",
+"next field"
+],
+[
+"Next field that's",
+"next field"
+],
+[
+"Next field up.",
+"next field"
+],
+[
+"Next field.",
+"next field"
+],
+[
+"Next fielder.",
+"next field"
+],
+[
+"Next harbor.",
+"next tab"
+],
+[
+"Next heading",
+"next heading"
+],
+[
+"Next heading i.",
+"next heading"
+],
+[
+"Next heading is",
+"next heading"
+],
+[
+"Next heading.",
+"next heading"
+],
+[
+"Next house",
+"next tab"
+],
+[
+"Next house.",
+"next tab"
+],
+[
+"Next hub",
+"next tab"
+],
+[
+"Next hub.",
+"next tab"
+],
+[
+"Next hudding.",
+"next heading"
+],
+[
+"Next language.",
+"next link"
+],
+[
+"Next limit.",
+"next link"
+],
+[
+"Next link",
+"next link"
+],
+[
+"Next link here",
+"next link"
+],
+[
+"Next link here.",
+"next link"
+],
+[
+"Next link.",
+"next link"
+],
+[
+"Next one.",
+"next link"
+],
+[
+"Next part.",
+"next tab"
+],
+[
+"Next please.",
+"next link"
+],
+[
+"Next problem.",
+"next tab"
+],
+[
+"Next room.",
+"next link"
+],
+[
+"Next tab",
+"next tab"
+],
+[
+"Next tab.",
+"next tab"
+],
+[
+"Next taber.",
+"next tab"
+],
+[
+"Next table.",
+"next tab"
+],
+[
+"Next tablet.",
+"next tab"
+],
+[
+"Next tabu.",
+"next tab"
+],
+[
+"Next tale.",
+"next tab"
+],
+[
+"Next tarb.",
+"next tab"
+],
+[
+"Next target.",
+"next tab"
+],
+[
+"Next the top.",
+"next tab"
+],
+[
+"Next the tub.",
+"next tab"
+],
+[
+"Next time, but",
+"next tab"
+],
+[
+"Next time.",
+"next tab"
+],
+[
+"Next to Carb.",
+"next tab"
+],
+[
+"Next to Tubble.",
+"next tab"
+],
+[
+"Next to tab.",
+"next tab"
+],
+[
+"Next to tub.",
+"next tab"
+],
+[
+"Next tobo.",
+"next tab"
+],
+[
+"Next top.",
+"next tab"
+],
+[
+"Next topic.",
+"next tab"
+],
+[
+"Next trouble.",
+"next tab"
+],
+[
+"Next tub.",
+"next tab"
+],
+[
+"Next tubble.",
+"next tab"
+],
+[
+"Next up",
+"next tab"
+],
+[
+"Next up.",
+"next tab"
+],
+[
+"Next week.",
+"next link"
+],
+[
+"Next wheel.",
+"next field"
+],
+[
+"Next year.",
+"next field"
+],
+[
+"Next, Linda.",
+"next link"
+],
+[
+"Next, head in.",
+"next heading"
+],
+[
+"Next, heading.",
+"next heading"
+],
+[
+"Next, heavy.",
+"next heading"
+],
+[
+"Next, please.",
+"next link"
+],
+[
+"Next, the heading.",
+"next heading"
+],
+[
+"No",
+"stop"
+],
+[
+"No controls have.",
+"reopen closed tab"
+],
+[
+"No grid.",
+"show grid"
+],
+[
+"No man.",
+"zoom in"
+],
+[
+"No number.",
+"show numbers"
+],
+[
+"No.",
+"mute"
+],
+[
+"No.",
+"stop"
+],
+[
+"Nope.",
+"help"
+],
+[
+"Normal.",
+"zoom in"
+],
+[
+"Not linked.",
+"next link"
+],
+[
+"Not powder.",
+"next heading"
+],
+[
+"Now Day.",
+"louder"
+],
+[
+"Now day",
+"louder"
+],
+[
+"Of a overcount.",
+"hover over account"
+],
+[
+"Oh good.",
+"pause"
+],
+[
+"Oh yeah,",
+"volume up"
+],
+[
+"Oh.",
+"help"
+],
+[
+"Okay, okay.",
+"next field"
+],
+[
+"Okay, you're down.",
+"page down"
+],
+[
+"Okay.",
+"grid"
+],
+[
+"On mute.",
+"unmute"
+],
+[
+"Open Cheenail in a Utah.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail and a new tab.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a U top.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a U type.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a meantime.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new cap.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new comment.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new sub.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new tab.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new tabs.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new title.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new top.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new topic.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new tops.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new tub.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in a new type.",
+"open gmail in a new tab"
+],
+[
+"Open Gmail in our new top.",
+"open gmail in a new tab"
+],
+[
+"Open T-Mail in a new tab.",
+"open gmail in a new tab"
+],
+[
+"Open U-Suit.",
+"open youtube"
+],
+[
+"Open UCUB.",
+"open youtube"
+],
+[
+"Open UCUBIT.",
+"open youtube"
+],
+[
+"Open UQ there.",
+"open youtube"
+],
+[
+"Open VTUD.",
+"open youtube"
+],
+[
+"Open Wiki P D R",
+"open wikipedia"
+],
+[
+"Open Wiki PBR",
+"open wikipedia"
+],
+[
+"Open Wiki PBR.",
+"open wikipedia"
+],
+[
+"Open Wiki PD-A",
+"open wikipedia"
+],
+[
+"Open Wiki PDR",
+"open wikipedia"
+],
+[
+"Open Wiki PDR.",
+"open wikipedia"
+],
+[
+"Open Wiki T V Art.",
+"open wikipedia"
+],
+[
+"Open Wiki TDR.",
+"open wikipedia"
+],
+[
+"Open Wiki, PDR",
+"open wikipedia"
+],
+[
+"Open Wiki, PDR.",
+"open wikipedia"
+],
+[
+"Open WikiPD R.",
+"open wikipedia"
+],
+[
+"Open WikiPDR.",
+"open wikipedia"
+],
+[
+"Open WikiPV up.",
+"open wikipedia"
+],
+[
+"Open Wikipd",
+"open wikipedia"
+],
+[
+"Open Wikiped.",
+"open wikipedia"
+],
+[
+"Open Wikipedia",
+"open wikipedia"
+],
+[
+"Open Wikipedia PDR.",
+"open wikipedia"
+],
+[
+"Open Wikipedia are",
+"open wikipedia"
+],
+[
+"Open Wikipedia up.",
+"open wikipedia"
+],
+[
+"Open Wikipedia.",
+"open wikipedia"
+],
+[
+"Open Wishes PZR",
+"open wikipedia"
+],
+[
+"Open YouCube Act.",
+"open youtube"
+],
+[
+"Open YouTube",
+"open youtube"
+],
+[
+"Open YouTube Eddie.",
+"open youtube"
+],
+[
+"Open YouTube at.",
+"open youtube"
+],
+[
+"Open YouTube eh?",
+"open youtube"
+],
+[
+"Open YouTube.",
+"open youtube"
+],
+[
+"Open YouTuber",
+"open youtube"
+],
+[
+"Open YouTuber.",
+"open youtube"
+],
+[
+"Open YouTubers",
+"open youtube"
+],
+[
+"Open YouTubing.",
+"open youtube"
+],
+[
+"Open Youtube",
+"open youtube"
+],
+[
+"Open Youtube.",
+"open youtube"
+],
+[
+"Open Youtuber",
+"open youtube"
+],
+[
+"Open Youtuber.",
+"open youtube"
+],
+[
+"Open email in a new copy.",
+"open gmail in a new tab"
+],
+[
+"Open female in a new tab.",
+"open gmail in a new tab"
+],
+[
+"Open future",
+"open youtube"
+],
+[
+"Open mute you then.",
+"open youtube"
+],
+[
+"Open reader.",
+"open youtube"
+],
+[
+"Open the computer.",
+"open wikipedia"
+],
+[
+"Open the first video.",
+"open the first video"
+],
+[
+"Open the place video.",
+"open the first video"
+],
+[
+"Open to YouTube.",
+"open youtube"
+],
+[
+"Open users.",
+"open youtube"
+],
+[
+"Open wiki P V",
+"open wikipedia"
+],
+[
+"Open wiki PDR",
+"open wikipedia"
+],
+[
+"Open wiki can be on.",
+"open wikipedia"
+],
+[
+"Open wiki pdr",
+"open wikipedia"
+],
+[
+"Open wiki pud off",
+"open wikipedia"
+],
+[
+"Open wikiPDR.",
+"open wikipedia"
+],
+[
+"Open with the PDR.",
+"open wikipedia"
+],
+[
+"Open with the PG-R.",
+"open wikipedia"
+],
+[
+"Open with your PDR.",
+"open wikipedia"
+],
+[
+"Open with your two blue eyes.",
+"open wikipedia"
+],
+[
+"Open you to that.",
+"open youtube"
+],
+[
+"Open your YouTube.",
+"open youtube"
+],
+[
+"OpenWiki PDA.",
+"open wikipedia"
+],
+[
+"OpenWiki PDR",
+"open wikipedia"
+],
+[
+"OpenWiki PDR.",
+"open wikipedia"
+],
+[
+"Other over account",
+"hover over account"
+],
+[
+"Ours",
+"pause"
+],
+[
+"P is down.",
+"page down"
+],
+[
+"Page Down",
+"page down"
+],
+[
+"Page Zone",
+"page down"
+],
+[
+"Page down",
+"page down"
+],
+[
+"Page down the",
+"page down"
+],
+[
+"Page down.",
+"page down"
+],
+[
+"Page it out.",
+"page down"
+],
+[
+"Page tone.",
+"page down"
+],
+[
+"Paid down.",
+"page down"
+],
+[
+"Pains down.",
+"page down"
+],
+[
+"Pause",
+"pause"
+],
+[
+"Pause it.",
+"pause"
+],
+[
+"Pause the video",
+"pause the video"
+],
+[
+"Pause the video.",
+"pause the video"
+],
+[
+"Pause.",
+"pause"
+],
+[
+"Pays down.",
+"page down"
+],
+[
+"Pick five.",
+"click 5"
+],
+[
+"Pie.",
+"pause"
+],
+[
+"Place Avenue",
+"close tab"
+],
+[
+"Place tab",
+"close tab"
+],
+[
+"Place tab.",
+"close tab"
+],
+[
+"Plain",
+"play"
+],
+[
+"Plain.",
+"play"
+],
+[
+"Plains of duty",
+"play the video"
+],
+[
+"Play",
+"play"
+],
+[
+"Play it.",
+"play"
+],
+[
+"Play that.",
+"play the video"
+],
+[
+"Play the video",
+"play the video"
+],
+[
+"Play the video.",
+"play the video"
+],
+[
+"Play.",
+"play"
+],
+[
+"Play?",
+"play"
+],
+[
+"Playing",
+"play"
+],
+[
+"Plays down.",
+"page down"
+],
+[
+"Please",
+"play"
+],
+[
+"Please don't",
+"page down"
+],
+[
+"Please down.",
+"page down"
+],
+[
+"Please get time.",
+"close this tab"
+],
+[
+"Please have.",
+"new tab"
+],
+[
+"Please, come on.",
+"delete the last word"
+],
+[
+"Please?",
+"play"
+],
+[
+"Plenty cabbage.",
+"close this tab"
+],
+[
+"Plugs.",
+"flags"
+],
+[
+"Plus you could follow me to",
+"search youtube for lofi beats"
+],
+[
+"Pod",
+"pause"
+],
+[
+"Poise.",
+"pause"
+],
+[
+"Poisy",
+"pause"
+],
+[
+"Polls.",
+"pause"
+],
+[
+"Poor",
+"pause"
+],
+[
+"Posey",
+"pause"
+],
+[
+"Prehistoric target.",
+"previous tab"
+],
+[
+"Press Editor.",
+"press enter"
+],
+[
+"Press End Bill.",
+"press enter"
+],
+[
+"Press End Game",
+"press enter"
+],
+[
+"Press End of.",
+"press enter"
+],
+[
+"Press Enda.",
+"press enter"
+],
+[
+"Press Ender.",
+"press enter"
+],
+[
+"Press Endo.",
+"press enter"
+],
+[
+"Press Enter",
+"press enter"
+],
+[
+"Press Enter.",
+"press enter"
+],
+[
+"Press Enters.",
+"press enter"
+],
+[
+"Press Info.",
+"press enter"
+],
+[
+"Press and the",
+"press enter"
+],
+[
+"Press and turn.",
+"press enter"
+],
+[
+"Press enter",
+"press enter"
+],
+[
+"Press enter.",
+"press enter"
+],
+[
+"Press in.",
+"press enter"
+],
+[
+"Press into.",
+"press enter"
+],
+[
+"Preview of Tom.",
+"previous tab"
+],
+[
+"Previous Tab",
+"previous tab"
+],
+[
+"Previous Tab.",
+"previous tab"
+],
+[
+"Previous Tablet.",
+"previous tab"
+],
+[
+"Previous Tabo",
+"previous tab"
+],
+[
+"Previous Tabu",
+"previous tab"
+],
+[
+"Previous Tom",
+"previous tab"
+],
+[
+"Previous Tub",
+"previous tab"
+],
+[
+"Previous Tub.",
+"previous tab"
+],
+[
+"Previous house",
+"previous tab"
+],
+[
+"Previous hub.",
+"previous tab"
+],
+[
+"Previous tab",
+"previous tab"
+],
+[
+"Previous tab.",
+"previous tab"
+],
+[
+"Previous table.",
+"previous tab"
+],
+[
+"Previous tablets.",
+"previous tab"
+],
+[
+"Previous taboo",
+"previous tab"
+],
+[
+"Previous tabs.",
+"previous tab"
+],
+[
+"Previous talent.",
+"previous tab"
+],
+[
+"Previous tarber.",
+"previous tab"
+],
+[
+"Previous target",
+"previous tab"
+],
+[
+"Previous targets.",
+"previous tab"
+],
+[
+"Previous tasks.",
+"previous tab"
+],
+[
+"Previous thousand.",
+"previous tab"
+],
+[
+"Previous time.",
+"previous tab"
+],
+[
+"Previous top.",
+"previous tab"
+],
+[
+"Previous tub",
+"previous tab"
+],
+[
+"Previous tub.",
+"previous tab"
+],
+[
+"Price and though.",
+"press enter"
+],
+[
+"Public over account",
+"hover over account"
+],
+[
+"Pull him down.",
+"volume down"
+],
+[
+"Pull you down.",
+"volume down"
+],
+[
+"Quick buying in.",
+"click sign in"
+],
+[
+"Quick sign in.",
+"click sign in"
+],
+[
+"Quick signing.",
+"click sign in"
+],
+[
+"Quidditch",
+"grid"
+],
+[
+"Quiet and",
+"quieter"
+],
+[
+"Quiet as",
+"quieter"
+],
+[
+"Quiet him.",
+"quieter"
+],
+[
+"Quiet is.",
+"quieter"
+],
+[
+"Quiet please.",
+"quieter"
+],
+[
+"Quiet then.",
+"quieter"
+],
+[
+"Quiet things.",
+"quieter"
+],
+[
+"Quiet too.",
+"quieter"
+],
+[
+"Quiet uh",
+"quieter"
+],
+[
+"Quiet, chuck.",
+"quieter"
+],
+[
+"Quiet, sir.",
+"quieter"
+],
+[
+"Quiet, sis.",
+"quieter"
+],
+[
+"Quiet.",
+"quieter"
+],
+[
+"Quieten.",
+"quieter"
+],
+[
+"Quieter",
+"quieter"
+],
+[
+"Quieter.",
+"quieter"
+],
+[
+"Quieters",
+"quieter"
+],
+[
+"Quieting",
+"quieter"
+],
+[
+"Quietly.",
+"quieter"
+],
+[
+"Quietus",
+"quieter"
+],
+[
+"Quietus.",
+"quieter"
+],
+[
+"Quiety",
+"quieter"
+],
+[
+"Quite a",
+"quieter"
+],
+[
+"Quite beautiful, thank you.",
+"type dear sarah thanks"
+],
+[
+"Quite here.",
+"quieter"
+],
+[
+"Quite there.",
+"quieter"
+],
+[
+"REFRESS",
+"refresh"
+],
+[
+"Raid this faction.",
+"read this section"
+],
+[
+"Raid this page.",
+"read this page"
+],
+[
+"Raid this pain.",
+"read this page"
+],
+[
+"Raid this pay.",
+"read this page"
+],
+[
+"Raid this section.",
+"read this section"
+],
+[
+"Rain this page.",
+"read this page"
+],
+[
+"Raise this power.",
+"read this page"
+],
+[
+"Range deflection.",
+"read this section"
+],
+[
+"Razor pace.",
+"read this page"
+],
+[
+"Re-open close tab.",
+"reopen closed tab"
+],
+[
+"Read the page.",
+"read this page"
+],
+[
+"Read the section.",
+"read this section"
+],
+[
+"Read the spectrum.",
+"read this section"
+],
+[
+"Read the tale.",
+"read this page"
+],
+[
+"Read the tape.",
+"read this page"
+],
+[
+"Read this page",
+"read this page"
+],
+[
+"Read this page.",
+"read this page"
+],
+[
+"Read this pay.",
+"read this page"
+],
+[
+"Read this payout.",
+"read this page"
+],
+[
+"Read this section.",
+"read this section"
+],
+[
+"Read up.",
+"grid"
+],
+[
+"Reading a tab.",
+"previous tab"
+],
+[
+"Ready?",
+"grid"
+],
+[
+"Really?",
+"grid"
+],
+[
+"Red Ender",
+"press enter"
+],
+[
+"Red out.",
+"grid"
+],
+[
+"Red.",
+"grid"
+],
+[
+"Redisfection.",
+"read this section"
+],
+[
+"Redistraction.",
+"read this section"
+],
+[
+"Reflect tab.",
+"next tab"
+],
+[
+"Refresh",
+"refresh"
+],
+[
+"Refresh.",
+"refresh"
+],
+[
+"Refreshed",
+"refresh"
+],
+[
+"Refreshed.",
+"refresh"
+],
+[
+"Refreshing",
+"refresh"
+],
+[
+"Refreshing.",
+"refresh"
+],
+[
+"Regress.",
+"refresh"
+],
+[
+"Release the last word.",
+"delete the last word"
+],
+[
+"Release the lost words.",
+"delete the last word"
+],
+[
+"Reload",
+"reload"
+],
+[
+"Reload!",
+"reload"
+],
+[
+"Reload.",
+"reload"
+],
+[
+"Remain.",
+"zoom in"
+],
+[
+"Remind.",
+"reload"
+],
+[
+"Reopen Close Tab.",
+"reopen closed tab"
+],
+[
+"Reopen Close tab.",
+"reopen closed tab"
+],
+[
+"Reopen close cab",
+"reopen closed tab"
+],
+[
+"Reopen close card.",
+"reopen closed tab"
+],
+[
+"Reopen close tab",
+"reopen closed tab"
+],
+[
+"Reopen close tab.",
+"reopen closed tab"
+],
+[
+"Reopen close tabs.",
+"reopen closed tab"
+],
+[
+"Reopen close targets.",
+"reopen closed tab"
+],
+[
+"Reopen closed cabs.",
+"reopen closed tab"
+],
+[
+"Reopen closed tab",
+"reopen closed tab"
+],
+[
+"Reopen closed tab i.",
+"reopen closed tab"
+],
+[
+"Reopen closed tab if",
+"reopen closed tab"
+],
+[
+"Reopen closed tab.",
+"reopen closed tab"
+],
+[
+"Reopen closed taber.",
+"reopen closed tab"
+],
+[
+"Reopen closed tabs.",
+"reopen closed tab"
+],
+[
+"Reopen closed tiab.",
+"reopen closed tab"
+],
+[
+"Reopen clothes tab",
+"reopen closed tab"
+],
+[
+"Reopen, close, tab.",
+"reopen closed tab"
+],
+[
+"Reopen, close, targeted.",
+"reopen closed tab"
+],
+[
+"Reopen, closed, tab.",
+"reopen closed tab"
+],
+[
+"Reopen, closed, top.",
+"reopen closed tab"
+],
+[
+"Reply to the Kumo Fay in fact.",
+"reply to this email saying thanks"
+],
+[
+"Reply to the email saying",
+"reply to this email saying thanks"
+],
+[
+"Reply to the email saying back.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying \"Thanks\".",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying \"Thanks.\"",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying fact.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying sent.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying thank.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying thanks.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying things.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this email saying, thanks.",
+"reply to this email saying thanks"
+],
+[
+"Reply to this emote in fashion.",
+"reply to this email saying thanks"
+],
+[
+"Repread.",
+"refresh"
+],
+[
+"Represent.",
+"refresh"
+],
+[
+"Represented.",
+"refresh"
+],
+[
+"Repress.",
+"refresh"
+],
+[
+"Reverse",
+"refresh"
+],
+[
+"Review of Channel.",
+"previous tab"
+],
+[
+"Reviews Tab.",
+"previous tab"
+],
+[
+"Rhythm.",
+"grid"
+],
+[
+"Rich.",
+"grid"
+],
+[
+"Ride this pace.",
+"read this page"
+],
+[
+"Ride this page.",
+"read this page"
+],
+[
+"Rider.",
+"grid"
+],
+[
+"Right",
+"pause"
+],
+[
+"Right Load",
+"reload"
+],
+[
+"Right and good.",
+"press enter"
+],
+[
+"Right low.",
+"reload"
+],
+[
+"Right this page.",
+"read this page"
+],
+[
+"Right, this page.",
+"read this page"
+],
+[
+"Right.",
+"grid"
+],
+[
+"Right.",
+"pause"
+],
+[
+"Right.",
+"play"
+],
+[
+"Ringlo.",
+"reload"
+],
+[
+"Rios enclosed tabi",
+"reopen closed tab"
+],
+[
+"Rise this page.",
+"read this page"
+],
+[
+"River.",
+"grid"
+],
+[
+"Road this page",
+"read this page"
+],
+[
+"Roll alive.",
+"scroll up"
+],
+[
+"Roll down a little.",
+"scroll down a little"
+],
+[
+"Roll down your whistle.",
+"scroll down a little"
+],
+[
+"Roll down.",
+"scroll down"
+],
+[
+"Roll it.",
+"scroll to the top"
+],
+[
+"Roll like",
+"scroll up"
+],
+[
+"Roll to the cup.",
+"scroll to the top"
+],
+[
+"Roll to the top.",
+"scroll to the top"
+],
+[
+"Roll to the...",
+"scroll to the top"
+],
+[
+"Roll up",
+"scroll up"
+],
+[
+"Roll up a little.",
+"scroll up a little"
+],
+[
+"Roll up in the doll.",
+"scroll up a little"
+],
+[
+"Roll up.",
+"scroll up"
+],
+[
+"Rolled out.",
+"scroll down"
+],
+[
+"Rollout.",
+"scroll up"
+],
+[
+"Room out.",
+"zoom out"
+],
+[
+"Run down.",
+"scroll down"
+],
+[
+"Run that.",
+"scroll up"
+],
+[
+"Run the page.",
+"read this page"
+],
+[
+"Run this page.",
+"read this page"
+],
+[
+"Scroll down a little bit.",
+"scroll down a little"
+],
+[
+"Scroll down a little.",
+"scroll down a little"
+],
+[
+"Scroll down and reverse.",
+"scroll down a little"
+],
+[
+"Scroll down each of us.",
+"scroll down a little"
+],
+[
+"Scroll down in the middle.",
+"scroll down a little"
+],
+[
+"Scroll down the list.",
+"scroll down a little"
+],
+[
+"Scroll down the river.",
+"scroll down a little"
+],
+[
+"Scroll down, you little.",
+"scroll down a little"
+],
+[
+"Scroll down.",
+"scroll down"
+],
+[
+"Scroll out.",
+"scroll up"
+],
+[
+"Scroll to the top.",
+"scroll to the top"
+],
+[
+"Scroll to the topic.",
+"scroll to the top"
+],
+[
+"Scroll up",
+"scroll up"
+],
+[
+"Scroll up a little",
+"scroll up a little"
+],
+[
+"Scroll up a little.",
+"scroll up a little"
+],
+[
+"Scroll up in the doll.",
+"scroll up a little"
+],
+[
+"Scroll up it.",
+"scroll up"
+],
+[
+"Scroll up, you little.",
+"scroll up a little"
+],
+[
+"Scroll up.",
+"scroll up"
+],
+[
+"Scrolling to the top.",
+"scroll to the top"
+],
+[
+"Sculpt the video.",
+"stop the video"
+],
+[
+"Search YouTube Hello Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube Polo Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube below CD.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube below PD.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube below Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube below fee beat.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for \"Lofi Beats.\"",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lo Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lo-Fee Beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lo-Fi Beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lofe Beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lofi B.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lofi Beats",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Lofi Beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Love TB.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Low Bee Beach.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Low Fee B.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for Low Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for No Fee Beats",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for lofty beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for lone CB.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low CB.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low PB.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low TV.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low fee beats",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low fee beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low fee beef.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low feedbeats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low-CD.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low-fee beat.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for low-fee beats.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube for no CB.",
+"search youtube for lofi beats"
+],
+[
+"Search YouTube hello Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Search for \"Pizza Nami\"",
+"search for pizza near me"
+],
+[
+"Search for \"Pizza Nami.\"",
+"search for pizza near me"
+],
+[
+"Search for Pete to Nearme.",
+"search for pizza near me"
+],
+[
+"Search for Peterson near me.",
+"search for pizza near me"
+],
+[
+"Search for Pisa Nimi.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Nami.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Near Me.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Nemi.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Nimi.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Nimmi.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Nimmie.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Nimmy.",
+"search for pizza near me"
+],
+[
+"Search for Pizza Numi.",
+"search for pizza near me"
+],
+[
+"Search for creating near me.",
+"search for pizza near me"
+],
+[
+"Search for features nearly.",
+"search for pizza near me"
+],
+[
+"Search for food from the Amaz.",
+"search for pizza near me"
+],
+[
+"Search for peace and near me.",
+"search for pizza near me"
+],
+[
+"Search for peace and use.",
+"search for pizza near me"
+],
+[
+"Search for peace enemy.",
+"search for pizza near me"
+],
+[
+"Search for peace in the Emmy.",
+"search for pizza near me"
+],
+[
+"Search for peace in the enemy.",
+"search for pizza near me"
+],
+[
+"Search for peace in the me.",
+"search for pizza near me"
+],
+[
+"Search for peak venom.",
+"search for pizza near me"
+],
+[
+"Search for people you need.",
+"search for pizza near me"
+],
+[
+"Search for pizza Nimi.",
+"search for pizza near me"
+],
+[
+"Search for pizza near me.",
+"search for pizza near me"
+],
+[
+"Search for pizza nimmies.",
+"search for pizza near me"
+],
+[
+"Search for pizza, yeah.",
+"search for pizza near me"
+],
+[
+"Search on YouTube for low feedback.",
+"search youtube for lofi beats"
+],
+[
+"See down.",
+"page down"
+],
+[
+"See him out.",
+"zoom out"
+],
+[
+"See you about.",
+"zoom out"
+],
+[
+"See you then.",
+"zoom in"
+],
+[
+"Shog",
+"show grid"
+],
+[
+"Shogrin.",
+"show grid"
+],
+[
+"Show Grid",
+"show grid"
+],
+[
+"Show Grid.",
+"show grid"
+],
+[
+"Show Griggs.",
+"show grid"
+],
+[
+"Show cred.",
+"show grid"
+],
+[
+"Show grid",
+"show grid"
+],
+[
+"Show grid.",
+"show grid"
+],
+[
+"Show grin.",
+"show grid"
+],
+[
+"Show grits.",
+"show grid"
+],
+[
+"Show number",
+"show numbers"
+],
+[
+"Show number.",
+"show numbers"
+],
+[
+"Show numbers",
+"show numbers"
+],
+[
+"Show numbers.",
+"show numbers"
+],
+[
+"Show them",
+"show numbers"
+],
+[
+"Show this tab.",
+"close this tab"
+],
+[
+"Shown numbers.",
+"show numbers"
+],
+[
+"Skip ahead 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Skip ahead thirty seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Skip ahead. Thirty seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Skipper had 30 seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Skipper had thirty seconds.",
+"skip ahead 30 seconds"
+],
+[
+"Slow down.",
+"scroll down"
+],
+[
+"So",
+"pause"
+],
+[
+"So",
+"stop"
+],
+[
+"So Grid.",
+"show grid"
+],
+[
+"So I'll be at all.",
+"scroll up a little"
+],
+[
+"So about ten seconds.",
+"go back 10 seconds"
+],
+[
+"So glitch.",
+"show grid"
+],
+[
+"So good.",
+"show grid"
+],
+[
+"So great.",
+"show grid"
+],
+[
+"So green.",
+"show grid"
+],
+[
+"So grid.",
+"show grid"
+],
+[
+"So grim.",
+"show grid"
+],
+[
+"So is red.",
+"show grid"
+],
+[
+"So leave that",
+"delete that"
+],
+[
+"So number.",
+"show numbers"
+],
+[
+"So numbers.",
+"show numbers"
+],
+[
+"So, grid.",
+"show grid"
+],
+[
+"Stalby.",
+"stop"
+],
+[
+"Stallback.",
+"stop"
+],
+[
+"Starbucks.",
+"stop"
+],
+[
+"Start YouTube for low-fee beats.",
+"search youtube for lofi beats"
+],
+[
+"Start to YouTube for loud for you, please.",
+"search youtube for lofi beats"
+],
+[
+"Stay always.",
+"stay awake"
+],
+[
+"Stay awake",
+"stay awake"
+],
+[
+"Stay awake.",
+"stay awake"
+],
+[
+"Stay away.",
+"stay awake"
+],
+[
+"Still",
+"stop"
+],
+[
+"Still on the end.",
+"zoom in"
+],
+[
+"Sting away.",
+"stay awake"
+],
+[
+"Stop",
+"stop"
+],
+[
+"Stop it",
+"stop"
+],
+[
+"Stop it.",
+"stop"
+],
+[
+"Stop me.",
+"stop"
+],
+[
+"Stop the video.",
+"stop the video"
+],
+[
+"Stop!",
+"stop"
+],
+[
+"Stop.",
+"stop"
+],
+[
+"Stormy.",
+"stop"
+],
+[
+"Straight off.",
+"turn off"
+],
+[
+"Stroll down the river.",
+"scroll down a little"
+],
+[
+"Stub.",
+"stop"
+],
+[
+"Such would be so many.",
+"search for pizza near me"
+],
+[
+"Supply to this human face.",
+"reply to this email saying thanks"
+],
+[
+"Supply to this new thing, thanks.",
+"reply to this email saying thanks"
+],
+[
+"Suppose.",
+"pause"
+],
+[
+"Surfute you have to low Phoebe.",
+"search youtube for lofi beats"
+],
+[
+"Surprise!",
+"pause"
+],
+[
+"Switch 2003.",
+"switch to tab 3"
+],
+[
+"Switch into top 3.",
+"switch to tab 3"
+],
+[
+"Switch it through Taba 3.",
+"switch to tab 3"
+],
+[
+"Switch it to Taba 3.",
+"switch to tab 3"
+],
+[
+"Switch it to top 3.",
+"switch to tab 3"
+],
+[
+"Switch to 2003.",
+"switch to tab 3"
+],
+[
+"Switch to Tab 3",
+"switch to tab 3"
+],
+[
+"Switch to Tab 3.",
+"switch to tab 3"
+],
+[
+"Switch to Tab three.",
+"switch to tab 3"
+],
+[
+"Switch to Tab.",
+"switch to tab 3"
+],
+[
+"Switch to Taba 3.",
+"switch to tab 3"
+],
+[
+"Switch to Tauba 3.",
+"switch to tab 3"
+],
+[
+"Switch to Taver 3.",
+"switch to tab 3"
+],
+[
+"Switch to Tom 3.",
+"switch to tab 3"
+],
+[
+"Switch to Top 3.",
+"switch to tab 3"
+],
+[
+"Switch to comma 3",
+"switch to tab 3"
+],
+[
+"Switch to have three.",
+"switch to tab 3"
+],
+[
+"Switch to how to reach.",
+"switch to tab 3"
+],
+[
+"Switch to tab 3.",
+"switch to tab 3"
+],
+[
+"Switch to tab agree.",
+"switch to tab 3"
+],
+[
+"Switch to tab three.",
+"switch to tab 3"
+],
+[
+"Switch to thousand three.",
+"switch to tab 3"
+],
+[
+"Switch to top 3.",
+"switch to tab 3"
+],
+[
+"Switch to top of three.",
+"switch to tab 3"
+],
+[
+"Switch to top three.",
+"switch to tab 3"
+],
+[
+"Switch two times three",
+"switch to tab 3"
+],
+[
+"Switch two tomb three.",
+"switch to tab 3"
+],
+[
+"Taipilo World",
+"type hello world"
+],
+[
+"Take Hello World.",
+"type hello world"
+],
+[
+"Take a little work.",
+"type hello world"
+],
+[
+"Take down.",
+"page down"
+],
+[
+"Take five.",
+"click 5"
+],
+[
+"Take him over.",
+"type hello world"
+],
+[
+"Tang away.",
+"stay awake"
+],
+[
+"Tearing off.",
+"turn off"
+],
+[
+"Tell but",
+"help"
+],
+[
+"Tell puff",
+"help"
+],
+[
+"Terry and all",
+"turn off"
+],
+[
+"Thank you.",
+"page down"
+],
+[
+"Thanks for being with me.",
+"search for pizza near me"
+],
+[
+"That helped.",
+"help"
+],
+[
+"That is not what I care.",
+"that's not what i said"
+],
+[
+"That is not what I said.",
+"that's not what i said"
+],
+[
+"That is not what I say.",
+"that's not what i said"
+],
+[
+"That is not what I think.",
+"that's not what i said"
+],
+[
+"That is not what I thought.",
+"that's not what i said"
+],
+[
+"That point",
+"next link"
+],
+[
+"That would be great.",
+"go to sleep"
+],
+[
+"That's it.",
+"press enter"
+],
+[
+"That's me about TV.",
+"search youtube for lofi beats"
+],
+[
+"That's where",
+"next link"
+],
+[
+"The Amen.",
+"zoom in"
+],
+[
+"The New Tab.",
+"new tab"
+],
+[
+"The blank.",
+"flags"
+],
+[
+"The closed tab.",
+"close tab"
+],
+[
+"The flag.",
+"flags"
+],
+[
+"The flags",
+"flags"
+],
+[
+"The friendship.",
+"refresh"
+],
+[
+"The go-to sleeve.",
+"go to sleep"
+],
+[
+"The healthy",
+"help"
+],
+[
+"The hell we don't",
+"help"
+],
+[
+"The help.",
+"help"
+],
+[
+"The human.",
+"zoom in"
+],
+[
+"The lead step.",
+"delete that"
+],
+[
+"The men",
+"zoom in"
+],
+[
+"The mute.",
+"mute"
+],
+[
+"The new tab.",
+"new tab"
+],
+[
+"The next link",
+"next link"
+],
+[
+"The next link.",
+"next link"
+],
+[
+"The open close tab.",
+"reopen closed tab"
+],
+[
+"The open closed tab",
+"reopen closed tab"
+],
+[
+"The page down.",
+"page down"
+],
+[
+"The play.",
+"play"
+],
+[
+"The previous tab.",
+"previous tab"
+],
+[
+"The privacy.",
+"describe the screen"
+],
+[
+"The scribes of Queens.",
+"describe the screen"
+],
+[
+"The tool is.",
+"pause"
+],
+[
+"The total is",
+"pause"
+],
+[
+"The twelve.",
+"click 12"
+],
+[
+"The type",
+"click 5"
+],
+[
+"The volume down.",
+"volume down"
+],
+[
+"The volume up.",
+"volume up"
+],
+[
+"The way",
+"delete that"
+],
+[
+"The woman",
+"zoom in"
+],
+[
+"The woman.",
+"zoom in"
+],
+[
+"There might",
+"where am i"
+],
+[
+"There's YouTube Hello PB.",
+"search youtube for lofi beats"
+],
+[
+"There's a tab.",
+"close this tab"
+],
+[
+"There's what people need.",
+"search for pizza near me"
+],
+[
+"These power to it.",
+"use parakeet"
+],
+[
+"They awake.",
+"stay awake"
+],
+[
+"They had it.",
+"close tab"
+],
+[
+"They were men.",
+"zoom in"
+],
+[
+"Thing about",
+"zoom out"
+],
+[
+"This is tough.",
+"close this tab"
+],
+[
+"This private thing.",
+"describe the screen"
+],
+[
+"Those are made.",
+"go to main content"
+],
+[
+"Those remain content.",
+"go to main content"
+],
+[
+"Three come.",
+"wake up"
+],
+[
+"Tied numbers",
+"hide numbers"
+],
+[
+"Tight be a fair man.",
+"type dear sarah thanks"
+],
+[
+"Tight dear Sarah Sank.",
+"type dear sarah thanks"
+],
+[
+"Tight gear there are things.",
+"type dear sarah thanks"
+],
+[
+"Time hello world.",
+"type hello world"
+],
+[
+"To grow up.",
+"scroll up"
+],
+[
+"To play",
+"play"
+],
+[
+"To quiet it.",
+"quieter"
+],
+[
+"To scroll up.",
+"scroll up"
+],
+[
+"To show numbers.",
+"show numbers"
+],
+[
+"Toby.",
+"stop"
+],
+[
+"Too many.",
+"zoom in"
+],
+[
+"Turn it off.",
+"turn off"
+],
+[
+"Turn off",
+"turn off"
+],
+[
+"Turn off.",
+"turn off"
+],
+[
+"Turning off.",
+"turn off"
+],
+[
+"Twitch to Taba 3.",
+"switch to tab 3"
+],
+[
+"Two low worlds.",
+"type hello world"
+],
+[
+"Type \"Dear Sarah, Thanks\"",
+"type dear sarah thanks"
+],
+[
+"Type \"Dear Sarah, thanks.\"",
+"type dear sarah thanks"
+],
+[
+"Type \"Diasara thanks.\"",
+"type dear sarah thanks"
+],
+[
+"Type \"Dieserothanks.\"",
+"type dear sarah thanks"
+],
+[
+"Type \"Hello World\"",
+"type hello world"
+],
+[
+"Type \"Hello World\".",
+"type hello world"
+],
+[
+"Type \"Hello World.\"",
+"type hello world"
+],
+[
+"Type D Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"Type D is the right thing.",
+"type dear sarah thanks"
+],
+[
+"Type D of Sarah Fank.",
+"type dear sarah thanks"
+],
+[
+"Type D of Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"Type D-Ciravanks.",
+"type dear sarah thanks"
+],
+[
+"Type D.A.",
+"type dear sarah thanks"
+],
+[
+"Type D.A. Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Type DS there are sense.",
+"type dear sarah thanks"
+],
+[
+"Type DSR thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dear Sarah Thanks as",
+"type dear sarah thanks"
+],
+[
+"Type Dear Sarah Thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dear Sarah thanks",
+"type dear sarah thanks"
+],
+[
+"Type Dear Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dear Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dia Sarah Thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dia Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dia, Sarah Thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dia, Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Diasera thanks",
+"type dear sarah thanks"
+],
+[
+"Type Diasera thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Diaz or a thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Diazera Sank.",
+"type dear sarah thanks"
+],
+[
+"Type Diazera thanks.",
+"type dear sarah thanks"
+],
+[
+"Type Dieserothanks.",
+"type dear sarah thanks"
+],
+[
+"Type Hello World",
+"type hello world"
+],
+[
+"Type Hello World.",
+"type hello world"
+],
+[
+"Type Hello Worlds.",
+"type hello world"
+],
+[
+"Type V if there are things.",
+"type dear sarah thanks"
+],
+[
+"Type V is there a thing.",
+"type dear sarah thanks"
+],
+[
+"Type a dear Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"Type de-asserting.",
+"type dear sarah thanks"
+],
+[
+"Type dear Sarah Thanks.",
+"type dear sarah thanks"
+],
+[
+"Type dear Sarah thanks.",
+"type dear sarah thanks"
+],
+[
+"Type dear Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Type dear, Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Type dear, Sarah. Thanks.",
+"type dear sarah thanks"
+],
+[
+"Type deocerathinks.",
+"type dear sarah thanks"
+],
+[
+"Type hello world.",
+"type hello world"
+],
+[
+"Type hello worlds.",
+"type hello world"
+],
+[
+"Type hello, yeah.",
+"type hello world"
+],
+[
+"Type here, Sarah, thanks.",
+"type dear sarah thanks"
+],
+[
+"Type in the astero thanks.",
+"type dear sarah thanks"
+],
+[
+"Type in the e-sera thanks.",
+"type dear sarah thanks"
+],
+[
+"Type the Nova.",
+"type hello world"
+],
+[
+"Type to do if there are thanks",
+"type dear sarah thanks"
+],
+[
+"UTAB",
+"new tab"
+],
+[
+"Um",
+"unmute"
+],
+[
+"Umute the video.",
+"mute the video"
+],
+[
+"Unmute",
+"unmute"
+],
+[
+"Unmute actually.",
+"unmute"
+],
+[
+"Unmute her.",
+"unmute"
+],
+[
+"Unmute the video.",
+"mute the video"
+],
+[
+"Unmute.",
+"unmute"
+],
+[
+"Unreal.",
+"unmute"
+],
+[
+"Unused.",
+"unmute"
+],
+[
+"Up in YouTube.",
+"open youtube"
+],
+[
+"Use Parakeet.",
+"use parakeet"
+],
+[
+"Use Parakey.",
+"use parakeet"
+],
+[
+"Use Parkeet",
+"use parakeet"
+],
+[
+"Use Parquet.",
+"use parakeet"
+],
+[
+"Use Power Keat.",
+"use parakeet"
+],
+[
+"Use Power Keep.",
+"use parakeet"
+],
+[
+"Use Power Keet.",
+"use parakeet"
+],
+[
+"Use Power Kit",
+"use parakeet"
+],
+[
+"Use Power Kit.",
+"use parakeet"
+],
+[
+"Use Power Team.",
+"use parakeet"
+],
+[
+"Use PowerPoint.",
+"use parakeet"
+],
+[
+"Use Tarkeat.",
+"use parakeet"
+],
+[
+"Use out.",
+"new tab"
+],
+[
+"Use para.",
+"use parakeet"
+],
+[
+"Use parachute.",
+"use parakeet"
+],
+[
+"Use parakeet",
+"use parakeet"
+],
+[
+"Use parakeet.",
+"use parakeet"
+],
+[
+"Use parakeets.",
+"use parakeet"
+],
+[
+"Use parity.",
+"use parakeet"
+],
+[
+"Use park eat.",
+"use parakeet"
+],
+[
+"Use park.",
+"use parakeet"
+],
+[
+"Use parking.",
+"use parakeet"
+],
+[
+"Use power key.",
+"use parakeet"
+],
+[
+"Use power keys.",
+"use parakeet"
+],
+[
+"Use power to",
+"use parakeet"
+],
+[
+"Use the power teeth.",
+"use parakeet"
+],
+[
+"Utah",
+"new tab"
+],
+[
+"Utah.",
+"new tab"
+],
+[
+"Very",
+"pause"
+],
+[
+"View the video.",
+"mute the video"
+],
+[
+"Vlag",
+"flags"
+],
+[
+"Vlog",
+"flags"
+],
+[
+"Vlogs",
+"flags"
+],
+[
+"Vlogs.",
+"flags"
+],
+[
+"Voila Matthew",
+"volume up"
+],
+[
+"Vol screen",
+"full screen"
+],
+[
+"Vol screen.",
+"full screen"
+],
+[
+"Vole screen.",
+"full screen"
+],
+[
+"Voluma",
+"volume up"
+],
+[
+"Voluma.",
+"volume up"
+],
+[
+"Volume App.",
+"volume up"
+],
+[
+"Volume Downs",
+"volume down"
+],
+[
+"Volume Mark.",
+"volume up"
+],
+[
+"Volume Uped",
+"volume up"
+],
+[
+"Volume app",
+"volume up"
+],
+[
+"Volume app.",
+"volume up"
+],
+[
+"Volume doubt.",
+"volume down"
+],
+[
+"Volume down.",
+"volume down"
+],
+[
+"Volume downed.",
+"volume down"
+],
+[
+"Volume of",
+"volume up"
+],
+[
+"Volume of it.",
+"volume up"
+],
+[
+"Volume out.",
+"volume up"
+],
+[
+"Volume that",
+"volume up"
+],
+[
+"Volume up",
+"volume up"
+],
+[
+"Volume up it.",
+"volume up"
+],
+[
+"Volume up.",
+"volume up"
+],
+[
+"Volume.",
+"volume up"
+],
+[
+"Vote, please.",
+"go to sleep"
+],
+[
+"Vyma",
+"volume up"
+],
+[
+"W",
+"stop"
+],
+[
+"Wag.",
+"flags"
+],
+[
+"Wait",
+"play"
+],
+[
+"Wait.",
+"play"
+],
+[
+"Wake up",
+"wake up"
+],
+[
+"Wake up!",
+"wake up"
+],
+[
+"Wake up.",
+"wake up"
+],
+[
+"Wake up?",
+"wake up"
+],
+[
+"Wake ups.",
+"wake up"
+],
+[
+"Wakeups",
+"wake up"
+],
+[
+"Way.",
+"play"
+],
+[
+"We all made.",
+"zoom in"
+],
+[
+"We can.",
+"refresh"
+],
+[
+"We decided.",
+"read this page"
+],
+[
+"We discuss it.",
+"read this section"
+],
+[
+"We have been closed carbon.",
+"reopen closed tab"
+],
+[
+"We love.",
+"reload"
+],
+[
+"We need the power key.",
+"use parakeet"
+],
+[
+"We open close halves.",
+"reopen closed tab"
+],
+[
+"We open closed powers.",
+"reopen closed tab"
+],
+[
+"We open closed tabs.",
+"reopen closed tab"
+],
+[
+"We refresh.",
+"refresh"
+],
+[
+"We tab.",
+"new tab"
+],
+[
+"We this section.",
+"read this section"
+],
+[
+"We won't.",
+"reload"
+],
+[
+"We would best success.",
+"read this section"
+],
+[
+"We'll be closed, have.",
+"reopen closed tab"
+],
+[
+"We'll close this topic.",
+"close this tab"
+],
+[
+"We'll not.",
+"grid"
+],
+[
+"We'll tabby.",
+"close tab"
+],
+[
+"We're following.",
+"go forward"
+],
+[
+"We're frank.",
+"refresh"
+],
+[
+"We're fresh.",
+"refresh"
+],
+[
+"We're sitting.",
+"read this page"
+],
+[
+"What can I find?",
+"what can i say"
+],
+[
+"What can I say?",
+"what can i say"
+],
+[
+"What can I think?",
+"what can i say"
+],
+[
+"What did you do to us?",
+"what did you hear"
+],
+[
+"What did you do?",
+"what did you hear"
+],
+[
+"What did you feel?",
+"what did you hear"
+],
+[
+"What did you hear?",
+"what did you hear"
+],
+[
+"What did you think?",
+"what did you hear"
+],
+[
+"What field?",
+"next field"
+],
+[
+"What is he here?",
+"what did you hear"
+],
+[
+"What is this page about?",
+"what's this page about"
+],
+[
+"What is this page?",
+"what's this page about"
+],
+[
+"What time is it?",
+"what time is it"
+],
+[
+"What's in the first video?",
+"open the first video"
+],
+[
+"What?",
+"play"
+],
+[
+"When?",
+"play"
+],
+[
+"Where Emily?",
+"where am i"
+],
+[
+"Where am I?",
+"where am i"
+],
+[
+"Where the money?",
+"where am i"
+],
+[
+"Which 2 Tab 3?",
+"switch to tab 3"
+],
+[
+"Which do you have for me?",
+"switch to tab 3"
+],
+[
+"Which is your top three?",
+"switch to tab 3"
+],
+[
+"Which recogniser are you using?",
+"which recognizer are you using"
+],
+[
+"Which recognizer are you losing?",
+"which recognizer are you using"
+],
+[
+"Which recognizer are you using?",
+"which recognizer are you using"
+],
+[
+"Which recognizers are you using?",
+"which recognizer are you using"
+],
+[
+"Which to Tab 3?",
+"switch to tab 3"
+],
+[
+"Which two tab three?",
+"switch to tab 3"
+],
+[
+"Which two tables please.",
+"switch to tab 3"
+],
+[
+"Which two top three?",
+"switch to tab 3"
+],
+[
+"Which way?",
+"refresh"
+],
+[
+"White is",
+"quieter"
+],
+[
+"Who's your bad?",
+"close this tab"
+],
+[
+"Why are you?",
+"quieter"
+],
+[
+"Why do",
+"quieter"
+],
+[
+"Why do you",
+"quieter"
+],
+[
+"Why do you think it's a",
+"quieter"
+],
+[
+"Why do you think?",
+"quieter"
+],
+[
+"Why do you?",
+"quieter"
+],
+[
+"Why it's it?",
+"quieter"
+],
+[
+"Why not?",
+"volume up"
+],
+[
+"Why you best pay?",
+"read this page"
+],
+[
+"Why?",
+"flags"
+],
+[
+"Why?",
+"pause"
+],
+[
+"Winter.",
+"wake up"
+],
+[
+"With",
+"grid"
+],
+[
+"With Tab B.",
+"switch to tab 3"
+],
+[
+"With five",
+"click 5"
+],
+[
+"With five.",
+"click 5"
+],
+[
+"With friends.",
+"refresh"
+],
+[
+"With signal.",
+"click sign in"
+],
+[
+"With the heading",
+"list the headings"
+],
+[
+"With the heading.",
+"list the headings"
+],
+[
+"With two thousand three.",
+"switch to tab 3"
+],
+[
+"With what?",
+"refresh"
+],
+[
+"Wolf Cream.",
+"full screen"
+],
+[
+"Woman",
+"zoom in"
+],
+[
+"Woom out.",
+"zoom out"
+],
+[
+"Wow.",
+"flags"
+],
+[
+"Write this page.",
+"read this page"
+],
+[
+"Wug",
+"flags"
+],
+[
+"Yeah,",
+"list the headings"
+],
+[
+"Yeah,",
+"next link"
+],
+[
+"Yeah, could I",
+"next heading"
+],
+[
+"Yeah.",
+"delete that"
+],
+[
+"Yeah.",
+"scroll to the top"
+],
+[
+"Yeah.",
+"stop"
+],
+[
+"You are a good holding.",
+"next heading"
+],
+[
+"You can close tab.",
+"reopen closed tab"
+],
+[
+"You carved.",
+"new tab"
+],
+[
+"You charity.",
+"use parakeet"
+],
+[
+"You click 12.",
+"click 12"
+],
+[
+"You could",
+"mute the video"
+],
+[
+"You find me a standing desk under$400.",
+"find me a standing desk under four hundred dollars"
+],
+[
+"You know",
+"zoom out"
+],
+[
+"You may",
+"zoom in"
+],
+[
+"You men.",
+"zoom in"
+],
+[
+"You need that.",
+"delete that"
+],
+[
+"You party.",
+"use parakeet"
+],
+[
+"You pirate.",
+"use parakeet"
+],
+[
+"You remain.",
+"zoom in"
+],
+[
+"You scroll up.",
+"scroll up"
+],
+[
+"You stop it.",
+"stop"
+],
+[
+"You tap.",
+"new tab"
+],
+[
+"You the power heel.",
+"use parakeet"
+],
+[
+"You the video",
+"mute the video"
+],
+[
+"You the video.",
+"mute the video"
+],
+[
+"You'll eat that.",
+"delete that"
+],
+[
+"You're fractional.",
+"refresh"
+],
+[
+"You're fresh.",
+"refresh"
+],
+[
+"You're not.",
+"zoom out"
+],
+[
+"Your flag.",
+"refresh"
+],
+[
+"Your friend.",
+"refresh"
+],
+[
+"Your number",
+"show numbers"
+],
+[
+"Youth parties.",
+"use parakeet"
+],
+[
+"Zlouda",
+"louder"
+],
+[
+"Zobi",
+"stop"
+],
+[
+"Zoom in",
+"zoom in"
+],
+[
+"Zoom in.",
+"zoom in"
+],
+[
+"Zoom out",
+"zoom out"
+],
+[
+"Zoom out.",
+"zoom out"
+],
+[
+"Zoomin",
+"zoom in"
+],
+[
+"add this to my card.",
+"add this to my cart"
+],
+[
+"add this to my cot.",
+"add this to my cart"
+],
+[
+"and click 5.",
+"click 5"
+],
+[
+"and close this tab.",
+"close this tab"
+],
+[
+"and go back.",
+"go back"
+],
+[
+"and go to sleep.",
+"go to sleep"
+],
+[
+"and scroll up a little.",
+"scroll up a little"
+],
+[
+"and search YouTube for low CB.",
+"search youtube for lofi beats"
+],
+[
+"and search YouTube for low fee beats.",
+"search youtube for lofi beats"
+],
+[
+"beliefs that",
+"delete that"
+],
+[
+"believe that",
+"delete that"
+],
+[
+"but remain content",
+"go to main content"
+],
+[
+"but remain content.",
+"go to main content"
+],
+[
+"by the video",
+"play the video"
+],
+[
+"clay tarbox.",
+"close tab"
+],
+[
+"click 12",
+"click 12"
+],
+[
+"click sign and",
+"click sign in"
+],
+[
+"click sign in",
+"click sign in"
+],
+[
+"close above.",
+"close tab"
+],
+[
+"close tab",
+"close tab"
+],
+[
+"close tab.",
+"close tab"
+],
+[
+"close tabby.",
+"close tab"
+],
+[
+"close tarbour.",
+"close tab"
+],
+[
+"close this tab but",
+"close this tab"
+],
+[
+"close this tab is.",
+"close this tab"
+],
+[
+"close this taber.",
+"close this tab"
+],
+[
+"close this tabernac",
+"close this tab"
+],
+[
+"close this taby.",
+"close this tab"
+],
+[
+"close this time it",
+"close this tab"
+],
+[
+"close this tub.",
+"close this tab"
+],
+[
+"close to our but",
+"close tab"
+],
+[
+"close up.",
+"close tab"
+],
+[
+"delete that",
+"delete that"
+],
+[
+"delete that.",
+"delete that"
+],
+[
+"delete the lost word.",
+"delete the last word"
+],
+[
+"describe the screen.",
+"describe the screen"
+],
+[
+"false bazillion.",
+"pause the video"
+],
+[
+"flag.",
+"flags"
+],
+[
+"flags",
+"flags"
+],
+[
+"flat",
+"flags"
+],
+[
+"fly again",
+"quieter"
+],
+[
+"for friends.",
+"refresh"
+],
+[
+"for the main contact.",
+"go to main content"
+],
+[
+"go forward.",
+"go forward"
+],
+[
+"go to Maine content.",
+"go to main content"
+],
+[
+"going to the top",
+"scroll to the top"
+],
+[
+"greatest",
+"grid"
+],
+[
+"greatest.",
+"grid"
+],
+[
+"grid",
+"grid"
+],
+[
+"help",
+"help"
+],
+[
+"help him",
+"help"
+],
+[
+"help it",
+"help"
+],
+[
+"help it.",
+"help"
+],
+[
+"help them.",
+"help"
+],
+[
+"helping.",
+"help"
+],
+[
+"hide numbers.",
+"hide numbers"
+],
+[
+"human",
+"zoom in"
+],
+[
+"in privacy.",
+"describe the screen"
+],
+[
+"is not what I",
+"that's not what i said"
+],
+[
+"is perfect.",
+"use parakeet"
+],
+[
+"is the head",
+"list the headings"
+],
+[
+"link.",
+"next link"
+],
+[
+"list the heading",
+"list the headings"
+],
+[
+"list the headings",
+"list the headings"
+],
+[
+"loud",
+"louder"
+],
+[
+"louder",
+"louder"
+],
+[
+"mjot",
+"mute"
+],
+[
+"mute",
+"mute"
+],
+[
+"mute the video",
+"mute the video"
+],
+[
+"new tab",
+"new tab"
+],
+[
+"next field",
+"next field"
+],
+[
+"next field.",
+"next field"
+],
+[
+"next tab",
+"next tab"
+],
+[
+"next table",
+"next tab"
+],
+[
+"of both screens",
+"full screen"
+],
+[
+"of over account",
+"hover over account"
+],
+[
+"of the over account.",
+"hover over account"
+],
+[
+"on mew",
+"unmute"
+],
+[
+"on mute",
+"unmute"
+],
+[
+"on mute.",
+"unmute"
+],
+[
+"or search YouTube for low-fee beats.",
+"search youtube for lofi beats"
+],
+[
+"page down",
+"page down"
+],
+[
+"page down.",
+"page down"
+],
+[
+"paid down yet.",
+"page down"
+],
+[
+"pause",
+"pause"
+],
+[
+"pause the video",
+"pause the video"
+],
+[
+"pays down.",
+"page down"
+],
+[
+"play",
+"play"
+],
+[
+"play the video",
+"play the video"
+],
+[
+"play the video.",
+"play the video"
+],
+[
+"play.",
+"play"
+],
+[
+"previous cabin.",
+"previous tab"
+],
+[
+"previous tab",
+"previous tab"
+],
+[
+"previous tab.",
+"previous tab"
+],
+[
+"previous tables.",
+"previous tab"
+],
+[
+"previous tasks.",
+"previous tab"
+],
+[
+"previous topics.",
+"previous tab"
+],
+[
+"previous tub",
+"previous tab"
+],
+[
+"previous um",
+"previous tab"
+],
+[
+"previously happened.",
+"previous tab"
+],
+[
+"quiet and",
+"quieter"
+],
+[
+"quiet there.",
+"quieter"
+],
+[
+"quieter",
+"quieter"
+],
+[
+"quieter.",
+"quieter"
+],
+[
+"read this section",
+"read this section"
+],
+[
+"refresh",
+"refresh"
+],
+[
+"refresh.",
+"refresh"
+],
+[
+"reload",
+"reload"
+],
+[
+"reply to this email saying \"Sack.\"",
+"reply to this email saying thanks"
+],
+[
+"reply to this email saying \"Sense\".",
+"reply to this email saying thanks"
+],
+[
+"reply to this email saying \"Thanks.\"",
+"reply to this email saying thanks"
+],
+[
+"reply to this email saying thanks",
+"reply to this email saying thanks"
+],
+[
+"reply to this email saying thanks.",
+"reply to this email saying thanks"
+],
+[
+"reply to this email saying, \"Thanks.\"",
+"reply to this email saying thanks"
+],
+[
+"require",
+"quieter"
+],
+[
+"roll after you.",
+"scroll up a little"
+],
+[
+"rolled to the cup.",
+"scroll to the top"
+],
+[
+"room out",
+"zoom out"
+],
+[
+"school.",
+"scroll up"
+],
+[
+"scroll at",
+"scroll up"
+],
+[
+"scroll down",
+"scroll down"
+],
+[
+"scroll down a little",
+"scroll down a little"
+],
+[
+"scroll down a river.",
+"scroll down a little"
+],
+[
+"scroll down it.",
+"scroll down"
+],
+[
+"scroll to the top",
+"scroll to the top"
+],
+[
+"scroll up",
+"scroll up"
+],
+[
+"scroll up a little",
+"scroll up a little"
+],
+[
+"scroll up a little.",
+"scroll up a little"
+],
+[
+"scroll upy littles",
+"scroll up a little"
+],
+[
+"scrolled down a little.",
+"scroll down a little"
+],
+[
+"search YouTube below Phoebe",
+"search youtube for lofi beats"
+],
+[
+"search YouTube below cv",
+"search youtube for lofi beats"
+],
+[
+"search YouTube for \"Lofebeads.\"",
+"search youtube for lofi beats"
+],
+[
+"search YouTube for low-fee beats.",
+"search youtube for lofi beats"
+],
+[
+"search YouTube for low-key.",
+"search youtube for lofi beats"
+],
+[
+"search for Pizza Nami",
+"search for pizza near me"
+],
+[
+"search for peace in any",
+"search for pizza near me"
+],
+[
+"seconds.",
+"go back 10 seconds"
+],
+[
+"show numbers.",
+"show numbers"
+],
+[
+"skip ahead 30 seconds",
+"skip ahead 30 seconds"
+],
+[
+"starts usually below C.D.",
+"search youtube for lofi beats"
+],
+[
+"switch to time three",
+"switch to tab 3"
+],
+[
+"switch to top 3",
+"switch to tab 3"
+],
+[
+"switch to top of three.",
+"switch to tab 3"
+],
+[
+"switch to top three",
+"switch to tab 3"
+],
+[
+"switch to top three.",
+"switch to tab 3"
+],
+[
+"switch to topic 3",
+"switch to tab 3"
+],
+[
+"to apply to this email saying thanks.",
+"reply to this email saying thanks"
+],
+[
+"to reach fast",
+"delete that"
+],
+[
+"to show numbers",
+"show numbers"
+],
+[
+"to the review section.",
+"go to the reviews section"
+],
+[
+"turn off",
+"turn off"
+],
+[
+"unmute",
+"unmute"
+],
+[
+"unmute unmute unmute unm",
+"unmute"
+],
+[
+"vol screen",
+"full screen"
+],
+[
+"volume down",
+"volume down"
+],
+[
+"volume down.",
+"volume down"
+],
+[
+"volume up",
+"volume up"
+],
+[
+"warm out",
+"zoom out"
+],
+[
+"which recognize their are you using",
+"which recognizer are you using"
+],
+[
+"which recognizer are you.",
+"which recognizer are you using"
+],
+[
+"which recognizes our users.",
+"which recognizer are you using"
+],
+[
+"white",
+"quieter"
+],
+[
+"winner",
+"grid"
+],
+[
+"with 12",
+"click 12"
+],
+[
+"with five.",
+"click 5"
+],
+[
+"with the header.",
+"list the headings"
+],
+[
+"with the heading.",
+"list the headings"
+],
+[
+"your number",
+"show numbers"
+],
+[
+"zoom in.",
+"zoom in"
+],
+[
+"zoom out.",
+"zoom out"
+]
+]
+}
