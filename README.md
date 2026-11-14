@@ -135,7 +135,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 ```
  mic ──► speech-to-text ──► wake/session gate ──► fast-path parser ──► action
           (Chrome on-device,    ("Hey Navi" once,     (regex, ~50 ms,       │
-           or Parakeet)          then a session)        no AI, no network)  │
+   Parakeet or Whisper)          then a session)        no AI, no network)  │
                                                             │ not matched   │
                                                             ▼               │
                                               AI agent (tool use) ──────────┤
@@ -161,7 +161,7 @@ Personal commands run instantly, with no AI call. Each step either opens a web a
 
 ## Privacy model
 
-- **Audio:** Navi uses Chrome's speech recognizer in on-device mode (Chrome 139+; download the model once on the setup page or from the side panel), or NVIDIA's open Parakeet model if you choose it (Settings → Listening → Recognizer; a one-time 0.7–2.5 GB download, and Chrome's recognizer listens while it loads). Either way, audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio.
+- **Audio:** Navi uses Chrome's speech recognizer in on-device mode (Chrome 139+; download the model once on the setup page or from the side panel), or an open model if you choose one (Settings → Listening → Recognizer, or say "use Whisper" / "use Parakeet"): OpenAI's Whisper small, the most accurate in Navi's speech benchmark and by far the best with a Bluetooth headset's mic (a one-time download of about 1 GB), or NVIDIA's Parakeet, the fastest (0.7–2.5 GB). Chrome's recognizer listens while either loads. Either way, audio never leaves your computer, including while Navi listens for its name. Navi never uses Chrome's cloud speech service, which is free but makes no promise about keeping your audio.
 - **Navi's voice** runs on your computer too: Kokoro, a neural voice, on the graphics chip when there is one (WebGPU; 326 MB once) or on the processor otherwise (92 MB once). It downloads from Hugging Face the first time Navi speaks (or from the setup page), and your computer's system voice answers until then. Pick a voice, or the system voices, in Settings. The side panel shows what's hearing and speaking, e.g. "Hears: Chrome (on-device) · Speaks: Kokoro (on-device)".
 - **Speech stays on your computer.** Speech recognition and Navi's voice both run locally. The AI runs on-device with Gemini Nano (Free), or through OpenAI or Anthropic with your own key (Pro). ElevenLabs was removed because zero data retention needs its Enterprise plan.
 - **Navi's own voice** is kept out of the mic by echo cancellation, plus a check that ignores words Navi is saying. You can still talk over Navi to cut it short.
@@ -247,6 +247,7 @@ Real usage is logged too: **Settings → Usage log** shows the running AI cost. 
 - [docs/accessibility.md](docs/accessibility.md): who Navi is for, what each group needs, and the gaps.
 - [docs/test-checklist.md](docs/test-checklist.md): what to try in real Chrome after a round of changes, and what to send back.
 - [docs/demo-script.md](docs/demo-script.md): a 3–4 minute demo, with a fallback for every step, and how to freeze the version beforehand.
+- [docs/research/asr-benchmark.md](docs/research/asr-benchmark.md): the speech benchmark (scripts in [bench/asr](bench/asr)): what each recognizer and Navi's parser get right through a good mic and a Bluetooth headset, and what came of it.
 - [docs/research/](docs/research/): the research behind Navi's choices: speech recognition, wake words and voice ID, the AI stack, and the cost of computer-use models ([interactive chart](docs/research/computer-use-cost.html)).
 
 ## License
