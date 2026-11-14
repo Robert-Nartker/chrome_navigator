@@ -71,13 +71,24 @@ const OPTIONS = (image: boolean) => ({
   expectedOutputs: [{ type: "text", languages: ["en"] }],
 });
 
+/** While Chrome isn't answering, until when to say so at once instead of waiting again for each command. */
+let silentUntil = 0;
+/** How long a non-answer is remembered (Chrome is asked again meanwhile, and an answer ends it). */
+const SILENT_MEMORY_MS = 60_000;
+
 export async function nanoStatus(): Promise<NanoStatus> {
   const lm = api();
   if (!lm) return "unsupported";
+  const asked = lm.availability(OPTIONS(true));
+  // Any answer, even a late one, means Chrome is answering again.
+  void asked.then(() => (silentUntil = 0), () => (silentUntil = 0));
+  if (Date.now() < silentUntil) return "silent";
   let timer: ReturnType<typeof setTimeout> | undefined;
   const silent = new Promise<"silent">((resolve) => (timer = setTimeout(() => resolve("silent"), STATUS_WAIT_MS)));
   try {
-    return await Promise.race([lm.availability(OPTIONS(true)), silent]);
+    const status = await Promise.race([asked, silent]);
+    if (status === "silent") silentUntil = Date.now() + SILENT_MEMORY_MS;
+    return status;
   } catch {
     return "unavailable";
   } finally {

@@ -2378,6 +2378,11 @@ test.describe("when Chrome never answers about its on-device AI", () => {
   test("Navi Free says so and keeps working instead of hanging", async ({ panel }) => {
     await run(panel, "which of these plans is the best deal");
     await expect(panel.locator("#log li.step").last()).toContainText("Chrome isn't answering about it right now");
+    // Asked again, it says so at once instead of waiting another 3 seconds for Chrome.
+    const again = Date.now();
+    await run(panel, "what's the cheapest one");
+    await expect(panel.locator("#log li.step").last()).toContainText("Chrome isn't answering about it right now");
+    expect(Date.now() - again).toBeLessThan(1500);
     // Commands that check for the on-device AI first still run.
     await run(panel, "start the tutorial");
     await expect(panel.locator("#tutorial-progress")).toHaveText("Tutorial 1 of 8 ·");
