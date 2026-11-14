@@ -56,10 +56,18 @@ A review of tonight's own code caught "open canva" opening Canvas, chatter cutti
 - **A dictionary-wide sweep for opposite commands** found three systematic flaws ("scroll" + an unclear word scrolled down, spelling-alike phrases flipped show/hide, near-misses closed tabs), now fixed. That halves the variants that run a different command.
 - **Accessibility, checked by machine:** the standard axe checker now runs in the tests over the side panel, Settings, setup, the recognizer tester, the page caption, and the flags and grid, in light and dark mode. It found and I fixed two things: the conversation couldn't be scrolled from the keyboard, and faint grey text was just under the contrast minimum. A keyboard-only test tabs through all 17 panel controls and checks each is visible and named.
 - **Whisper beats Parakeet on a good mic too** (140 vs 124 of 160 single-word commands), so Settings now calls it the most accurate.
+- **Whisper on longer commands:** it doesn't lose on them (87% vs Parakeet's 85% through a headset; tied on a good mic). With room noise it gets more right but runs a wrong command a little more often (5% vs 3%); the usage log will show whether that matters in practice.
+- **Stress test:** eleven commands, built-in and AI, said over each other. Navi ends idle, on the last one, with no errors. It found one visual bug, now fixed: a card stopped by the next command could keep showing "Step 2…" as if it were still working. That's probably part of the "it's off but still Working" you saw on your first try.
+- **A review of today's code** caught a few more issues, all fixed or noted in CHANGELOG.md:
+  - "stop" could wait up to 20 s on a frozen page;
+  - closing the tester mid-recording left Navi off;
+  - Whisper's clean-up could eat "5 * 3" in dictation.
 - **Other fixes:**
   - "stop" waits until auto-scrolling has really stopped;
   - "where am I" with nothing clickable in view says so;
-  - the demo video is re-recorded with the new panel (draft 2, 1:55).
+  - the demo video is re-recorded with the new panel (draft 2, 1:55);
+  - when the AI picks no element to click, it's told to look again (it used to show "Clicking number null");
+  - "by the video" no longer pauses (a sound-matching flaw where the "s" in "pause" was treated as optional).
 
 ## Commits tonight
 
