@@ -151,7 +151,12 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
       const waitMs = hangMs + Math.round(seconds * 1000);
       // A faint phrase is often room noise: it goes on only if there are words in it, and is otherwise dropped without a sound.
       if (faint && (!text || FILLER.test(text))) return;
-      if (text && wanted) callbacks.onFinal(text, 0, undefined, { ending: "pause", speechMs: Math.max(0, Math.round(audioMs - hangMs - prerollMs)), waitMs });
+      if (text && wanted) callbacks.onFinal(text, 0, undefined, {
+          ending: "pause",
+          speechMs: Math.max(0, Math.round(audioMs - hangMs - prerollMs)),
+          waitMs,
+          ...(faint ? { faint: true } : {}),
+        });
       // Speech, but no words in it (a short command through a headset often comes out empty).
       else if (wanted && audioMs <= UNCLEAR_MAX_MS) callbacks.onUnclear?.();
     } catch (err) {

@@ -16,6 +16,8 @@ export interface Hearing {
   speechMs?: number;
   /** From the last change of words to running it. */
   waitMs?: number;
+  /** The phrase had little clear voice (see PhraseTiming). */
+  faint?: boolean;
 }
 
 export interface CommandMetric {
@@ -46,6 +48,7 @@ export interface CommandMetric {
   ending?: Hearing["ending"];
   speechMs?: number;
   waitMs?: number;
+  faint?: boolean;
   /** The user said it wasn't what they said ("that's not what I said"). */
   misheard?: boolean;
 }
@@ -61,6 +64,7 @@ export function hearingColumns(hearing: Hearing | undefined): Partial<CommandMet
     ending: hearing.ending,
     speechMs: hearing.speechMs,
     waitMs: hearing.waitMs,
+    faint: hearing.faint || undefined,
   };
 }
 
@@ -106,7 +110,7 @@ export async function clearMetrics() {
 export function toCsv(rows: CommandMetric[]): string {
   const cols: (keyof CommandMetric)[] = [
     "t", "command", "path", "intent", "ms", "routerMs", "modelMs", "steps", "model", "costUsd", "tokensIn", "tokensOut", "error",
-    "heard", "recognizer", "alternatives", "confidence", "ending", "speechMs", "waitMs", "misheard",
+    "heard", "recognizer", "alternatives", "confidence", "ending", "speechMs", "waitMs", "misheard", "faint",
   ];
   const cell = (v: unknown) => {
     const s = v === undefined ? "" : String(v);

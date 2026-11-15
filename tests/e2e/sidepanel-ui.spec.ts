@@ -1195,6 +1195,23 @@ test.describe("Parakeet recognizer", () => {
       await expect(said).toHaveCount(2);
       expect(((await ears(panel, { action: "sounds" })) as string[]).filter((s) => s === "unknown")).toEqual([]);
     });
+
+    test("a faint phrase that isn't a command (“Okay.” for a clatter) is left alone, and kept in the usage log as faint (model stubbed)", async ({ panel }) => {
+      await start(panel, ["Okay.", "Scroll down.", "Yeah.", "Go to the top."]);
+      const said = panel.locator("#log li.user .text").filter({ hasText: /Scroll|Go to the top|Okay|Yeah/ });
+      await expect(said).toHaveText([/Scroll down\./, /Go to the top/], { timeout: 20_000 });
+      await panel.waitForTimeout(1000);
+      await expect(said).toHaveCount(2);
+      expect(((await ears(panel, { action: "sounds" })) as string[]).filter((s) => s === "unknown")).toEqual([]);
+      type Row = { heard?: string; intent?: string; faint?: boolean };
+      const rows = (await panel.evaluate(async () => ((await chrome.storage.local.get("metrics")).metrics ?? []) as Row[])).filter((r) => r.heard);
+      expect(rows.map((r) => [r.heard, r.intent, !!r.faint])).toEqual([
+        ["Okay.", "faint", true],
+        ["Scroll down.", "scroll", false],
+        ["Yeah.", "faint", true],
+        ["Go to the top.", "scroll", false],
+      ]);
+    });
   });
 
   test("while Whisper loads or can't download, the panel names Whisper, not Parakeet", async ({ panel, context }) => {

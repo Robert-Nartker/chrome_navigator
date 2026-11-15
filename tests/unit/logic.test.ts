@@ -183,12 +183,12 @@ describe("metrics", async () => {
     const { hearingColumns } = await import("../../src/lib/metrics");
     const row = {
       ...rows[0],
-      ...hearingColumns({ heard: "hey navi scroll dawn", recognizer: "chrome", alternatives: ["scroll down"], confidence: 0.913, ending: "held", speechMs: 640, waitMs: 510 }),
+      ...hearingColumns({ heard: "hey navi scroll dawn", recognizer: "chrome", alternatives: ["scroll down"], confidence: 0.913, ending: "held", speechMs: 640, waitMs: 510, faint: true }),
       misheard: true,
     };
     const [head, , line] = toCsv([rows[1], row]).split("\n");
-    expect(head).toContain("heard,recognizer,alternatives,confidence,ending,speechMs,waitMs,misheard");
-    expect(line.endsWith("hey navi scroll dawn,chrome,scroll down,0.91,held,640,510,true")).toBe(true);
+    expect(head).toContain("heard,recognizer,alternatives,confidence,ending,speechMs,waitMs,misheard,faint");
+    expect(line.endsWith("hey navi scroll dawn,chrome,scroll down,0.91,held,640,510,true,true")).toBe(true);
     expect(hearingColumns(undefined)).toEqual({});
   });
 });

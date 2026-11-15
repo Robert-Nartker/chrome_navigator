@@ -329,6 +329,13 @@ export class Controller {
       await this.tutorialAction(control);
       return;
     }
+    // A faint phrase (little clear voice: a short word through a headset, or room noise) counts only as a
+    // command Navi knows or an answer to its question. Anything else ("Okay." for a clatter) is likely noise:
+    // left alone, without a sound or an interruption, and kept only in the usage log.
+    if (options.hearing?.faint && !this.mightAct(command, intent)) {
+      void recordMetric({ t: new Date().toISOString(), command, path: "ignored", intent: "faint", ms: 0, ...hearingColumns(options.hearing) }).catch(() => undefined);
+      return;
+    }
     // The user has moved on: what Navi was still saying (an instant command's reply isn't waited for) is
     // dropped, so this command's answer comes at once instead of after it. Only for a command: speech the
     // router may still find was someone else talking, or an "okay", leaves Navi talking.
@@ -454,6 +461,17 @@ export class Controller {
       const next = this.takingOver ? undefined : this.queue.shift();
       if (next) void this.run(next.text, next.options);
     }
+  }
+
+  /** Whether Navi does something with this without asking the AI: a command, or an answer to its question. */
+  private mightAct(command: string, intent: Intent | null): boolean {
+    return (
+      !!intent ||
+      !!matchCommand(command, this.commands) ||
+      isListCommandsRequest(command) ||
+      (this.gridOn && !!parseGridCommand(command)) ||
+      (!!this.pendingClose && Date.now() < this.pendingClose.until)
+    );
   }
 
   /**

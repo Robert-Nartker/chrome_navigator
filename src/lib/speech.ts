@@ -21,6 +21,8 @@ export interface PhraseTiming {
   ending: "chrome" | "held" | "ended" | "pause";
   speechMs: number;
   waitMs: number;
+  /** Parakeet or Whisper: the phrase had little clear voice (a short word through a headset, or room noise). */
+  faint?: boolean;
 }
 
 export interface SpeechEngine {

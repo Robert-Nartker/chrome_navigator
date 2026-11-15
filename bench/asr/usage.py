@@ -30,9 +30,19 @@ for rec, rs in sorted(by.items()):
     print(f"| {rec} | {n} | {pct(count('fast'))} | {pct(count('ai'))} | {pct(count('ignored'))} | {pct(count('error'))} | "
           f"{pct(sum(1 for r in rs if r.get('misheard') == 'true'))} | {ms(r['waitMs'] for r in rs)} | {ms(r['ms'] for r in rs if r['path'] == 'fast')} |")
 
+# Faint phrases (little clear voice): how many acted, and what the ones left alone were. Many left-alone
+# words that were really commands would mean the faint bar is too strict; many that acted wrongly, too loose.
+faint = [r for r in spoken if r.get("faint") == "true"]
+if faint:
+    left = [r for r in faint if r.get("intent") == "faint"]
+    print(f"\nFaint phrases: {len(faint)}, {len(faint) - len(left)} acted on, {len(left)} left alone: "
+          + ", ".join(f"“{w}” ×{n}" for w, n in collections.Counter(r["heard"] for r in left).most_common(12)))
+
 # What went wrong, newest first: marked misheard, failed, ignored, or heard differently than run.
 print("\nWorth a look (newest first):")
 for r in reversed(spoken):
+    if r.get("intent") == "faint":
+        continue  # summarized above
     why = "marked misheard" if r.get("misheard") == "true" else "failed" if r["path"] == "error" else "ignored" if r["path"] == "ignored" else ""
     if not why and r["heard"].strip().lower().rstrip(".!?") != r["command"].strip().lower().rstrip(".!?"):
         why = "matched by sound"
