@@ -872,6 +872,9 @@ export function parseCommand(text: string): Intent | null {
   }
   const target = prepare(text)?.target;
   if (!target) return null;
+  // "Scroll to", "scroll to the": the start of "scroll to the top" or "the bottom", cut off. The rest is
+  // probably coming; guessed by sound, "to" is as close to "down" as to "top".
+  if (/^scroll (?:to|too|two)(?: the)?$/.test(target)) return null;
   const loose = looseIntent(target);
   if (loose) return loose;
   const salvaged = salvage(target);

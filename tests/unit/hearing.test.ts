@@ -382,4 +382,10 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
     expect(parseCommand("back back")).toBeNull();
     expect(parseCommand("help help")).toBeNull();
   });
+  it("a cut-off “scroll to” isn't guessed as “scroll down”: it's the start of “scroll to the top”, so Navi waits for the rest", () => {
+    for (const said of ["Scroll to.", "scroll to the", "scroll two"]) expect(parseCommand(said), said).toBeNull();
+    expect(isCommandStart("scroll to")).toBe(true);
+    expect(parseCommand("scroll to the top")).toEqual({ type: "scroll", direction: "top", amount: "page" });
+    expect(parseCommand("scroll down")).toEqual({ type: "scroll", direction: "down", amount: "page" });
+  });
 });
