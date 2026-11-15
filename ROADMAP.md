@@ -47,9 +47,8 @@ Chrome's on-device recognizer is the weak link: short commands misheard as one w
 - ~~A cloud streaming recognizer~~ (Soniox, Deepgram Flux, ElevenLabs Scribe): ruled out by the owner on 2026-11-11. Recognition stays on the computer, and Navi pays for no service except OpenAI for the AI.
 - **Better on-device listening (Free, and Pro's fallback):** Chrome's phrase boosting for the commands (tested before and removed for false "hearing" in noise; retry with weaker boosts and only while awake), and a command grammar over the recognizer's guesses.
 
-*Measured, 2026-11-14 ([speech benchmark](docs/research/asr-benchmark.md)):* the Bluetooth headset mic is the main cause of mishearing, and short single words suffer most. Shipped: Whisper as a third recognizer (best on headset audio), the "didn't catch that" sound, parser recovery of benchmark mishearings, silence around Parakeet's phrases. Next, by measured gain:
+*Measured, 2026-11-14 ([speech benchmark](docs/research/asr-benchmark.md)):* the Bluetooth headset mic is the main cause of mishearing, and short single words suffer most. Shipped: Whisper as a third recognizer (best on headset audio), the "didn't catch that" sound, parser recovery of benchmark mishearings, silence around Parakeet's phrases, short headset words kept as faint phrases (2026-11-15). Next, by measured gain:
 
-- **Navi's speech detector drops short words through a headset** (11% of real people's single words never become a phrase; most are cut as "too short"). A looser tuning catches more (58% → 65% right end to end) but splits more phrases in noise; pick the balance from the benchmark and the usage log.
 - **Hotword biasing and Whisper prompts** raise correct single words but also wrong commands (4% → 11% for the prompt): worth retrying only with a guard, such as accepting a biased result only when it matches the unbiased one by sound.
 - **Real recordings from the owner's AirPods** (a few dozen commands) would replace the simulated headset audio.
 
