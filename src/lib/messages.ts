@@ -107,7 +107,7 @@ export type EarsRequest =
   /** Navi Free's on-device model runs in the background page too. Answer: { text } or { error }. */
   | { type: "nano:prompt"; req: NanoRequest }
   | { type: "nano:status" }
-  | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; muted?: boolean; phrases?: string[] };
+  | { type: "ears:test"; action: EarsTestAction; text?: string; confidence?: number; muted?: boolean; phrases?: string[]; loudness?: boolean };
 
 export type EarsTestAction = "final" | "state" | "session" | "speakerBusy" | "lastSaid" | "mute" | "fakeParakeet" | "sounds";
 

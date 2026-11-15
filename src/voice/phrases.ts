@@ -16,13 +16,19 @@ export interface PhraseTuning {
   hangMs: number;
   /** Audio kept from before speech is detected, so a phrase keeps its first sound. */
   prerollMs: number;
-  /** Shorter blips (a cough, a click) aren't phrases. */
+  /** Less clear voice than this makes a phrase "faint" (see `faintMs`). */
   minVoicedMs: number;
+  /**
+   * Shorter blips (a cough, a click) aren't phrases. Between this and `minVoicedMs` a phrase is handed on
+   * as faint: through a Bluetooth headset a short word ("stop", "up") often has only this much clear voice,
+   * and room noise sometimes too, so a recognizer that hears nothing in a faint phrase stays quiet.
+   */
+  faintMs: number;
   /** A phrase is cut here even if the talking goes on. */
   maxSeconds: number;
 }
 
-export const DEFAULT_TUNING: PhraseTuning = { start: 0.5, still: 0.35, hangMs: 350, prerollMs: 300, minVoicedMs: 150, maxSeconds: 20 };
+export const DEFAULT_TUNING: PhraseTuning = { start: 0.5, still: 0.35, hangMs: 350, prerollMs: 300, minVoicedMs: 150, faintMs: 64, maxSeconds: 20 };
 
 export class PhraseDetector {
   private readonly tuning: PhraseTuning;
@@ -39,11 +45,11 @@ export class PhraseDetector {
 
   /**
    * `probability`: the speech detector (0-1 per FRAME samples). `onPhrase`: a finished phrase's audio
-   * at 16 kHz. `onStart`: a phrase began.
+   * at 16 kHz, and whether it was faint. `onStart`: a phrase began.
    */
   constructor(
     private readonly probability: (frame: Float32Array) => Promise<number> | number,
-    private readonly onPhrase: (pcm: Float32Array) => void,
+    private readonly onPhrase: (pcm: Float32Array, faint: boolean) => void,
     tuning: Partial<PhraseTuning> = {},
     private readonly onStart?: () => void,
   ) {
@@ -120,15 +126,16 @@ export class PhraseDetector {
       this.quietMs += FRAME_MS;
     }
     if (this.quietMs >= t.hangMs || this.phraseSamples > RATE * t.maxSeconds) {
-      if (this.voicedMs >= t.minVoicedMs) this.end();
+      if (this.voicedMs >= t.faintMs) this.end();
       else this.drop();
     }
   }
 
   private end() {
     const pcm = this.audio();
+    const faint = this.voicedMs < this.tuning.minVoicedMs;
     this.drop();
-    this.onPhrase(pcm);
+    this.onPhrase(pcm, faint);
   }
 
   private drop() {

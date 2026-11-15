@@ -844,8 +844,24 @@ function salvage(target: string): Intent | null {
   return null;
 }
 
+/**
+ * "Stop. Stop.", "up up", "close tab, close tab": a command said again because it didn't seem to take;
+ * once is what's meant. Only a command with nothing of the user's own in it, and not a lone "back back"
+ * or "help help", which people say to each other.
+ */
+function saidAgain(text: string): Intent | null {
+  const target = prepare(text)?.target;
+  const again = target && /^(.+?)(?:[.,!?]?\s+\1)+[.,!?]?$/.exec(target);
+  if (!again) return null;
+  const once = parseExact(again[1]);
+  if (!once || FREE_TEXT.some((key) => key in once)) return null;
+  return again[1].includes(" ") || !["back", "forward", "help", "reload"].includes(once.type) ? once : null;
+}
+
 /** A command, said in so many words or nearly: looser phrasings, near-misses in spelling, then in sound. */
 export function parseCommand(text: string): Intent | null {
+  const once = saidAgain(text);
+  if (once) return once;
   const exact = parseExact(text);
   if (exact) return exact;
   // Whisper joins some commands with a hyphen ("Wake-up.", "Zoom-in."). Only when nothing matched as

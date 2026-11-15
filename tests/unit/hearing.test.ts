@@ -370,4 +370,16 @@ describe("more of what the speech benchmark heard (bench/asr)", () => {
       expect(intent === null || !["help", "media"].includes(intent.type), said).toBe(true);
     }
   });
+  it("a command said again because it didn't seem to take runs once (Whisper: “Stop. Stop.”, “Up. Up.”)", () => {
+    expect(parseCommand("Stop. Stop.")).toEqual({ type: "stop" });
+    expect(parseCommand("Up. Up.")).toEqual({ type: "scroll", direction: "up", amount: "page" });
+    expect(parseCommand("pause, pause")).toEqual({ type: "media", action: "pause" });
+    expect(parseCommand("close tab, close tab")).toEqual({ type: "closeTab" });
+    expect(parseCommand("go back go back")).toEqual({ type: "back" });
+    // The user's own words stay as said; a lone "back back" or "help help" is people talking.
+    expect(parseCommand("type hello hello")).toMatchObject({ type: "type", text: "hello hello" });
+    expect(parseCommand("search cats cats")).toMatchObject({ type: "search", query: "cats cats" });
+    expect(parseCommand("back back")).toBeNull();
+    expect(parseCommand("help help")).toBeNull();
+  });
 });

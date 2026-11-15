@@ -1168,6 +1168,35 @@ test.describe("Parakeet recognizer", () => {
     await expect(panel.locator("#log li.navi .text").last()).toHaveText("Whisper is hearing you.");
   });
 
+  test.describe("faint phrases", () => {
+    // Two short words with little clear voice (40 ms of tone: 2 to 4 detector frames once Chrome has processed
+    // the mic, about what a short word has through a Bluetooth headset),
+    // each followed by a clear one. Split by loudness, so where the phrases fall is exact.
+    test.use({ micFile: path.resolve("tests/fixtures/speech/faint-word-tones.wav") });
+    const start = async (panel: Page, phrases: string[]) => {
+      await ears(panel, { action: "fakeParakeet", phrases, loudness: true });
+      await panel.evaluate(() => chrome.storage.local.set({ settings: { stayAwake: true } }));
+      await run(panel, "use parakeet");
+      await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+      await expect(panel.locator("#engine-label")).toContainText("Hears: Parakeet (on-device, test model)");
+    };
+
+    test("a short word with little clear voice still reaches the recognizer and runs (model stubbed)", async ({ panel }) => {
+      await start(panel, ["Scroll down.", "Scroll down a little.", "Go to the top.", "Scroll up."]);
+      const said = panel.locator("#log li.user .text").filter({ hasText: /Scroll|Go to the top|Uh/ });
+      await expect(said).toHaveText([/Scroll down\./, /Scroll down a little/, /Go to the top/, /Scroll up/], { timeout: 20_000 });
+    });
+
+    test("a faint phrase with no words in it, or only “uh”, is dropped without the “didn't catch that” sound (model stubbed)", async ({ panel }) => {
+      await start(panel, ["", "Scroll down.", "Uh.", "Go to the top."]);
+      const said = panel.locator("#log li.user .text").filter({ hasText: /Scroll|Go to the top|Uh/ });
+      await expect(said).toHaveText([/Scroll down\./, /Go to the top/], { timeout: 20_000 });
+      await panel.waitForTimeout(1000);
+      await expect(said).toHaveCount(2);
+      expect(((await ears(panel, { action: "sounds" })) as string[]).filter((s) => s === "unknown")).toEqual([]);
+    });
+  });
+
   test("while Whisper loads or can't download, the panel names Whisper, not Parakeet", async ({ panel, context }) => {
     await context.route("https://huggingface.co/**", (route) => route.abort());
     await panel.evaluate(() => chrome.storage.local.set({ settings: { recognizer: "whisper" } }));

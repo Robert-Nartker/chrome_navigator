@@ -89,10 +89,13 @@ function test(msg: Extract<EarsRequest, { type: "ears:test" }>): unknown {
     case "sounds":
       return [...playedSounds];
     case "fakeParakeet": {
-      // Parakeet "hears" these phrases in order, one per phrase the speech detector finds in the mic.
+      // Parakeet "hears" these phrases in order, one per phrase the speech detector finds in the mic
+      // (or, with `loudness`, one per loud stretch, for audio whose timing must be exact).
       const said = [...(msg.phrases ?? [])];
       let next = 0;
-      ears.fakeParakeet = async (_pcm, final) => (final ? (said[next++] ?? "") : (said[next] ?? "").split(" ")[0]);
+      ears.fakeParakeet = Object.assign(async (_pcm: Float32Array, final: boolean) => (final ? (said[next++] ?? "") : (said[next] ?? "").split(" ")[0]), {
+        byLoudness: !!msg.loudness,
+      });
       return true;
     }
   }

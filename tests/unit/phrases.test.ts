@@ -11,13 +11,14 @@ function frames(pattern: string): Float32Array {
 
 async function run(pattern: string, chunk = 1600) {
   const phrases: Float32Array[] = [];
+  const faint: boolean[] = [];
   let starts = 0;
-  const d = new PhraseDetector((f) => f[0], (pcm) => phrases.push(pcm), {}, () => starts++);
+  const d = new PhraseDetector((f) => f[0], (pcm, isFaint) => (phrases.push(pcm), faint.push(isFaint)), {}, () => starts++);
   const audio = frames(pattern);
   // In the mic's chunk size, which doesn't line up with frames.
   for (let at = 0; at < audio.length; at += chunk) d.push(audio.slice(at, at + chunk));
   await d.flush();
-  return { phrases, starts };
+  return { phrases, faint, starts };
 }
 
 describe("PhraseDetector", () => {
@@ -40,10 +41,17 @@ describe("PhraseDetector", () => {
     expect(phrases).toHaveLength(2);
   });
 
-  it("ignores blips like a cough or a click", async () => {
-    const { phrases, starts } = await run(`${quiet}###${quiet}${quiet}`);
+  it("ignores blips like a click", async () => {
+    const { phrases, starts } = await run(`${quiet}#${quiet}${quiet}`);
     expect(starts).toBe(1);
     expect(phrases).toHaveLength(0);
+  });
+
+  it("hands on a phrase with little clear voice as faint (a short word through a headset)", async () => {
+    const short = await run(`${quiet}###${quiet}${quiet}`);
+    expect(short.phrases).toHaveLength(1);
+    expect(short.faint).toEqual([true]);
+    expect((await run(`${quiet}${"#".repeat(5)}${quiet}${quiet}`)).faint).toEqual([false]);
   });
 
   it("ends a phrase when the mic stops mid-sentence, and cuts very long ones", async () => {

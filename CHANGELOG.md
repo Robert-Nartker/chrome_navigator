@@ -2,6 +2,11 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-15
+
+- **Short words through a headset aren't thrown away before a recognizer hears them.** Navi's speech detector dropped a phrase with less than 150 ms of clear voice as a cough or a click, and through a Bluetooth headset that was 11% of real people's single words ("stop", "up"). Those phrases now go to Parakeet or Whisper as "faint" (64 ms is enough). Room noise also makes faint phrases, so one that comes back empty, or only "uh", is dropped without the "didn't catch that" sound. On the benchmark's stray fragments in a noisy room, neither recognizer made a command of any of them (all 112 runs), and noise alone still starts no phrase.
+- **A command said twice runs once:** "Stop. Stop.", "Up. Up." (as Whisper writes a repeat), "pause, pause", "close tab, close tab". The user's own words stay as said ("type hello hello"), and a lone "back back" or "help help" stays talk.
+
 ## 2026-11-14
 
 - **Measured, not guessed: a speech benchmark.** 80 things people say to Navi, in 28 voices, through what a Bluetooth headset does to a mic (phone-call quality, room noise, a soft voice), plus 520 recordings of real people saying single words, each run through the recognizers and then Navi's own parser. Results: [docs/research/asr-benchmark.md](docs/research/asr-benchmark.md); scripts: [bench/asr](bench/asr). The headset mic is the main cause of mishearing, and single words suffer most.

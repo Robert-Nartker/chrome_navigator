@@ -36,6 +36,8 @@ export function padded(pcm: Float32Array, seconds: number): Float32Array {
 
 /** Phrases shorter than this are clicks and breaths. */
 const MIN_PHRASE_S = 0.3;
+/** What a recognizer makes of a noise: no word of the user's (a faint phrase that's only this is dropped). */
+const FILLER = /^(?:[\s,.!?-]*\b(?:uh+|um+|hm+|mm+|ah+|oh+|er+|huh)\b)+[\s,.!?-]*$/i;
 /** A command is short; nonstop "speech" (a video, the TV) is cut into pieces this long. */
 const MAX_PHRASE_S = 12;
 /** Processor threads for the model: the rest of the computer keeps the others. */
@@ -61,7 +63,8 @@ export interface ParakeetEngine extends SpeechEngine {
 }
 
 /** Stands in for the model in tests: the text for the phrase so far (live) or the finished phrase. */
-export type FakeModel = (pcm: Float32Array, final: boolean) => Promise<string>;
+/** Tests: stands in for the model; `byLoudness` splits phrases by loudness instead of the speech detector, for exact timing. */
+export type FakeModel = ((pcm: Float32Array, final: boolean) => Promise<string>) & { byLoudness?: boolean };
 
 export interface ParakeetOptions {
   /** Which model (Parakeet unless said). */
@@ -122,13 +125,13 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
   const byLoudness = loudness();
   const phrases = new PhraseDetector(
     (frame) => (vad ? vad.run(frame) : byLoudness(frame)),
-    (pcm) => void finish(pcm),
+    (pcm, faint) => void finish(pcm, faint),
     { maxSeconds: MAX_PHRASE_S },
   );
   let slow = 0;
   let saidSlow = false;
 
-  async function finish(pcm: Float32Array) {
+  async function finish(pcm: Float32Array, faint = false) {
     callbacks.onInterim("");
     if (pcm.length < RATE * MIN_PHRASE_S) return;
     try {
@@ -146,6 +149,8 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
       const audioMs = (pcm.length / RATE) * 1000;
       const { hangMs, prerollMs } = DEFAULT_TUNING;
       const waitMs = hangMs + Math.round(seconds * 1000);
+      // A faint phrase is often room noise: it goes on only if there are words in it, and is otherwise dropped without a sound.
+      if (faint && (!text || FILLER.test(text))) return;
       if (text && wanted) callbacks.onFinal(text, 0, undefined, { ending: "pause", speechMs: Math.max(0, Math.round(audioMs - hangMs - prerollMs)), waitMs });
       // Speech, but no words in it (a short command through a headset often comes out empty).
       else if (wanted && audioMs <= UNCLEAR_MAX_MS) callbacks.onUnclear?.();
@@ -179,7 +184,7 @@ export async function createParakeetEngine(lang: string, callbacks: SpeechCallba
     load(onProgress) {
       loading ??= (async () => {
         if (fake) {
-          vad = await loadVad(vendor);
+          if (!fake.byLoudness) vad = await loadVad(vendor);
           detail = "test model";
           return;
         }
