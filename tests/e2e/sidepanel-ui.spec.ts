@@ -580,22 +580,19 @@ test("labels: the on/off switch, Stay awake, and the Flags and Grid toggles", as
 test.describe("live caption", () => {
   test.use({ fakeMic: true, fakeSpeech: true });
 
-  test("a headset mic (AirPods) gets a short note under the caption that goes away, not a long error", async ({ panel }) => {
-    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
-    await expect.poll(() => recognizerLive(panel)).toBe(true);
-    // The system's name for AirPods' mic, and a built-in one beside it.
-    await (await earsPage(panel)).evaluate(() => {
+  test("a headset mic (AirPods) gets a short note under the caption that goes away, not a long error", async ({ panel, context }) => {
+    // The system's name for AirPods' mic, and a built-in one beside it, in Navi's listening page (from the start:
+    // turning Navi off can close that page, and a new one opens).
+    await context.addInitScript(() => {
+      if (!location.href.endsWith("/offscreen.html")) return;
       const devices = [
         { kind: "audioinput", deviceId: "default", label: "Default - Headset (AirPods Pro Hands-Free AG Audio)", groupId: "a" },
         { kind: "audioinput", deviceId: "mic2", label: "Microphone Array (Realtek(R) Audio)", groupId: "b" },
       ];
       navigator.mediaDevices.enumerateDevices = async () => devices as unknown as MediaDeviceInfo[];
     });
-    // Listening starts again (as after turning Navi off and on): the mic is checked.
-    const power = panel.getByRole("switch", { name: "Navi" });
-    await power.click();
-    await expect(power).toHaveAttribute("aria-checked", "false");
-    await power.click();
+    // Listening starts: the mic is checked.
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
     const hint = panel.locator("#caption-hint");
     await expect(hint).toHaveText("Headset mics like AirPods can make Navi mishear you. “Microphone Array (Realtek(R) Audio)” works better (Settings → Listening).");
     await expect(panel.locator("#log li.error")).toHaveCount(0);
@@ -997,6 +994,27 @@ test.describe("live caption", () => {
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "off");
     await expect(input).toBeFocused();
     await expect(panel.locator("#log li.user .text")).toHaveCount(0);
+  });
+
+  test("with the panel closed, Navi says what it did (“Scrolling down”), not just a chime; with it open, a chime", async ({ panel, site }) => {
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { stayAwake: true } }));
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    const ears = await earsPage(panel);
+    const hear = (words: string) => ears.evaluate((t) => (window as unknown as { __hear(t: string, f: boolean): void }).__hear(t, true), words);
+    const lastSaid = () =>
+      ears.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "ears", ears: { type: "ears:test", action: "lastSaid" } }));
+    const sounds = () => ears.evaluate(() => chrome.runtime.sendMessage({ type: "navi:test", action: "ears", ears: { type: "ears:test", action: "sounds" } })) as Promise<string[]>;
+    await expect.poll(() => recognizerLive(panel)).toBe(true);
+    // Open: the panel shows it, and a short chime says it's done.
+    await hear("scroll down");
+    await expect.poll(async () => (await sounds()).filter((s) => s === "done").length).toBe(1);
+    expect(await lastSaid()).not.toBe("Scrolling down");
+    // Closed: nothing on screen shows it, so Navi says it.
+    await panel.close();
+    await site.bringToFront();
+    await hear("scroll up");
+    await expect.poll(lastSaid).toBe("Scrolling up");
+    expect((await sounds()).filter((s) => s === "done")).toHaveLength(1);
   });
 
   test("with the panel closed, Navi still listens, and a pill on the page shows what it hears and says", async ({

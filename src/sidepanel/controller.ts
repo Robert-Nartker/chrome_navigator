@@ -193,6 +193,8 @@ export class Controller {
       hearing?(): string;
       /** Try loading the chosen model recognizer again now, not after its wait. */
       retryRecognizer?(): void;
+      /** Whether Navi's panel is open in Navi's window (nothing else shows a confirmation when it isn't). */
+      panelShown?(): Promise<boolean>;
       /** Something said to the AI and its reply (for memory). */
       onExchange?(said: string, reply: string): void;
       /** Wake Navi (turning it on if it's off), so the next thing said is a command. */
@@ -432,7 +434,7 @@ export class Controller {
         this.ui.log("error", message);
         // Errors are a sound by default; the full message is in the log (and spoken in spoken mode).
         this.speaker.sound("error");
-        if (this.getSettings().feedback === "spoken") reply = message;
+        if (await this.speakFeedback()) reply = message;
       }
     } finally {
       if (metric) {
@@ -450,7 +452,7 @@ export class Controller {
       // Speak after timing, so latency numbers measure the action, not the voice. A typed chat reply
       // is read on screen, so it's only spoken in spoken-feedback mode; so is a spoken command's reply
       // that only confirms what worked (a chime says it's done). Answers, questions and problems are read.
-      const spokenMode = this.getSettings().feedback === "spoken";
+      const spokenMode = await this.speakFeedback();
       if (reply && (options.source !== "typed" || spokenMode)) {
         // Not awaited: the next command doesn't wait for Navi to finish talking.
         if (confirmation && !spokenMode) this.speaker.sound("done");
@@ -710,7 +712,11 @@ export class Controller {
         // Part of the answer, told right away while the model keeps working.
         onSay: (text) => {
           this.navi(text);
-          if (!typed || this.getSettings().feedback === "spoken") void this.say(text);
+          if (!typed) void this.say(text);
+          else
+            void this.speakFeedback().then((spoken) => {
+              if (spoken) void this.say(text);
+            });
         },
       },
       { typed, helperReport, recent: this.recent, earlier: this.earlier(), helpers: this.helperApi(this.threads.running ?? this.threads.current) },
@@ -987,8 +993,9 @@ export class Controller {
     };
     this.hooks.onMetric?.(row);
     void recordMetric(row).catch(() => undefined);
-    if (options.source === "typed" && this.getSettings().feedback !== "spoken") return;
-    if (speak || this.getSettings().feedback === "spoken") void this.say(text).catch(() => undefined);
+    const spoken = await this.speakFeedback();
+    if (options.source === "typed" && !spoken) return;
+    if (speak || spoken) void this.say(text).catch(() => undefined);
     else this.speaker.sound("done");
   }
 
@@ -1109,8 +1116,17 @@ export class Controller {
   private async confirm(text: string) {
     this.navi(text);
     // In the speech queue, so it never talks over what Navi is saying (e.g. the tutorial).
-    if (this.getSettings().feedback === "spoken") void this.say(text).catch(() => undefined);
+    if (await this.speakFeedback()) void this.say(text).catch(() => undefined);
     else this.speaker.sound("done");
+  }
+
+  /**
+   * Whether to say what happened, not just chime: chosen in Settings (spoken feedback), or when Navi's panel
+   * isn't open, so nothing on screen shows it (using Navi with the panel closed).
+   */
+  private async speakFeedback(): Promise<boolean> {
+    if (this.getSettings().feedback === "spoken") return true;
+    return !((await this.hooks.panelShown?.().catch(() => true)) ?? true);
   }
 
   private async announcePage(tab: chrome.tabs.Tab, verb: string) {

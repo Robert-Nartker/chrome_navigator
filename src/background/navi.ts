@@ -4,7 +4,7 @@
 
 import { routeUtterance } from "../lib/router";
 import { naviWindowId, setFocusedWindowForTests, setPinnedWindow, sleep } from "../lib/browser";
-import { closePanel, openPanel } from "./panels";
+import { closePanel, openPanel, panelOpen } from "./panels";
 import { curateMemory, loadInbox, loadMemory, noteExchange } from "../lib/memory";
 import { recordMetric } from "../lib/metrics";
 import { formatCost } from "../lib/models";
@@ -346,6 +346,10 @@ const controller = new Controller(
       addMetric(metric);
     },
     hearing: () => ears.engineLabel,
+    panelShown: async () => {
+      const win = await naviWindowId();
+      return win !== undefined && panelOpen(win);
+    },
     retryRecognizer() {
       void sendEars({ type: "ears:retry-model" });
     },
