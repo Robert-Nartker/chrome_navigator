@@ -1,15 +1,15 @@
 # Demo video
 
-Makes a demo of Navi of under 2 minutes, recorded in a real Chromium window: tabs, address bar and Navi in Chrome's own side panel, dark mode, on real sites (Wikipedia, Hacker News). Three Kokoro voices: a narrator (`bm_george`), the user saying each command (`am_michael`), and Navi answering in its own default voice (`af_heart`). The narrator and the user are labelled on screen; Navi's words show in its panel and its caption on the page.
+Makes a short demo of Navi (about 80 seconds), recorded in a real Chromium window: tabs, address bar and Navi in Chrome's own side panel, dark mode, on real sites (Wikipedia, Hacker News). No narrator: short text cards say what each part shows. Two voices, labelled on screen: the user saying each command (OpenAI's `gpt-4o-mini-tts`, voice "ash") and Navi in its own default voice (Kokoro `af_heart`). Navi runs as in everyday use with its panel open: actions get its short chime, and only answers are spoken. The AI's thinking time is sped up 6x (with a badge), and the title, recording and end card are joined with crossfades.
 
 What's real and what's stood in for:
 
 - **Real:** Navi as it ships, in a real browser window on live sites: listening (the words show in Navi's live caption as they're said, and the phrase ends as with a mic), parsing, the router, flags, clicking, page structure, reading, the panel, and the AI (it runs through OpenAI for real, so its answers change from run to run).
-- **Stood in for:** the speech recognizer (each command goes in as words through Navi's on-device recognizer interface, and the user's voice is added from Kokoro), Navi's voice (the recording has no sound; its replies are said afterwards in Kokoro, at the moment each appeared, and cut when the next command starts, as talking over Navi does), and Wikipedia's fundraising banner (hidden).
+- **Stood in for:** the speech recognizer (each command goes in as words through Navi's on-device recognizer interface, and the user's voice is added afterwards), Navi's voice and chimes (the recording has no sound; what Navi said and played is noted as it happens, then laid in, Navi's speech in Kokoro and cut when the next command starts, as talking over Navi does), and Wikipedia's fundraising banner (hidden). "Click <n>" uses the number Navi's flag shows on the link, read off the page during the recording.
 
 ## Making it
 
-Needs `ffmpeg`, `Xvfb` (`xvfb-run`), Python with `sherpa-onnx soundfile numpy`, Kokoro v1.0 for sherpa-onnx (`kokoro-multi-lang-v1_0` from the sherpa-onnx `tts-models` release), network access to the sites, and an OpenAI key (this sandbox's proxy adds it; elsewhere put a real key in `record.ts`'s settings).
+Needs `ffmpeg`, `Xvfb` (`xvfb-run`), Python with `sherpa-onnx soundfile numpy`, Kokoro v1.0 for sherpa-onnx (`kokoro-multi-lang-v1_0` from the sherpa-onnx `tts-models` release), network access to the sites, and an OpenAI key for the AI and the user's voice (`OPENAI_API_KEY`; this sandbox's proxy adds it; for the recording, put a real key in `record.ts`'s settings).
 
 ```bash
 OUT=/path/to/out; KOKORO=/path/to/kokoro-multi-lang-v1_0

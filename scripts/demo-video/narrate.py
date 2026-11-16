@@ -1,15 +1,18 @@
-"""Speech for the demo video, with Kokoro (via sherpa-onnx): the narrator, the user saying each command,
-and Navi's replies, in three different voices.
+"""Speech for the demo video: the user saying each command (OpenAI's gpt-4o-mini-tts, a natural voice),
+and Navi's replies in Navi's own voice (Kokoro af_heart, its default, via sherpa-onnx).
 
 Usage:
   python3 scripts/demo-video/narrate.py lines <script.json> <kokoro dir> <out dir>
-      the narrator's lines and the user's commands (before recording, so it knows how long each takes)
+      the user's commands (before recording, so it knows how long each takes)
+  python3 scripts/demo-video/narrate.py say <script.json> <kokoro dir> <out dir> <key> <text>
+      one more user line, made during the recording ("click 76": the number is only known then)
   python3 scripts/demo-video/narrate.py replies <script.json> <kokoro dir> <out dir> <events.json>
-      what Navi said during the recording, in Navi's own voice (af_heart, its default)
-Writes <out dir>/<key>.wav and <out dir>/durations.json. Fails on any word Kokoro's dictionary lacks
-(it would silently skip it) unless the respelling table covers it.
+      what Navi said during the recording
+Writes <out dir>/<key>.wav and durations json. Navi's lines fail on a word Kokoro's dictionary lacks (it
+would silently skip it) unless a respelling or the stem rules cover it. The user's voice needs an OpenAI key
+(OPENAI_API_KEY, or a proxy that adds it); its clips are cached by text.
 """
-import json, os, re, sys
+import hashlib, io, json, os, re, ssl, sys, urllib.request
 import numpy as np
 import soundfile as sf
 import sherpa_onnx
@@ -27,7 +30,7 @@ SAY = {
 }
 lexicon = set()
 phones = {}
-for f in ("lexicon-us-en.txt", "lexicon-gb-en.txt"):
+for f in ("lexicon-us-en.txt", "lexicon-gb-en.txt") if mode != "say" else ():
     for line in open(f"{kokoro}/{f}", encoding="utf8"):
         word, _, ph = line.rstrip("\n").partition(" ")
         lexicon.add(word.lower())
@@ -100,27 +103,60 @@ def spoken(text):
             missing.append(w)
     return said, missing
 
-voices = script["voices"]
+def trimmed(x, sr, pad=0.06):
+    """Without the silence around the words."""
+    loud = np.flatnonzero(np.abs(x) > 0.012)
+    if not len(loud):
+        return x
+    a, b = max(0, loud[0] - int(pad * sr)), min(len(x), loud[-1] + int(pad * sr))
+    return x[a:b]
+
+def user_voice(text):
+    """The user's line in OpenAI's voice (24 kHz), cached by text."""
+    v = script["userVoice"]
+    cache = os.path.join(os.path.dirname(os.path.abspath(out)), "tts-cache")
+    os.makedirs(cache, exist_ok=True)
+    key = hashlib.sha1(json.dumps([v, text]).encode()).hexdigest()[:16]
+    path = f"{cache}/{key}.pcm"
+    if not os.path.exists(path):
+        body = json.dumps({"model": v["model"], "voice": v["voice"], "input": text, "instructions": v["instructions"], "response_format": "pcm"}).encode()
+        req = urllib.request.Request("https://api.openai.com/v1/audio/speech", data=body, headers={
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY', 'sk-proxy')}", "Content-Type": "application/json"})
+        ca = "/root/.ccr/ca-bundle.crt"
+        ctx = ssl.create_default_context(cafile=ca if os.path.exists(ca) else None)
+        with urllib.request.urlopen(req, context=ctx, timeout=90) as r:
+            open(path, "wb").write(r.read())
+    x = np.frombuffer(open(path, "rb").read(), dtype="<i2").astype(np.float32) / 32768
+    return trimmed(x, 24000), 24000
 
 lines = {}
 if mode == "lines":
-    lines["title"] = ("narrator", script["title"]["narrator"])
-    lines["end"] = ("narrator", script["end"]["narrator"])
-    for si, scene in enumerate(script["scenes"]):
-        for ti, step in enumerate(scene["steps"]):
-            if "narrator" in step:
-                lines[f"s{si}-{ti}-narrator"] = ("narrator", step["narrator"])
-            if "say" in step:
-                lines[f"s{si}-{ti}-say"] = ("user", step["say"])
+    for i, step in enumerate(script["steps"]):
+        # A line whose words are only known while recording ("click 76") is made then.
+        if "say" in step and "clickLink" not in step:
+            lines[f"s{i}"] = ("user", step["say"])
+elif mode == "say":
+    key, text = sys.argv[5], sys.argv[6]
+    x, sr = user_voice(text)
+    sf.write(f"{out}/{key}.wav", x, sr)
+    print(f"{len(x) / sr:.3f}")
+    sys.exit(0)
 else:
     events = json.load(open(sys.argv[5]))["events"]
     for i, e in enumerate(e for e in events if e["kind"] == "navi"):
-        lines[f"navi-{i}"] = ("navi", e["text"])
+        # A long reading is cut short by the next command in the video: only its start is said.
+        text = e["text"]
+        if len(text) > 400:
+            text = text[:400].rsplit(". ", 1)[0] + "."
+        lines[f"navi-{i}"] = ("navi", text)
 
 extra = {}
 problems = []
 prepared = {}
 for key, (who, text) in lines.items():
+    if who == "user":
+        prepared[key] = (who, text)
+        continue
     said, missing = spoken(text)
     if missing:
         problems.append(f"{key}: {missing} in {text!r}")
@@ -142,11 +178,13 @@ cfg = sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(
 tts = sherpa_onnx.OfflineTts(cfg)
 durations = {}
 for key, (who, said) in prepared.items():
-    # A touch slower for the narrator; Navi at its own default pace.
-    speed = {"narrator": 0.95, "user": 1.0, "navi": 1.05}[who]
-    audio = tts.generate(said, sid=voices[who], speed=speed)
-    x = np.asarray(audio.samples, dtype=np.float32)
-    sf.write(f"{out}/{key}.wav", x, audio.sample_rate)
-    durations[key] = len(x) / audio.sample_rate
+    if who == "user":
+        x, sr = user_voice(said)
+    else:
+        # Navi at its own default pace.
+        audio = tts.generate(said, sid=script["naviVoice"], speed=1.05)
+        x, sr = trimmed(np.asarray(audio.samples, dtype=np.float32), audio.sample_rate), audio.sample_rate
+    sf.write(f"{out}/{key}.wav", x, sr)
+    durations[key] = len(x) / sr
 json.dump(durations, open(f"{out}/durations{'' if mode == 'lines' else '-replies'}.json", "w"), indent=1)
 print(f"{len(durations)} clips, {sum(durations.values()):.1f} s of speech")

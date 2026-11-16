@@ -1,85 +1,35 @@
 {
-  "voices": {
-    "narrator": 26,
-    "user": 16,
-    "navi": 3
+  "naviVoice": 3,
+  "userVoice": {
+    "model": "gpt-4o-mini-tts",
+    "voice": "ash",
+    "instructions": "A relaxed young man talking to his computer at his desk: natural, casual and clear, at an easy pace. Not an announcer, not excited."
   },
-  "voiceNames": {
-    "narrator": "bm_george",
-    "user": "am_michael",
-    "navi": "af_heart"
-  },
-  "title": {
-    "heading": "Navi",
-    "sub": "Use Chrome with just your voice",
-    "narrator": "This is Navi: a Chrome extension you use with just your voice."
-  },
-  "scenes": [
-    {
-      "steps": [
-        {
-          "narrator": "It lives in Chrome's side panel. Just talk."
-        },
-        {
-          "say": "search wikipedia for red pandas"
-        },
-        {
-          "say": "scroll down"
-        },
-        {
-          "narrator": "If you can't see the screen, Navi moves through a page by its structure, and reads it to you."
-        },
-        {
-          "say": "list the headings"
-        },
-        {
-          "say": "go to the behaviour and ecology section"
-        },
-        {
-          "say": "read this section",
-          "cutAfter": 5
-        },
-        {
-          "say": "stop"
-        },
-        {
-          "narrator": "Everything you can click has a number, or you can just say its name."
-        },
-        {
-          "say": "show numbers"
-        },
-        {
-          "say": "click nocturnal"
-        },
-        {
-          "say": "go back"
-        }
-      ]
-    },
-    {
-      "steps": [
-        {
-          "narrator": "Anything else goes to an AI that reads the page and clicks for you."
-        },
-        {
-          "say": "open hacker news"
-        },
-        {
-          "say": "open the comments on the top story"
-        },
-        {
-          "say": "what are people saying about it?"
-        }
-      ]
-    }
+  "title": { "heading": "Navi", "sub": "Chrome, by voice" },
+  "steps": [
+    { "card": "Just talk. Simple commands run instantly, on your computer." },
+    { "say": "search wikipedia for red pandas" },
+    { "say": "scroll down" },
+    { "card": "Made for people who can't see the screen" },
+    { "say": "list the headings", "cutAfter": 4.5 },
+    { "say": "go to the behaviour and ecology section" },
+    { "say": "read this section", "cutAfter": 5 },
+    { "say": "stop" },
+    { "card": "Everything you can click gets a number" },
+    { "say": "show numbers" },
+    { "say": "click {n}", "clickLink": "nocturnal" },
+    { "say": "go back" },
+    { "card": "Anything else goes to the AI" },
+    { "say": "open hacker news" },
+    { "say": "open the comments on the top story" },
+    { "say": "what are people saying?" }
   ],
   "end": {
     "heading": "Navi",
     "lines": [
-      "Speech recognition runs on your computer",
+      "Speech recognition on your computer",
       "Built for people who can't use a mouse or see the screen",
       "github.com/Robert-Nartker/chrome_navigator"
-    ],
-    "narrator": "Navi. The web, by voice."
+    ]
   }
 }

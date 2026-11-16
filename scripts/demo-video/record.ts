@@ -8,7 +8,7 @@
 // Run (after `npm run build` and narrate.py lines), on a virtual display:
 //   DEMO_OUT=/path xvfb-run -a -s "-screen 0 1920x1080x24" npx tsx scripts/demo-video/record.ts
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -20,9 +20,9 @@ const DIST = path.resolve("dist");
 const W = 1920;
 const H = 1080;
 
-type Step = { narrator?: string; say?: string; cutAfter?: number };
-type Script = { scenes: { steps: Step[] }[] };
-type Event = { kind: string; t: number; key?: string; text?: string };
+type Step = { card?: string; say?: string; cutAfter?: number; clickLink?: string };
+type Script = { steps: Step[] };
+type Event = { kind: string; t: number; key?: string; text?: string; duration?: number };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -149,7 +149,7 @@ async function main() {
   const setup = context.pages().find((p) => p.url().includes("setup.html")) ?? (await extensionPage(context, id, "setup.html"));
   await setup.evaluate(() =>
     chrome.storage.local.set({
-      settings: { openaiKey: "sk-proxy", model: "gpt-6.1-sol", aiMode: "pro", feedback: "spoken", stayAwake: true, speechOutput: "chrome", memory: false },
+      settings: { openaiKey: "sk-proxy", model: "gpt-6.1-sol", aiMode: "pro", feedback: "minimal", stayAwake: true, speechOutput: "chrome", memory: false },
     }),
   );
   // The page Chrome opens with, then Navi's side panel: opened by a real click, which Chrome requires.
@@ -230,9 +230,6 @@ async function main() {
       const n = await noteReplies();
       const working = await panel.eval<boolean>(`document.getElementById("voice")?.dataset.state === "working"`).catch(() => false);
       if (n > before && !working) {
-        // Room to say it (about 14 characters a second), up to a few seconds: a long answer is cut short by
-        // the next command, as talking over Navi does.
-        await sleep(Math.min(5000, Math.max(700, ((replies.at(-1)?.text.length ?? 0) / 14) * 1000)));
         await noteReplies();
         return;
       }
@@ -240,40 +237,84 @@ async function main() {
     }
   }
 
-  for (const [si, scene] of script.scenes.entries()) {
-    for (const [ti, step] of scene.steps.entries()) {
-      if (step.narrator) {
-        const key = `s${si}-${ti}-narrator`;
-        events.push({ kind: "narrator", key, t: at() });
-        await sleep(durations[key] * 1000 + 350);
+  // What Navi says aloud and the sounds it plays, as its listening page reports them (with the panel open,
+  // actions get a short chime and only answers are spoken, as in everyday use).
+  const askEars = (action: string) =>
+    panel.eval<unknown>(`chrome.runtime.sendMessage({ type: "navi:test", action: "ears", ears: { type: "ears:test", action: ${JSON.stringify(action)} } })`);
+  let lastSaid = String((await askEars("lastSaid")) ?? "");
+  let sounds = ((await askEars("sounds")) as string[]) ?? [];
+  async function noteVoice() {
+    const said = String((await askEars("lastSaid").catch(() => lastSaid)) ?? "");
+    if (said && said !== lastSaid) events.push({ kind: "navi", text: said.replace(/\[\s*\d+\s*\]/g, "").replace(/\s+/g, " ").trim(), t: at() });
+    lastSaid = said;
+    const now = ((await askEars("sounds").catch(() => sounds)) as string[]) ?? sounds;
+    // The list keeps the last 30: what's new is what follows the longest overlap with the last look.
+    let overlap = Math.min(sounds.length, now.length);
+    while (overlap > 0 && JSON.stringify(sounds.slice(-overlap)) !== JSON.stringify(now.slice(0, overlap))) overlap--;
+    for (const name of now.slice(overlap)) events.push({ kind: "sound", text: name, t: at() });
+    sounds = now;
+  }
+  const watch = async (ms: number) => {
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      await noteReplies();
+      await noteVoice();
+      await sleep(120);
+    }
+  };
+
+  for (const [i, step] of script.steps.entries()) {
+    if (step.card) {
+      events.push({ kind: "card", text: step.card, t: at() });
+      await watch(2600);
+    }
+    if (step.say) {
+      const key = `s${i}`;
+      let text = step.say;
+      if (step.clickLink) {
+        // The number Navi's flag shows on that link, as the user would read it off the screen.
+        const n = await site.evaluate((name) => {
+          const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.trim().toLowerCase() === name && a.getBoundingClientRect().top > 0 && a.getBoundingClientRect().bottom < innerHeight);
+          const host = document.querySelector("navi-overlay");
+          if (!link || !host?.shadowRoot) return null;
+          const r = link.getBoundingClientRect();
+          const badges = [...host.shadowRoot.querySelectorAll<HTMLElement>(".badge")];
+          const near = badges.find((b) => Math.abs(parseFloat(b.style.left) - Math.max(r.left, 2)) < 3 && Math.abs(parseFloat(b.style.top) - Math.max(r.top, 2)) < 3);
+          return near?.textContent ?? null;
+        }, step.clickLink);
+        if (!n) throw new Error(`No flag on the "${step.clickLink}" link`);
+        text = step.say.replace("{n}", n);
+        const made = spawnSync("python3", ["scripts/demo-video/narrate.py", "say", "scripts/demo-video/script.json", "-", path.join(OUT, "speech"), key, text], { encoding: "utf8" });
+        if (made.status !== 0) throw new Error(made.stderr);
+        durations[key] = Number(made.stdout.trim().split("\n").at(-1));
       }
-      if (step.say) {
-        const key = `s${si}-${ti}-say`;
-        const before = await noteReplies();
-        events.push({ kind: "say", key, text: step.say, t: at() });
-        await say(step.say, durations[key]);
-        if (step.cutAfter) {
-          const until = Date.now() + step.cutAfter * 1000;
-          while (Date.now() < until) {
-            await noteReplies();
-            await sleep(150);
-          }
-        }
-        // "Stop" just stops: nothing to wait for.
-        else if (step.say === "stop") await sleep(900);
-        else await settle(before);
-        await sleep(400);
+      const before = await noteReplies();
+      events.push({ kind: "say", key, text, t: at(), duration: durations[key] } as Event);
+      await say(text, durations[key]);
+      if (step.cutAfter) await watch(step.cutAfter * 1000);
+      // "Stop" just stops: nothing to wait for.
+      else if (step.say === "stop") await watch(900);
+      else {
+        const said = events.length;
+        await settle(before);
+        await watch(500);
+        // Navi said something: room to say it (about 14 characters a second), up to a few seconds; a long
+        // answer is cut short by the next command, as talking over Navi does.
+        const spoken = events.slice(said).find((e) => e.kind === "navi");
+        if (spoken) await watch(Math.min(5500, ((spoken.text ?? "").length / 14) * 1000));
       }
+      await watch(400);
     }
   }
   await sleep(1500);
   events.push({ kind: "end", t: at() });
 
-  // What Navi said, and when (for its voice).
+  // When each reply showed (for cutting the AI's thinking time), apart from what was said aloud.
   await noteReplies();
+  await noteVoice();
   ears.close();
   panel.close();
-  for (const r of replies) events.push({ kind: "navi", text: r.text, t: r.t });
+  for (const r of replies) events.push({ kind: "reply", text: r.text, t: r.t });
   events.sort((a, b) => a.t - b.t);
 
   ffmpeg.stdin.write("q");
