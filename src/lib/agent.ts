@@ -21,7 +21,7 @@ import {
 import { KEYS, type Key, type PageSnapshot, type ScrollAmount, type ScrollDirection } from "./protocol";
 import { deleteCommand, describeCommand, loadCommands, saveCommand } from "./custom-commands";
 import { NO_USAGE, type Usage, addUsage, claudeReasoning, claudeUsage, costOf, effortFor, modelInfo } from "./models";
-import { type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
+import { type FunctionCallItem, type ResponseItem, createResponse, functionCalls, outputText, usageOf } from "./openai";
 import { type Autonomy, isBlocked, keyFor, type Settings } from "./settings";
 import { loadMemory, memoryBlock } from "./memory";
 
@@ -73,7 +73,7 @@ Personal commands: the user can create their own voice shortcuts. When they ask 
 
 const HELPERS = `
 
-Helpers: for side tasks that take several steps and don't need the user (one per item on a to-do list, research across several sites, filling in a form somewhere else), call start_helper. Each helper is an AI agent with its own browser window, so the user's window stays theirs, and several can run at once. Helpers can't send, post, buy or delete: they prepare things and report back, and you or the user finish them. Give each one a complete task with every detail it needs (it doesn't see this conversation) and a start URL. Don't wait for them: after starting them, tell the user in a few words and end your turn. When helpers finish you get a "Helper report" message (from them, not the user); answer it as Navi, telling the user what they found or did in a sentence or two, or act on it if that's what the user asked for. If other helpers you started for the same request are still running and the results only make sense together, reply with just [quiet] and tell the user once they've all reported. You can call check_helpers any time to see how they're doing, message_helper to add to a running helper's task or change it (the user says "also check Best Buy"), and stop_helper to stop one that's off track, taking too long, or no longer needed. Don't use helpers for quick things you can do yourself in a step or two, unless the user asks for one: when the user asks for a helper (or a "sub agent", "subagent" or "background agent"), start one.`;
+Helpers: for side tasks that take several steps and don't need the user (one per item on a to-do list, research across several sites, filling in a form somewhere else), call start_helper. Each helper is an AI agent with its own browser window, so the user's window stays theirs, and several can run at once. Helpers can't send, post, buy or delete: they prepare things and report back, and you or the user finish them. Give each one a complete task with every detail it needs (it doesn't see this conversation) and a start URL. Don't wait for them: after starting them, tell the user in a few words and end your turn. When helpers finish you get a "Helper report" message (from them, not the user); answer it as Navi, telling the user what they found or did in a sentence or two, or act on it if that's what the user asked for. If other helpers you started for the same request are still running and the results only make sense together, reply with just [quiet] and tell the user once they've all reported. You can call check_helpers any time to see how they're doing, message_helper to add to a running helper's task or change it (the user says "also check Best Buy"), and stop_helper to stop one that's off track, taking too long, or no longer needed. Anything about the page the user is on (summarize this video, read or explain this article, find something on this page) you do yourself, in their tab: a helper would open a second copy, and a video would play twice. Don't use helpers for quick things you can do yourself in a step or two, unless the user asks for one: when the user asks for a helper (or a "sub agent", "subagent" or "background agent"), start one.`;
 
 /** Navi's instructions, with the asking rules for the user's autonomy setting. */
 export function systemPrompt(autonomy: Autonomy): string {
@@ -375,6 +375,8 @@ interface Turn {
 /** A provider's conversation with the model; NaviAgent runs the tools and observes the page. */
 interface Brain {
   readonly length: number;
+  /** Counts requests begun, so a stopped command can tell whether a newer one is using the conversation. */
+  readonly turns: number;
   reset(): void;
   begin(text: string): void;
   next(settings: Settings, hooks: AgentHooks): Promise<Turn>;
@@ -434,8 +436,12 @@ async function formatTabs(inWindow?: number): Promise<string> {
     .join("\n");
 }
 
+/** What a step the user cut off says to the model. */
+const NOT_RUN = "Not run: the user interrupted with a new request.";
+
 class AnthropicBrain implements Brain {
   private history: MessageParam[] = [];
+  turns = 0;
 
   constructor(private readonly profile: Profile) {}
   /** Opus fast mode for this command; decided on its first call, dropped if unavailable. */
@@ -450,8 +456,16 @@ class AnthropicBrain implements Brain {
   }
 
   begin(text: string) {
-    this.history.push({ role: "user", content: text });
+    // A command cut off between asking for steps and getting their results leaves them unanswered,
+    // which the API refuses: they're answered as not run, ahead of the new request.
+    const last = this.history.at(-1);
+    const pending = last?.role === "assistant" && Array.isArray(last.content) ? last.content.filter((b): b is ToolUse => b.type === "tool_use") : [];
+    if (pending.length) {
+      const notRun: ToolResult[] = pending.map((u) => ({ type: "tool_result", tool_use_id: u.id, content: NOT_RUN, is_error: true }));
+      this.history.push({ role: "user", content: [...notRun, { type: "text", text }] });
+    } else this.history.push({ role: "user", content: text });
     this.fast = null;
+    this.turns++;
   }
 
   async next(settings: Settings, hooks: AgentHooks): Promise<Turn> {
@@ -528,6 +542,7 @@ class AnthropicBrain implements Brain {
 }
 
 class OpenAIBrain implements Brain {
+  turns = 0;
   private items: ResponseItem[] = [];
 
   constructor(private readonly profile: Profile) {}
@@ -541,7 +556,15 @@ class OpenAIBrain implements Brain {
   }
 
   begin(text: string) {
+    // A command cut off between asking for steps and getting their results leaves them unanswered,
+    // which the API refuses ("No tool output found for function call"): they're answered as not run.
+    const answered = new Set(this.items.map((i) => (i.type === "function_call_output" ? (i as { call_id: string }).call_id : "")));
+    for (const i of [...this.items]) {
+      const id = i.type === "function_call" ? (i as FunctionCallItem).call_id : "";
+      if (id && !answered.has(id)) this.items.push({ type: "function_call_output", call_id: id, output: NOT_RUN });
+    }
     this.items.push({ role: "user", content: text });
+    this.turns++;
   }
 
   async next(settings: Settings, hooks: AgentHooks): Promise<Turn> {
@@ -675,6 +698,7 @@ export class NaviAgent {
       }
     }
     brain.begin(await this.firstMessage(command, context, brain.length === 0));
+    const turn = brain.turns;
 
     const result = (text: string, steps: number): AgentResult => {
       // [quiet]: nothing to tell the user (after a helper report).
@@ -710,6 +734,8 @@ export class NaviAgent {
         }
         if (turn.calls.length === 0) return result(turn.text || "[done] Done.", step);
         const outcomes = await this.executeAll(turn.calls, hooks);
+        // Stopped meanwhile: the next command may already be using this conversation.
+        if (hooks.signal.aborted) throw new DOMException("Aborted", "AbortError");
         const note = hooks.onActions?.(
           turn.calls.map((c) => ({ name: c.name, input: c.input })),
           this.pageKey(),
@@ -720,8 +746,11 @@ export class NaviAgent {
       brain.reset();
       return result("That's taking too many steps, so I stopped.", settings.maxAgentSteps);
     } catch (err) {
-      // A half-finished turn (tool calls without results) can't be continued.
-      brain.reset();
+      // A half-finished turn (tool calls without results) can't be continued, so the conversation starts
+      // over. Unless a newer command has begun in it meanwhile (this one was cut off and kept going in the
+      // background): that one's conversation is left alone, and steps never finished here are answered
+      // as not run when it began.
+      if (brain.turns === turn) brain.reset();
       throw err;
     } finally {
       this.lastActivity = Date.now();

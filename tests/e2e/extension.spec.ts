@@ -50,6 +50,8 @@ function installFakeNano(mode: boolean | "silent") {
       const heard = /Heard: "(.*)"/.exec(text)?.[1] ?? "";
       if (heard.includes("smidge")) return { route: "command", command: "scroll down" };
       if (heard.includes("tiktok")) return { route: "ignore", command: "" };
+      // A router that guesses the user's personal command for unclear speech (as one did in real use).
+      if (/muted|the news/i.test(heard)) return { route: "command", command: "open news" };
       return { route: "agent", command: "" };
     }
     const said = /(?:Typed|Said): "(.*)"/.exec(text)?.[1] ?? "";
@@ -586,6 +588,21 @@ test.describe("Navi Free", () => {
     await expect.poll(() => site.evaluate(() => scrollY)).toBeGreaterThan(0);
     await run(panel, "tiktok tiktok");
     await expect(panel.locator("#log li.step").filter({ hasText: "Ignored “tiktok tiktok”" })).toHaveCount(1);
+
+    // A personal command guessed for words that don't sound like it doesn't run; said loosely, it does.
+    const about = new URL("about.html", site.url()).href;
+    await panel.evaluate(
+      (url) => chrome.storage.sync.set({ "cmd:news": { id: "news", phrases: ["open news"], steps: [{ type: "open", url, newTab: false }], description: "", updatedAt: "" } }),
+      about,
+    );
+    await panel.waitForTimeout(200);
+    const before = site.url();
+    await run(panel, "Open muted.");
+    await expect(panel.locator("#log li.step").filter({ hasText: "doesn't sound enough like your “open news”" })).toHaveCount(1);
+    expect(site.url()).toBe(before);
+    await run(panel, "For the news");
+    await expect(site).toHaveURL(/about\.html/);
+    await site.goto(before);
 
     // A question about the page, answered on this computer from the page's text.
     await type(panel, "what is this page about?");
@@ -1632,6 +1649,67 @@ test.describe("helpers", () => {
     const log = await panel.evaluate(async () => (await chrome.storage.local.get("metrics")).metrics as { command: string; path: string; model: string }[]);
     expect(log.find((m) => m.command.startsWith("(helper)"))).toMatchObject({ path: "background", model: "gpt-6.1-sol" });
     await expect(panel.locator("#helpers")).toBeHidden();
+  });
+
+  test("“stop” stops helpers too, and a helper's window is muted", async ({ panel, context, baseUrl }) => {
+    let helperSteps = 0;
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      if (isHelper(body)) {
+        helperSteps++;
+        return route.fulfill(openaiReply([call("wait", { seconds: 1 }, `w${helperSteps}`)]));
+      }
+      if (body.input.at(-1)?.type === "function_call_output") return route.fulfill(openaiReply([message("A helper is on it.")]));
+      return route.fulfill(openaiReply([call("start_helper", { task: "Read the test page slowly.", url: `${baseUrl}/index.html?slow`, keep_open: false })]));
+    });
+    await usePro(panel);
+    await type(panel, "get a helper to read the test page slowly");
+    await expect.poll(() => helperSteps).toBeGreaterThan(1);
+    const helperTab = await panel.evaluate(async () => (await chrome.tabs.query({})).find((t) => t.url?.endsWith("?slow")));
+    expect(helperTab?.mutedInfo?.muted).toBe(true);
+    await type(panel, "stop");
+    await expect(panel.locator("#log li.info").filter({ hasText: "Stopped the helper too." })).toHaveCount(1);
+    const steps = helperSteps;
+    await panel.waitForTimeout(2500);
+    expect(helperSteps).toBeLessThanOrEqual(steps + 1);
+  });
+
+  test("a command cut off while the AI's step runs leaves the conversation usable (no “No tool output found”)", async ({ panel, context }) => {
+    const bodies: Body[] = [];
+    await context.route("https://api.openai.com/v1/responses", async (route) => {
+      const body = route.request().postDataJSON() as Body;
+      bodies.push(body);
+      // As OpenAI does: every step asked for needs exactly one result.
+      const items = body.input as { type?: string; call_id?: string }[];
+      const calls = items.filter((i) => i.type === "function_call").map((i) => i.call_id);
+      const results = items.filter((i) => i.type === "function_call_output").map((i) => i.call_id);
+      const missing = calls.find((id) => !results.includes(id));
+      const twice = results.find((id, n) => results.indexOf(id) !== n);
+      if (missing || twice) {
+        const error = missing ? `No tool output found for function call ${missing}.` : `Duplicate tool output for ${twice}.`;
+        return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: { message: error } }) });
+      }
+      const said = /"(.*?)"/.exec(lastUser(body))?.[1] ?? "";
+      if (said.startsWith("wait a moment") && items.at(-1)?.type !== "function_call_output") return route.fulfill(openaiReply([call("wait", { seconds: 3 }, `wait${bodies.length}`)]));
+      return route.fulfill(openaiReply([message(`Done: ${said}`)]));
+    });
+    await usePro(panel);
+    // An earlier exchange, so the next commands continue one conversation (as in real use).
+    await type(panel, "hello there");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Done: hello there");
+    const first = type(panel, "wait a moment then summarize the page");
+    await expect.poll(() => bodies.length).toBe(2);
+    await panel.waitForTimeout(300);
+    // Cut off while its step (a 3-second wait) is still running.
+    await type(panel, "what is this page about");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^Done: what is this page about/);
+    await first;
+    // Once the cut-off step has finished in the background, the conversation still works, and remembers.
+    await panel.waitForTimeout(3500);
+    await type(panel, "and the one before");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^Done: and the one before/);
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
+    expect(JSON.stringify(bodies.at(-1)!.input)).toContain("what is this page about");
   });
 
   test("the supervisor nudges a helper going in circles, stops it if it keeps on, and stops one at its time limit", async ({ panel, context, baseUrl }) => {

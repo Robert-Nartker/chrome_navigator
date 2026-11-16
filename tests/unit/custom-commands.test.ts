@@ -71,3 +71,12 @@ describe("validating personal commands", () => {
     expect(() => validateCommand({ phrases: ["play wordle"], steps: wordle.steps }, [wordle], wordle.id)).not.toThrow();
   });
 });
+
+describe("heardPhrase: a personal command guessed from loose speech", async () => {
+  const { heardPhrase } = await import("../../src/lib/custom-commands");
+  it("needs its telling words heard, or words that sound just like them (from the usage log)", () => {
+    for (const heard of ["For the news", "open the news", "Open news."]) expect(heardPhrase(heard, "open news"), heard).toBe(true);
+    for (const heard of ["Open muted.", "We're in a new tab.", "Open Utah.", "Open them too.", "Still"]) expect(heardPhrase(heard, "open news"), heard).toBe(false);
+    expect(heardPhrase("play bohemian rhapsody on spotify", "play {song} on spotify")).toBe(true);
+  });
+});

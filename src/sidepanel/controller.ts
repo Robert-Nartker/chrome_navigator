@@ -33,6 +33,7 @@ import {
   deleteCommand,
   describeCommand,
   fillStep,
+  heardPhrase,
   isListCommandsRequest,
   loadCommands,
   matchCommand,
@@ -261,6 +262,8 @@ export class Controller {
   /** Stops whatever Navi is doing or saying. Settles once a page that was auto-scrolling has stopped. */
   cancel(): Promise<void> {
     this.queue = [];
+    // Stop means stop: helpers too (one still reading a video's transcript kept going after "stop").
+    this.helpers.stopAll();
     const scrolling = this.autoScrolling ? this.autoScroll("stop").then(() => undefined, () => undefined) : Promise.resolve();
     this.current?.abort();
     this.speechGen++;
@@ -314,8 +317,10 @@ export class Controller {
     if (options.hearing && intent?.type !== "whatHeard" && intent?.type !== "misheard") this.lastHearing = options.hearing;
     if (intent?.type === "stop") {
       this.ui.log("user", command);
+      const helpers = this.helpers.running().length;
       // Waits for an auto-scrolling page to stop, but not on a page that doesn't answer.
       await Promise.race([this.cancel(), sleep(1000)]);
+      if (helpers) this.ui.log("info", helpers === 1 ? "Stopped the helper too." : `Stopped ${helpers} helpers too.`);
       this.tutorialSaw({ command, intent: "stop" });
       return;
     }
@@ -635,6 +640,14 @@ export class Controller {
       const decision = routed?.decision ?? { route: "agent" as const };
       routerCostUsd = routed?.costUsd;
       routerMs = Math.round(performance.now() - t0);
+      // A personal command only when its own words were heard: guessed from unclear speech, it was the
+      // usual way gibberish ran one ("open muted", "we're in a new tab" opening the user's "open news").
+      const personal = decision.route === "command" ? matchCommand(decision.command, this.commands) : null;
+      if (personal && !personal.command.phrases.some((phrase) => heardPhrase(command, phrase))) {
+        this.ui.log("step", `Ignored “${command}”: it doesn't sound enough like your “${personal.command.phrases[0]}” · ${routerMs} ms`);
+        this.speaker.sound("unknown");
+        return { intent: "ignored", routerMs, routerCostUsd };
+      }
       if (decision.route === "command") {
         this.ui.log("step", `Understood as “${decision.command}” · ${routerMs} ms`);
         const fastPath = await this.dispatch(decision.command, signal, depth + 1, {
@@ -988,8 +1001,8 @@ export class Controller {
           const stopped = this.helpers.stop(intent.id);
           return { text: stopped ? `Stopped helper ${intent.id}.` : `Helper ${intent.id} isn't running.`, speak: true, ok: stopped };
         }
-        if (intent.everything) void this.cancel();
         const stopped = this.helpers.stopAll();
+        if (intent.everything) void this.cancel();
         const what = stopped ? `Stopped ${stopped === 1 ? "the helper" : `${stopped} helpers`}` : "No helpers were running";
         return { text: intent.everything ? `${what}, and everything else.` : `${what}.`, speak: true, ok: true };
       }
@@ -1518,7 +1531,7 @@ export class Controller {
           text =
             intent.to === "chrome"
               ? "Switching to Chrome's recognizer."
-              : `Switching to ${name(intent.to)}. The first time, it downloads once; Chrome's recognizer listens until it's ready, and I'll tell you when it is.`;
+              : `Switching to ${name(intent.to)}.`;
         }
         this.navi(text);
         await this.say(text);

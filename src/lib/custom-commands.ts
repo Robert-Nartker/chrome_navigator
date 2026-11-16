@@ -7,6 +7,7 @@
 // already say out loud: no settings, no scripts, no access to anything else.
 
 import { escapeRegExp, normalize, parseCommand } from "./parser";
+import { soundKey, soundsClose } from "./sounds-like";
 
 export type Step = { type: "open"; url: string; newTab: boolean } | { type: "run"; command: string };
 
@@ -90,6 +91,24 @@ export function matchCommand(text: string, commands: CustomCommand[]): CommandMa
     }
   }
   return best;
+}
+
+/** Words many phrases share: they don't say which personal command was meant. */
+const COMMON_WORDS = new Set("open go to the a an my me on in up show play start search for and please now".split(" "));
+
+/**
+ * Whether what was heard could really be this personal command's phrase, for a guess from loose speech:
+ * each of its telling words (not "open" or "the", nor a {placeholder}) was heard, or a word that sounds just
+ * like it (one sound off for a longer word). "For the news" can be "open news"; "open muted" and "we're in
+ * a new tab" can't.
+ */
+export function heardPhrase(heard: string, phrase: string): boolean {
+  const said = normalize(heard).split(" ").filter(Boolean);
+  const words = normalize(phrase.replace(/\{[^}]*\}/g, " ")).split(" ").filter(Boolean);
+  const telling = words.filter((w) => !COMMON_WORDS.has(w));
+  return (telling.length ? telling : words).every((w) =>
+    said.some((s) => s === w || soundsClose(s, w, soundKey(w).length > 2 ? 1 : 0)),
+  );
 }
 
 /** Fills {placeholders} in a step. URL values are URL-encoded. */

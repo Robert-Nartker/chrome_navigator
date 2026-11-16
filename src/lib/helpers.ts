@@ -171,6 +171,8 @@ export class Helpers {
       const win = await chrome.windows.create({ url: req.url, focused: false });
       helper.window = win?.id;
       const tab = win?.tabs?.[0];
+      // Muted: a video it opens mustn't play over the user's.
+      if (tab?.id !== undefined) await chrome.tabs.update(tab.id, { muted: true }).catch(() => undefined);
       if (tab?.id !== undefined) await waitForComplete(tab.id);
     }
     this.all = [...this.all, helper].slice(-30);

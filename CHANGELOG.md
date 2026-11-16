@@ -2,6 +2,18 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-16
+
+From the owner's first real session with the new build (usage log and notes):
+
+- **Gibberish no longer opens your personal commands.** The router (the quick model that reads speech the fast path doesn't know) turned "Open muted.", "We're in a new tab." and "Open Utah." into the owner's "open news" command, opening Hacker News. A personal command it picks now runs only if its telling words were heard, or words that sound just like them ("for the news" still opens it). The router was also told that a wrong command is worse than none, and lost an example that taught it to guess ("open your tab" as "new tab": "those tab." had opened a new tab while the owner was closing tabs). On 30 real phrases from the log, 3 runs each: wrong commands 4 → 0, acceptable answers 82 → 87 of 90 (`bench/router/eval.ts`). Navi's memory is now described to the AI as never a reason to act on its own.
+- **Interrupting the AI mid-step no longer breaks the next request** ("OpenAI error 400: No tool output found for function call"). A command cut off while its step ran kept going in the background, then wrote into (or wiped) the conversation the new command was using. Now a stopped command leaves the conversation alone, and steps it never finished are answered as not run.
+- **"Stop" (said or the button) stops helpers too.** A helper reading a video's transcript kept going after "stop".
+- **A short, passing headset note.** A Bluetooth headset mic (AirPods) used to get a long red message in the conversation. Now a one-line note under the caption says a built-in or USB mic works better (naming one, if the computer has it), then goes away after 10 seconds, and Navi says it once.
+- **"Switching to Parakeet." and no more.** Every switch promised a one-time download. Now Navi mentions a download, out loud, only when one starts; a model downloaded before just loads.
+- **Whisper isn't recommended any more.** In the owner's real use it answered a second or more later than Parakeet (it waited 1.3–2.2 s after they stopped talking, against about 0.5 s) and didn't hear them better. Settings now call Parakeet fast and accurate, and Whisper the one for about 100 languages.
+- **Helpers' windows are muted, and the AI does things about your page itself.** Asked to summarize the video on screen, it started a helper, which opened the same video in another window, so two played at once.
+
 ## 2026-11-15
 
 - **Short words through a headset aren't thrown away before a recognizer hears them.** Navi's speech detector dropped a phrase with less than 150 ms of clear voice as a cough or a click, and through a Bluetooth headset that was 11% of real people's single words ("stop", "up"). Those phrases now go to Parakeet or Whisper as "faint" (64 ms is enough). Room noise also makes faint phrases, so one that comes back empty, or only "uh", is dropped without the "didn't catch that" sound; so is one that isn't a command or an answer to Navi's question ("Okay." for a clatter), which goes only into the usage log, marked faint. Asleep, a faint phrase isn't shown as "Heard …", but a faint "Navi, scroll down" still wakes Navi and runs. On the benchmark's stray fragments in a noisy room, neither recognizer made a command of any of them (all 112 runs), and noise alone still starts no phrase. Through a headset, real people's single words: Whisper 114 → 121 of 160 commands right, Parakeet 96 → 100, with no more wrong commands.
