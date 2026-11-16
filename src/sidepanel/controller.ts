@@ -14,6 +14,7 @@ import {
   isWebUrl,
   listTabs,
   goBack,
+  videoState,
   moveTab,
   naviWindowId,
   pickSearchBox,
@@ -632,7 +633,7 @@ export class Controller {
       this.ui.setWorking(true, "Understanding…");
       const routed = await routeUtterance(
         command,
-        { title: tab?.title, personalPhrases: this.commands.flatMap((c) => c.phrases), recent: this.recentForRouter },
+        { title: tab?.title, video: await videoState(tab), personalPhrases: this.commands.flatMap((c) => c.phrases), recent: this.recentForRouter },
         settings,
         signal,
       ).catch((err: unknown) => {

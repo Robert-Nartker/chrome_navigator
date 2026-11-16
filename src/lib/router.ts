@@ -55,6 +55,8 @@ export interface RecentCommand {
 
 export interface RouteContext {
   title?: string;
+  /** A video on the page, and whether it's playing. */
+  video?: "playing" | "paused";
   personalPhrases: string[];
   /** The last few commands, oldest first (at most 3 are sent). */
   recent?: RecentCommand[];
@@ -66,6 +68,7 @@ export function routerMessage(utterance: string, context: RouteContext): string 
     `Personal commands: ${context.personalPhrases.length ? context.personalPhrases.join("; ") : "(none)"}`,
     `Current page: ${context.title ?? "unknown"}`,
   ];
+  if (context.video) lines.push(`Video on the page: ${context.video}`);
   const recent = (context.recent ?? []).slice(-3);
   if (recent.length) {
     const one = (r: RecentCommand) =>
@@ -90,6 +93,8 @@ Choose "command" only when that one command does the whole request, keeping its 
 Speech recognition swaps words that sound alike, so read the text by its sound, not its spelling, and when it clearly sounds like a command, it's that command: "open new tube" is "open youtube", "close the tap" is "close tab", "flex" is "flags", "go bag" is "go back", "scroll dawn" is "scroll down". When it could be more than one command, or you'd be guessing ("those tab" could be "close tab" or "new tab"), choose "ignore": running the wrong command is worse than running none, and the user will just say it again.
 
 "Before this" lists the last few commands, what came of them, and what Navi said. Short phrases like "turn it up", "turn it to 30", "more" or "the next one" mean something only in that context: use it to decide ("the next one" after "next tab" is "next tab"; "now search for lofi" after opening YouTube is "search youtube for lofi"; "turn it to 30" or "turn out more" after a volume change is "volume 30" or "volume down"; "unflag" after "flags" is "hide flags"). When the context is something else ("turn it to 30" after asking about a game's difficulty setting), or there's no context, choose "agent": it sees the page and the conversation. Judge the new text on its own: resembling an earlier command doesn't make it one.
+
+A video's play and pause words are short and often lost. Only when "Video on the page" is given: a bare mention of the video, with no question and no other verb ("video", "the video", "here's the video", "there's a video"), is "pause" if it's playing and "play" if it's paused. A question about the video ("what's the video?", "what is this video about") is "agent".
 
 A correction of the last command is a request, never noise, even when it's short or starts with "no": "on YouTube" or "no, on YouTube" after "search for lofi" is "search youtube for lofi"; "Mr Beast, not Mr Feast" after "search youtube for mr feast" is "search youtube for mr beast". When one command does the corrected request, return it; otherwise ("no, the other one", "that's the wrong video") choose "agent".`;
 

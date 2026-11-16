@@ -196,6 +196,9 @@ describe("router context", () => {
       'Before this: "tiktok tiktok" (ignored); "scroll down" (ran); "what\'s the difficulty" (AI task; Navi said "It\'s on medium, 20 out of 100.")',
     );
     expect(withRecent.endsWith('Heard: "again"')).toBe(true);
+    // A video on the page, so a garbled "…the video" can be read as pause or play; nothing said without one.
+    expect(routerMessage("video", { ...base, video: "playing" })).toContain("Video on the page: playing");
+    expect(plain).not.toContain("Video on the page");
     // Under 10% more to read than without it (instructions included).
     const added = withRecent.length - plain.length;
     expect(added / (SYSTEM_PROMPT.length + plain.length)).toBeLessThan(0.1);

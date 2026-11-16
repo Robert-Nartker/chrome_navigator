@@ -213,6 +213,26 @@ export async function goBack(tab: chrome.tabs.Tab, steps = 1): Promise<chrome.ta
   return waitForLoad(tab.id!);
 }
 
+/** Whether the page has a video, and if it's playing (for reading a garbled "…the video"). Quick, or nothing. */
+export async function videoState(tab: chrome.tabs.Tab | undefined): Promise<"playing" | "paused" | undefined> {
+  if (!tab?.id || !isWebUrl(tab.url)) return undefined;
+  const ask = chrome.scripting
+    .executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: () => {
+        const videos = [...document.querySelectorAll("video")];
+        if (!videos.length) return undefined;
+        return videos.some((v) => !v.paused && !v.ended) ? "playing" : "paused";
+      },
+    })
+    .then((results) => {
+      const states = results.map((r) => r.result as "playing" | "paused" | undefined);
+      return states.includes("playing") ? "playing" : states.includes("paused") ? "paused" : undefined;
+    })
+    .catch(() => undefined);
+  return Promise.race([ask, sleep(300).then(() => undefined)]);
+}
+
 /** Moves through the tab's history from inside the page. False if it can't (no web page, nothing to go to). */
 async function historyGo(tab: chrome.tabs.Tab, delta: number): Promise<boolean> {
   const tabId = tab.id!;

@@ -2841,6 +2841,34 @@ test("“slow down” slows a video that's playing or sped up, and otherwise Nav
   expect(await rate()).toBe(1);
 });
 
+test("the router is told whether a video is playing, so “here's the video” (“pause” lost) pauses it", async ({ panel, site, baseUrl, context }) => {
+  const seen: string[] = [];
+  // A router that reads the page's video state, as the real one is told to.
+  await context.route(
+    "https://api.anthropic.com/**",
+    routerOrAgent((body) => {
+      const text = JSON.stringify(body.messages);
+      seen.push(text);
+      const playing = text.includes("Video on the page: playing");
+      return [{ type: "text", text: JSON.stringify(playing ? { route: "command", command: "pause" } : { route: "ignore", command: "" }) }];
+    }),
+  );
+  await panel.evaluate(() => chrome.storage.local.set({ settings: { apiKey: "sk-ant-test", model: "claude-opus-5-5", routerModel: "claude-sonnet-5-5" } }));
+  await panel.waitForFunction(() => document.getElementById("key-banner")?.hidden === true);
+  await site.goto(`${baseUrl}/video.html`);
+  await site.bringToFront();
+  const paused = () => site.locator("#player").evaluate((v: HTMLVideoElement) => v.paused);
+  await run(panel, "play");
+  await expect.poll(paused).toBe(false);
+  await run(panel, "here's the video");
+  await expect.poll(paused).toBe(true);
+  expect(seen.at(-1)).toContain("Video on the page: playing");
+  // Paused now: the router hears that too.
+  await run(panel, "there's a video");
+  await expect.poll(() => seen.length).toBe(2);
+  expect(seen.at(-1)).toContain("Video on the page: paused");
+});
+
 test("a video that can't play says so in plain words", async ({ panel, site, baseUrl }) => {
   await site.goto(`${baseUrl}/video.html`);
   await site.locator("#player").evaluate((v: HTMLVideoElement, url) => (v.src = url), `${baseUrl}/missing.mp4`);
