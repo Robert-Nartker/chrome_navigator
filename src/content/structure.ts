@@ -187,7 +187,10 @@ function sectionText(maxChars: number): string {
     if (!parent || parent.closest("script, style, noscript, template, [hidden], [aria-hidden=true], #navi-structure-outline")) continue;
     if (!parent.checkVisibility?.()) continue;
     const words = (node.textContent ?? "").replace(/\s+/g, " ").trim();
-    if (words) parts.push(/^(?:P|LI|H[1-6]|TD|DT|DD|DIV)$/.test(parent.tagName) ? `\n${words}` : words);
+    // Footnote marks ("[57]", "[a]") aren't read out.
+    if (/^\[\s*[\w\s]{1,4}\]$/.test(words) || parent.closest("sup.reference")) continue;
+    // Each block on its own line (a heading, a paragraph, an image's caption), so it's said as its own sentence.
+    if (words) parts.push(/^(?:P|LI|H[1-6]|TD|TH|DT|DD|DIV|FIGCAPTION|CAPTION|BLOCKQUOTE)$/.test(parent.tagName) ? `\n${words}` : words);
   }
   const text = parts.join(" ").replace(/ ?\n ?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   cursor = start;
@@ -222,7 +225,7 @@ export function structure(kind: StructureKind, action: StructureAction, name?: s
   switch (action) {
     case "list": {
       const shownItems = items.slice(0, 12).map((el, i) => `${i + 1}, ${kind === "landmark" ? landmarkName(el) : accessibleName(el) || "no label"}`);
-      const more = items.length > 12 ? ` The first 12: ` : ": ";
+      const more = items.length > 12 ? `. The first 12: ` : ": ";
       return { detail: `${items.length} ${items.length === 1 ? SINGULAR[kind] : PLURAL[kind]}${more}${shownItems.join(". ")}.` };
     }
     case "first":

@@ -1488,6 +1488,9 @@ test("moving through a page by its structure, without seeing it: headings, secti
   await run(panel, "read this section");
   await expect(said.last()).toContainText("People love the quiet motor.");
   await expect(said.last()).not.toContainText("Order");
+  // A footnote mark isn't read out, and the heading ends with a full stop when said, so the voice pauses.
+  await expect(said.last()).not.toContainText("[1]");
+  await expect.poll(() => panel.evaluate(() => (window as unknown as { navi: { lastSaid: string } }).navi.lastSaid)).toMatch(/^Reviews\.\s+A desk at work\.\s+People love/);
 
   // Fields take the focus, so typing goes there; a password is never read out.
   await run(panel, "next field");
@@ -1522,11 +1525,18 @@ test("moving through a page by its structure, without seeing it: headings, secti
   await expect(said.last()).toContainText("Gift wrap");
   await expect(said.last()).not.toContainText("addEventListener");
 
+  // A long list: its count is a sentence of its own ("15 headings. The first 12: …"), so it's said with a pause.
+  await site.evaluate(() => {
+    for (let i = 1; i <= 10; i++) document.querySelector("main")!.insertAdjacentHTML("beforeend", `<h3>Extra ${i}</h3><p>More.</p>`);
+  });
+  await run(panel, "list the headings");
+  await expect(said.last()).toHaveText(/^15 headings\. The first 12: 1, Standing desks\. 2, Pricing\./);
+
   // Scrolled back to the top by hand: "next heading" starts from what's on screen, not where Navi last was.
   await site.evaluate(() => scrollTo(0, 0));
   await site.locator("body").click({ position: { x: 5, y: 5 } });
   await run(panel, "next heading");
-  await expect(said.last()).toHaveText("Standing desks, heading level 1 (1 of 5)");
+  await expect(said.last()).toHaveText("Standing desks, heading level 1 (1 of 15)");
 });
 
 test("hovering by voice opens a menu that opens under the mouse; with “increase contrast” on, Navi's tags and caption are high contrast", async ({ panel, site, baseUrl }) => {

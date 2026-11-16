@@ -122,7 +122,12 @@ export class Speaker implements Voice {
   lastSaid = "";
 
   async say(text: string): Promise<void> {
-    const clean = text.replace(/[*_`#>]/g, "").trim();
+    // A line that ends without punctuation (a heading, a caption, a list item) gets a full stop, so the voice
+    // pauses there instead of running it into what follows.
+    const clean = text
+      .replace(/[*_`#>]/g, "")
+      .replace(/([^\s.!?:;,…])[ \t]*\n+/g, "$1.\n")
+      .trim();
     if (!clean || this.muted) return;
     this.stopPlayback();
     const id = ++this.utterance;
