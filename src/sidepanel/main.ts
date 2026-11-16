@@ -157,9 +157,11 @@ function showStatus(state: string, text: string, detail?: string) {
         ? ears.micError || worker.problem || text
         : state === "working"
           ? feed.activity || text
-          : state === "sleeping" && ears.heardAsleep
-            ? `Heard “${ears.heardAsleep}”. Say “wake up” first.`
-            : text;
+          : ears.notice
+            ? ears.notice
+            : state === "sleeping" && ears.heardAsleep
+              ? `Heard “${ears.heardAsleep}”. Say “wake up” first.`
+              : text;
   setText(captionHint, hint);
 }
 

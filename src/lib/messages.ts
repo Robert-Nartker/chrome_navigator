@@ -46,6 +46,8 @@ export interface EarsState {
   speaking: boolean;
   /** Asleep: the last thing heard that didn't start with the wake name (cleared after a few seconds). */
   heardAsleep?: string;
+  /** A short note shown under the caption for a few seconds (a headset mic warning). */
+  notice?: string;
   /** Speech goes into the chat box instead of running as commands. */
   dictating: boolean;
 }

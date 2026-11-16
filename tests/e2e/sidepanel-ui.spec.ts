@@ -580,6 +580,29 @@ test("labels: the on/off switch, Stay awake, and the Flags and Grid toggles", as
 test.describe("live caption", () => {
   test.use({ fakeMic: true, fakeSpeech: true });
 
+  test("a headset mic (AirPods) gets a short note under the caption that goes away, not a long error", async ({ panel }) => {
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await expect.poll(() => recognizerLive(panel)).toBe(true);
+    // The system's name for AirPods' mic, and a built-in one beside it.
+    await (await earsPage(panel)).evaluate(() => {
+      const devices = [
+        { kind: "audioinput", deviceId: "default", label: "Default - Headset (AirPods Pro Hands-Free AG Audio)", groupId: "a" },
+        { kind: "audioinput", deviceId: "mic2", label: "Microphone Array (Realtek(R) Audio)", groupId: "b" },
+      ];
+      navigator.mediaDevices.enumerateDevices = async () => devices as unknown as MediaDeviceInfo[];
+    });
+    // Listening starts again (as after turning Navi off and on): the mic is checked.
+    const power = panel.getByRole("switch", { name: "Navi" });
+    await power.click();
+    await expect(power).toHaveAttribute("aria-checked", "false");
+    await power.click();
+    const hint = panel.locator("#caption-hint");
+    await expect(hint).toHaveText("Headset mics like AirPods can make Navi mishear you. “Microphone Array (Realtek(R) Audio)” works better (Settings → Listening).");
+    await expect(panel.locator("#log li.error")).toHaveCount(0);
+    // It passes on its own.
+    await expect(hint).not.toContainText("Headset mics", { timeout: 15_000 });
+  });
+
   test("shows what Navi hears in large type, with a clear asleep / listening / off state", async ({ panel }) => {
     await onAsleep(panel);
     const voice = panel.locator("#voice");
@@ -1252,6 +1275,29 @@ test.describe("Parakeet recognizer", () => {
     await run(panel, "use whisper");
     await expect(panel.locator("#log li.navi .text").last()).toContainText("Whisper isn't listening yet, so I'm loading it again.");
     await expect(panel.locator("#log li.error").filter({ hasText: "Whisper couldn't load" })).toHaveCount(2, { timeout: 30_000 });
+  });
+
+  test("switching recognizers mentions a download only when there is one", async ({ panel, context }) => {
+    // The download never finishes here, so the note about it shows.
+    await context.route("https://huggingface.co/**", () => undefined);
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { stayAwake: true } }));
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await run(panel, "use parakeet");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Switching to Parakeet.");
+    await expect(panel.locator("#log li.info").filter({ hasText: /^Downloading Parakeet \(once/ })).toHaveCount(1, { timeout: 10_000 });
+    await expect.poll(() => ears(panel, { action: "lastSaid" })).toBe("Downloading Parakeet once. Chrome's recognizer hears you until it's ready.");
+  });
+
+  test("a recognizer downloaded before only loads, and says nothing about downloading", async ({ panel, context }) => {
+    await context.route("https://huggingface.co/**", () => undefined);
+    await panel.evaluate(() => chrome.storage.local.set({ settings: { stayAwake: true } }));
+    await panel.evaluate(() => (window as unknown as Hooks).navi.startListening());
+    await (await earsPage(panel)).evaluate(() => localStorage.setItem("parakeetDownloaded:parakeet-tdt-0.6b-v2", "1"));
+    await run(panel, "use parakeet");
+    await expect(panel.locator("#log li.navi .text").last()).toHaveText("Switching to Parakeet.");
+    await expect(panel.locator("#log li.info").filter({ hasText: /^Loading Parakeet \(already downloaded\)/ })).toHaveCount(1, { timeout: 10_000 });
+    await expect(panel.locator("#log li.info").filter({ hasText: /^Downloading Parakeet/ })).toHaveCount(0);
+    expect(await ears(panel, { action: "lastSaid" })).not.toContain("Downloading Parakeet");
   });
 
   test("while Parakeet can't download, Chrome's recognizer keeps listening", async ({ panel, context }) => {

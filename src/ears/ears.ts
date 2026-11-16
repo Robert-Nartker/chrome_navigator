@@ -44,6 +44,8 @@ const HELD_COMMAND_MS = 500;
 const COMMAND_START_MS = 1300;
 /** How long what Navi heard while asleep stays on screen. */
 const HEARD_MS = 6000;
+/** How long a notice stays under the caption. */
+const NOTICE_MS = 10_000;
 
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
 
@@ -107,6 +109,9 @@ export class Ears {
    * `only`: the mic was off (Navi is off), so it closes again afterwards. `since`: the key, or the last words.
    */
   private once: { only: boolean; since: number } | null = null;
+  /** A short note under the caption, and when it was shown. */
+  private notice = "";
+  private noticeAt = 0;
   /** The headset mic Navi has already warned about. */
   private micWarned = "";
 
@@ -334,6 +339,7 @@ export class Ears {
       speaking: this.speaker.busy,
       dictating: this.dictating,
       heardAsleep: this.heardAsleep || undefined,
+      notice: this.notice || undefined,
     };
   }
 
@@ -349,6 +355,7 @@ export class Ears {
 
   private tick() {
     if (this.heardAsleep && Date.now() - this.heardAt > HEARD_MS) this.heardAsleep = "";
+    if (this.notice && Date.now() - this.noticeAt > NOTICE_MS) this.notice = "";
     // Push to talk with nothing said: stop waiting.
     if (this.once && Date.now() - this.once.since > TALK_ONCE_MS) {
       earcons.sleep();
@@ -467,6 +474,8 @@ export class Ears {
             ? `Loading ${name} (already downloaded). Chrome's recognizer listens until it's ready.`
             : `Downloading ${name} (once, about ${engine.downloadGb} GB). Chrome's recognizer listens until it's ready.`,
         );
+        // Only a real download is worth saying aloud: it takes a while.
+        if (!downloaded) void this.speaker.say(`Downloading ${name} once. Chrome's recognizer hears you until it's ready.`).catch(() => undefined);
       }, 1500);
       let shown = -1;
       await engine.load((loaded, total) => {
@@ -596,15 +605,11 @@ export class Ears {
     if (!label || label === this.micWarned || !isHeadsetMic(label)) return;
     this.micWarned = label;
     const other = inputs.find((d) => d.deviceId !== "default" && d.deviceId !== "communications" && !isHeadsetMic(d.label));
-    // Whisper copes best with headset audio (bench/asr); with no other mic, it's the fix.
-    const whisper = this.settings.recognizer === "whisper" ? "" : " Or say “use Whisper”: it hears headset mics best.";
-    this.out.log(
-      "error",
-      `Navi is hearing you through “${label.replace(/^(?:Default|Communications) - /, "")}”, a Bluetooth headset mic. Those record at phone-call quality, so recognizers mishear a lot, and the headset's sound gets worse while it listens. ${other ? `Choose “${other.label}” in` : "If you have another mic (like a webcam's), choose it in"} Settings → Listening → Microphone.${whisper}`,
-    );
-    void this.speaker
-      .say(`Heads up: you're using a Bluetooth headset's mic, so I may mishear you.${whisper ? " Say: use Whisper. It hears headsets best." : ""}`)
-      .catch(() => undefined);
+    // Short and passing: a note under the caption for a few seconds, and one spoken line.
+    this.notice = `Headset mics like AirPods can make Navi mishear you. ${other ? `“${other.label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, "")}”` : "A built-in or USB mic"} works better (Settings → Listening).`;
+    this.noticeAt = Date.now();
+    this.emit();
+    void this.speaker.say("Heads up: headset mics like AirPods can make me mishear you.").catch(() => undefined);
   }
 
   private stop() {
