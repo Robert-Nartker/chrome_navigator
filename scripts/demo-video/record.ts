@@ -266,7 +266,7 @@ async function main() {
   for (const [i, step] of script.steps.entries()) {
     if (step.card) {
       events.push({ kind: "card", text: step.card, t: at() });
-      await watch(2600);
+      await watch(2300);
     }
     if (step.say) {
       const key = `s${i}`;
@@ -293,17 +293,17 @@ async function main() {
       await say(text, durations[key]);
       if (step.cutAfter) await watch(step.cutAfter * 1000);
       // "Stop" just stops: nothing to wait for.
-      else if (step.say === "stop") await watch(900);
+      else if (step.say === "stop") await watch(600);
       else {
         const said = events.length;
         await settle(before);
-        await watch(500);
+        await watch(250);
         // Navi said something: room to say it (about 14 characters a second), up to a few seconds; a long
         // answer is cut short by the next command, as talking over Navi does.
         const spoken = events.slice(said).find((e) => e.kind === "navi");
         if (spoken) await watch(Math.min(5500, ((spoken.text ?? "").length / 14) * 1000));
       }
-      await watch(400);
+      await watch(150);
     }
   }
   await sleep(1500);

@@ -12,7 +12,7 @@ Writes <out dir>/<key>.wav and durations json. Navi's lines fail on a word Kokor
 would silently skip it) unless a respelling or the stem rules cover it. The user's voice needs an OpenAI key
 (OPENAI_API_KEY, or a proxy that adds it); its clips are cached by text.
 """
-import hashlib, io, json, os, re, ssl, sys, urllib.request
+import hashlib, io, json, os, re, ssl, subprocess, sys, urllib.request
 import numpy as np
 import soundfile as sf
 import sherpa_onnx
@@ -127,6 +127,12 @@ def user_voice(text):
         with urllib.request.urlopen(req, context=ctx, timeout=90) as r:
             open(path, "wb").write(r.read())
     x = np.frombuffer(open(path, "rb").read(), dtype="<i2").astype(np.float32) / 32768
+    speed = v.get("speed", 1.0)
+    if speed != 1.0:
+        # Faster at the same pitch (ffmpeg's atempo).
+        raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "f32le", "-ar", "24000", "-ac", "1", "-i", "pipe:0", "-af", f"atempo={speed}", "-f", "f32le", "pipe:1"],
+                             input=x.tobytes(), capture_output=True, check=True).stdout
+        x = np.frombuffer(raw, dtype=np.float32)
     return trimmed(x, 24000), 24000
 
 lines = {}

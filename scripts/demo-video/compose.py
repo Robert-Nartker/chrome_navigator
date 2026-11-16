@@ -42,24 +42,54 @@ end = next(e["t"] for e in events if e["kind"] == "end")
 # The AI's thinking time: from just after a command to just before its reply shows, when that's long.
 says = [e for e in events if e["kind"] == "say"]
 replies = [e for e in events if e["kind"] == "reply"]
-regions = []
+ai_waits = []
 for s in says:
     said_end = s["t"] + s.get("duration", durations.get(s["key"], 1.5))
     nxt = next((r for r in replies if r["t"] > said_end), None)
     if nxt and nxt["t"] - said_end > 3.0:
-        regions.append((said_end + 0.9, nxt["t"] - 0.6))
+        ai_waits.append((said_end + 0.9, nxt["t"] - 0.6))
+
+# Dead air: moments with nothing said, shown or happening (a page loading, a pause between commands) are
+# sped through, so the video never seems to wait.
+CARD_S = 3.2
+DEAD_SPEED = 5
+busy = list(ai_waits)
+for s in says:
+    busy.append((s["t"] - 0.2, s["t"] + s.get("duration", durations.get(s["key"], 1.5)) + 0.45))
+for i, e in enumerate(e for e in events if e["kind"] == "navi"):
+    nxt = next((s["t"] for s in says if s["t"] > e["t"]), end)
+    busy.append((e["t"], min(e["t"] + durations.get(f"navi-{i}", 2.0) + 0.3, nxt)))
+for e in events:
+    if e["kind"] == "card":
+        busy.append((e["t"], e["t"] + CARD_S))
+    elif e["kind"] in ("reply", "sound"):
+        busy.append((e["t"] - 0.15, e["t"] + 0.8))
+busy.sort()
+merged = []
+for a, b in busy:
+    if merged and a <= merged[-1][1]:
+        merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+    else:
+        merged.append((a, b))
+dead, cur = [], start
+for a, b in merged + [(end, end)]:
+    if a - cur > 0.9:
+        dead.append((cur + 0.25, a - 0.25))
+    cur = max(cur, b)
+# (start, end, speed, badge)
+regions = sorted([(a, b, SPEED, True) for a, b in ai_waits] + [(a, b, DEAD_SPEED, False) for a, b in dead])
 
 def out_time(t):
     """Where a moment of the recording lands in the edited recording."""
     t = max(start, min(end, t))
     out_t, cur = 0.0, start
-    for a, b in regions:
+    for a, b, speed, _ in regions:
         if t <= a:
             break
         out_t += a - cur
         if t <= b:
-            return out_t + (t - a) / SPEED
-        out_t += (b - a) / SPEED
+            return out_t + (t - a) / speed
+        out_t += (b - a) / speed
         cur = b
     return out_t + (t - cur)
 
@@ -116,22 +146,29 @@ for i, ev in enumerate(timed):
 for ev in events:
     if ev["kind"] == "card":
         a = out_time(ev["t"])
-        b = a + 3.2
-        # A box sized to the words, lighter than the page (Wikipedia's dark theme is near black), edged in the accent.
-        overlays.append(f"drawtext=fontfile={SEMI}:text='{esc(ev['text'])}':fontsize=36:fontcolor=white:box=1:boxcolor={ACCENT}@0.95:boxborderw=26:x=({PAGE_W}-tw)/2:y=128:{fading(a, b)}")
-        overlays.append(f"drawtext=fontfile={SEMI}:text='{esc(ev['text'])}':fontsize=36:fontcolor=white:box=1:boxcolor=0x2a2740@0.97:boxborderw=22:x=({PAGE_W}-tw)/2:y=128:{fading(a, b)}")
+        b = out_time(ev["t"] + CARD_S)
+        # Hard to miss: the page dims behind a band across its middle, with the words large on it.
+        on = f"enable='between(t,{a:.2f},{b:.2f})'"
+        overlays.append(f"drawbox=x=0:y=86:w={PAGE_W}:h={H - 86}:color=black@0.45:t=fill:{on}")
+        overlays.append(f"drawbox=x=0:y=430:w={PAGE_W}:h=150:color=0x1d1a33@0.97:t=fill:{on}")
+        overlays.append(f"drawbox=x=0:y=430:w={PAGE_W}:h=5:color={ACCENT}:t=fill:{on}")
+        overlays.append(f"drawbox=x=0:y=575:w={PAGE_W}:h=5:color={ACCENT}:t=fill:{on}")
+        overlays.append(f"drawtext=fontfile={SEMI}:text='{esc(ev['text'])}':fontsize=50:fontcolor=white:x=({PAGE_W}-tw)/2:y=505-th/2:{fading(a, b, 0.2)}")
 
-for a, b in regions:
+for a, b, _, badge in regions:
+    if not badge:
+        continue
     oa, ob = out_time(a), out_time(b)
     overlays.append(f"drawtext=fontfile={BOLD}:text='AI working  ·  {SPEED}×':fontsize=26:fontcolor=0x111018:box=1:boxcolor={NAVI}:boxborderw=12:x={PAGE_W}-tw-60:y=104:enable='between(t,{oa:.2f},{ob:.2f})'")
 
 # The recording, cut: normal speed, the AI's thinking sped up, normal again.
 segments, cur = [], start
-for a, b in regions:
+for a, b, speed, _ in regions:
     segments.append((cur, a, 1))
-    segments.append((a, b, SPEED))
+    segments.append((a, b, speed))
     cur = b
 segments.append((cur, end, 1))
+segments = [seg for seg in segments if seg[1] - seg[0] > 0.04]
 parts = [f"[0:v]trim=start={a:.3f}:end={b:.3f},setpts=(PTS-STARTPTS)/{speed}[v{i}]" for i, (a, b, speed) in enumerate(segments)]
 parts.append("".join(f"[v{i}]" for i in range(len(segments))) + f"concat=n={len(segments)}:v=1:a=0,fps=30,{','.join(overlays)},format=yuv420p[v]")
 run(["-i", rec["screen"], "-filter_complex", ";".join(parts), "-map", "[v]", "-c:v", "libx264", "-preset", "medium", "-crf", "18", f"{out}/main.mp4"])
@@ -183,4 +220,4 @@ run(["-i", f"{out}/title.mp4", "-i", f"{out}/main.mp4", "-i", f"{out}/end.mp4", 
      f"[x][2:v]xfade=transition=fade:duration={FADE}:offset={title_len + main_len - 2 * FADE:.2f},format=yuv420p[v]",
      "-map", "[v]", "-map", "3:a", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
      "-shortest", "-movflags", "+faststart", f"{out}/navi-demo.mp4"])
-print(f"navi-demo.mp4: {total:.1f} s; {len(regions)} AI waits sped up")
+print(f"navi-demo.mp4: {total:.1f} s; {len(ai_waits)} AI waits and {len(dead)} pauses sped up")

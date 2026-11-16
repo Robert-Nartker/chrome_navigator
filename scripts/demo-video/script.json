@@ -3,26 +3,62 @@
   "userVoice": {
     "model": "gpt-4o-mini-tts",
     "voice": "ash",
-    "instructions": "A relaxed young man talking to his computer at his desk: natural, casual and clear, at an easy pace. Not an announcer, not excited."
+    "instructions": "A relaxed young man giving his computer a quick voice command: natural, casual and clear, at a brisk everyday pace. Not an announcer, not excited.",
+    "speed": 1.15
   },
-  "title": { "heading": "Navi", "sub": "Chrome, by voice" },
+  "title": {
+    "heading": "Navi",
+    "sub": "Chrome, by voice"
+  },
   "steps": [
-    { "card": "Just talk. Simple commands run instantly, on your computer." },
-    { "say": "search wikipedia for red pandas" },
-    { "say": "scroll down" },
-    { "card": "Made for people who can't see the screen" },
-    { "say": "list the headings", "cutAfter": 4.5 },
-    { "say": "go to the behaviour and ecology section" },
-    { "say": "read this section", "cutAfter": 5 },
-    { "say": "stop" },
-    { "card": "Everything you can click gets a number" },
-    { "say": "show numbers" },
-    { "say": "click {n}", "clickLink": "nocturnal" },
-    { "say": "go back" },
-    { "card": "Anything else goes to the AI" },
-    { "say": "open hacker news" },
-    { "say": "open the comments on the top story" },
-    { "say": "what are people saying?" }
+    {
+      "card": "Just talk. Simple commands run instantly, on your computer."
+    },
+    {
+      "say": "search wikipedia for red pandas"
+    },
+    {
+      "say": "scroll down"
+    },
+    {
+      "card": "Made for people who can't see the screen"
+    },
+    {
+      "say": "list the headings",
+      "cutAfter": 4.5
+    },
+    {
+      "say": "go to the behaviour and ecology section"
+    },
+    {
+      "say": "read this section",
+      "cutAfter": 5
+    },
+    {
+      "say": "stop"
+    },
+    {
+      "card": "Everything you can click gets a number"
+    },
+    {
+      "say": "show numbers"
+    },
+    {
+      "say": "click {n}",
+      "clickLink": "nocturnal"
+    },
+    {
+      "say": "go back"
+    },
+    {
+      "card": "Anything else goes to the AI"
+    },
+    {
+      "say": "how long do red pandas live?"
+    },
+    {
+      "say": "open the giant panda article and tell me how much they weigh"
+    }
   ],
   "end": {
     "heading": "Navi",
