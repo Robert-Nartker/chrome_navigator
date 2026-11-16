@@ -198,15 +198,57 @@ export async function tabsWithUnsavedTyping(tabs: chrome.tabs.Tab[]): Promise<ch
  * Goes back a page, exactly like Chrome's back button. With nothing to go back to (some sites change
  * filters and views without adding a page to go back to), it says so: it never closes the tab.
  */
-export async function goBack(tab: chrome.tabs.Tab): Promise<chrome.tabs.Tab> {
+export async function goBack(tab: chrome.tabs.Tab, steps = 1): Promise<chrome.tabs.Tab> {
+  // A page used only by voice never gets a real click or key press, and Chrome's back button (and
+  // chrome.tabs.goBack) skips such pages, so "go back" jumped past the page just left. The page's own
+  // history.go() doesn't skip them.
+  if (await historyGo(tab, -steps)) return waitForLoad(tab.id!);
   try {
-    await chrome.tabs.goBack(tab.id!);
+    for (let i = 0; i < steps; i++) await chrome.tabs.goBack(tab.id!);
   } catch {
     const opener = tab.openerTabId !== undefined ? await chrome.tabs.get(tab.openerTabId).catch(() => undefined) : undefined;
     const tip = opener ? ` To get back to “${opener.title || "the tab it came from"}”, say “close tab”.` : "";
     throw new Error(`There's no previous page in this tab.${tip}`);
   }
   return waitForLoad(tab.id!);
+}
+
+/** Moves through the tab's history from inside the page. False if it can't (no web page, nothing to go to). */
+async function historyGo(tab: chrome.tabs.Tab, delta: number): Promise<boolean> {
+  const tabId = tab.id!;
+  if (!isWebUrl(tab.url)) return false;
+  const before = tab.url;
+  let stop = () => {};
+  const moved = new Promise<boolean>((resolve) => {
+    const onUpdated = (id: number, change: { url?: string }) => {
+      if (id === tabId && change.url && change.url !== before) stop();
+    };
+    const timer = setTimeout(() => finish(false), 2000);
+    const finish = (ok: boolean) => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    stop = () => finish(true);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+  const [result] = await chrome.scripting
+    .executeScript({
+      target: { tabId },
+      func: (d: number) => {
+        // Only the page's own history: with nothing before it, there's nothing to do here.
+        if (history.length <= 1) return false;
+        history.go(d);
+        return true;
+      },
+      args: [delta],
+    })
+    .catch(() => [{ result: false }]);
+  if (!result?.result) {
+    stop = () => {};
+    return false;
+  }
+  return moved;
 }
 
 /**

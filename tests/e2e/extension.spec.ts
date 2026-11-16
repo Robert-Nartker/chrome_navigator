@@ -237,8 +237,6 @@ test("types into the focused field and submits into a numbered one", async ({ pa
 
 test("navigates, goes back, and manages tabs", async ({ panel, site, baseUrl, context }) => {
   const port = new URL(baseUrl).port;
-  // Chrome's back button skips history entries the user never interacted with.
-  await site.click("h1");
   await run(panel, `go to localhost:${port}/about.html`);
   await expect(site).toHaveURL(/about\.html/);
   await run(panel, "go back");
@@ -368,6 +366,23 @@ test("“play” on a video that won't start (still loading) doesn't leave Navi 
   // Navi is free for the next command.
   await run(panel, "what time is it");
   await expect(panel.locator("#log li.navi .text").last()).toHaveText(/^It's \d/);
+});
+
+test("“go back” returns to a page used only by voice, which Chrome's back button would skip", async ({ panel, site, baseUrl }) => {
+  // No real click or key press anywhere: Chrome's back button skips such pages (this used to land on a
+  // blank page, or say there was nothing to go back to).
+  const port = new URL(baseUrl).port;
+  await run(panel, `go to localhost:${port}/about.html`);
+  await expect(site).toHaveURL(/about\.html/);
+  await run(panel, `go to localhost:${port}/search.html`);
+  await expect(site).toHaveURL(/search\.html/);
+  await run(panel, "go back");
+  await expect(site).toHaveURL(/about\.html/);
+  await expect(panel.locator("#log li.navi .text").last()).toContainText("Back to");
+  await run(panel, `go to localhost:${port}/search.html`);
+  await expect(site).toHaveURL(/search\.html/);
+  await run(panel, "go back 2 pages");
+  await expect(site).toHaveURL(/index\.html/);
 });
 
 test("“open” opens a new tab; “go back” is the browser's back button and never closes a tab; “go to” stays in this tab", async ({

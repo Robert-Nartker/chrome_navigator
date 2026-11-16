@@ -1607,8 +1607,7 @@ export class Controller {
         return;
       }
       case "backN":
-        for (let i = 0; i < intent.times; i++) await chrome.tabs.goBack(tab.id!).catch(() => undefined);
-        await this.announcePage(await waitForLoad(tab.id!), "Back to");
+        await this.announcePage(await goBack(tab, intent.times), "Back to");
         return;
       case "nextPage": {
         // Pagination link on search results and lists: "Next", "Next page", "›", "More results".
