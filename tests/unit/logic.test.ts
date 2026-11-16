@@ -126,8 +126,8 @@ describe("WakeSession", () => {
   });
 
   it("wakes on “wake up” or “wake”, with or without the name, and runs what follows", () => {
-    // (Whisper writes "Wake-up." with a hyphen.)
-    for (const said of ["wake up", "wake", "Wake up.", "Wake-up.", "wakeup", "hey wake up", "wake up navi", "okay wake up navigator", "wakey wakey", "Wakey-wakey!"]) {
+    // (Whisper writes "Wake-up." with a hyphen; both models sometimes "Wake ups." or "Wakeups", bench/asr.)
+    for (const said of ["wake up", "wake", "Wake up.", "Wake-up.", "wakeup", "Wake ups.", "Wake-ups.", "Wakeups", "hey wake up", "wake up navi", "okay wake up navigator", "wakey wakey", "Wakey-wakey!"]) {
       const { session } = make();
       expect(session.handle(said), said).toEqual({ command: null, woke: true });
     }

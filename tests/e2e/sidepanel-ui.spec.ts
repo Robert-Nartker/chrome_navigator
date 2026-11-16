@@ -743,6 +743,16 @@ test.describe("live caption", () => {
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "awake");
   });
 
+  test("asleep, “Wake ups.” (as both models sometimes write it) wakes Navi, with nothing left over to run", async ({ panel }) => {
+    await onAsleep(panel);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
+    await hear(panel, "Wake ups.", true);
+    await expect(panel.locator("#voice")).toHaveAttribute("data-state", "awake");
+    // Just woken: the "s" isn't left over as a command of its own ("ups.").
+    await panel.waitForTimeout(800);
+    await expect(panel.locator("#log li.user .text")).toHaveCount(0);
+  });
+
   test("recording your mic in the recognizer tester turns Navi off meanwhile, then back on asleep as it was", async ({ panel, context, extensionId }) => {
     await onAsleep(panel);
     await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
