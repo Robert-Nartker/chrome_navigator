@@ -23,11 +23,32 @@ SAY = {
     "navi": "nah vee", "navi's": "nah vees", "ai": "A I", "github": "git hub", "lofi": "low fee", "url": "U R L",
     "deskly": "desk lee", "flexdesk": "flex desk", "$379": "three seventy nine dollars", "379": "three seventy nine",
     "400": "four hundred", "7": "seven", "flag's": "flags",
+    "chrome's": "chromes", "wikipedia": "wicky pee dee uh", "bitly": "bit lee", "qr": "cue are", "ublock": "you block",
 }
 lexicon = set()
+phones = {}
 for f in ("lexicon-us-en.txt", "lexicon-gb-en.txt"):
     for line in open(f"{kokoro}/{f}", encoding="utf8"):
-        lexicon.add(line.split(" ", 1)[0].lower())
+        word, _, ph = line.rstrip("\n").partition(" ")
+        lexicon.add(word.lower())
+        phones.setdefault(word.lower(), ph)
+
+def derived(word):
+    """Sounds for a word the dictionary lacks but whose stem it has ("opened", "commenters", "urls"): Navi's
+    replies aren't scripted, and Kokoro silently skips unknown words."""
+    w = word.lower()
+    rules = [("ies", "y", " z"), ("es", "", " ɪ z"), ("s", "", " z"), ("ied", "y", " d"), ("ed", "", " d"), ("ed", "e", " d"), ("ing", "", " ɪ ŋ"), ("ing", "e", " ɪ ŋ"), ("er", "", " ə ɹ"), ("ers", "", " ə ɹ z")]
+    for end, add, tail in rules:
+        stem = w[: -len(end)] + add if w.endswith(end) else None
+        if stem and stem in phones:
+            if end in ("ed",) and stem[-1:] in ("t", "d"):
+                tail = " ɪ d"
+            return phones[stem] + tail
+    return None
+
+# Missing words with a known stem go into an extra dictionary for this run.
+EXTRA = os.path.join(out, "extra-lexicon.txt")
+extra = {}
 
 ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
@@ -47,7 +68,11 @@ def spell_numbers(text):
     text = re.sub(r"\b(\d+)K\b", lambda m: number_words(int(m.group(1))) + " thousand", text)
     return re.sub(r"\b\d{1,6}\b", lambda m: number_words(int(m.group(0))), text)
 
+LETTERS = {c: n for c, n in zip("abcdefghijklmnopqrstuvwxyz", "ay bee see dee ee eff gee aitch eye jay kay el em en oh pee cue are ess tee you vee double-you ex why zee".split())}
+LETTERS["w"] = "double you"
+
 def spoken(text):
+    text = re.sub(r"(?<=\w)-(?=\w)", " ", text)  # "QR-code", "third-party": the words, said
     # Kokoro's sherpa-onnx frontend skips words stuck to brackets, and "·": both are pauses when said.
     text = spell_numbers(re.sub(r"\s*[·()]\s*", ", ", text)).replace(", ,", ",")
     out_words = []
@@ -56,17 +81,25 @@ def spoken(text):
         tail = raw[len(raw.rstrip(".,!?:;")):]
         if core in SAY:
             out_words.append(SAY[core] + tail)
+        elif re.fullmatch(r"[A-Z]{2,4}s?", raw.strip(".,!?:;“”\"'")):
+            # An acronym ("QR", "URLs"): its letters.
+            letters = raw.strip(".,!?:;“”\"'")
+            plural = letters.endswith("s")
+            out_words.append(" ".join(LETTERS[c.lower()] for c in (letters[:-1] if plural else letters)) + ("s" if plural else "") + tail)
         else:
             out_words.append(raw)
     said = " ".join(out_words)
-    missing = [w for w in re.findall(r"[a-z']+", said.lower()) if w not in lexicon and w.strip("'") not in lexicon]
+    missing = []
+    for w in re.findall(r"[a-z']+", said.lower()):
+        if w in lexicon or w.strip("'") in lexicon:
+            continue
+        ph = derived(w.strip("'"))
+        if ph:
+            extra[w.strip("'")] = ph
+        else:
+            missing.append(w)
     return said, missing
 
-cfg = sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(
-    kokoro=sherpa_onnx.OfflineTtsKokoroModelConfig(model=f"{kokoro}/model.onnx", voices=f"{kokoro}/voices.bin", tokens=f"{kokoro}/tokens.txt",
-        data_dir=f"{kokoro}/espeak-ng-data", dict_dir=f"{kokoro}/dict", lexicon=f"{kokoro}/lexicon-us-en.txt,{kokoro}/lexicon-gb-en.txt", lang="en-us"),
-    num_threads=4))
-tts = sherpa_onnx.OfflineTts(cfg)
 voices = script["voices"]
 
 lines = {}
@@ -84,20 +117,36 @@ else:
     for i, e in enumerate(e for e in events if e["kind"] == "navi"):
         lines[f"navi-{i}"] = ("navi", e["text"])
 
-durations = {}
+extra = {}
 problems = []
+prepared = {}
 for key, (who, text) in lines.items():
     said, missing = spoken(text)
     if missing:
         problems.append(f"{key}: {missing} in {text!r}")
-        continue
+    prepared[key] = (who, said)
+if problems and mode == "lines":
+    raise SystemExit("Words Kokoro doesn't know (add them to SAY):\n" + "\n".join(problems))
+# Navi's replies come from the live AI: a word left over is noted, not fatal (it's skipped when said).
+for p in problems:
+    print("Skipped when said:", p)
+os.makedirs(out, exist_ok=True)
+with open(EXTRA, "w", encoding="utf8") as f:
+    for word, ph in extra.items():
+        f.write(f"{word} {ph}\n")
+
+cfg = sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(
+    kokoro=sherpa_onnx.OfflineTtsKokoroModelConfig(model=f"{kokoro}/model.onnx", voices=f"{kokoro}/voices.bin", tokens=f"{kokoro}/tokens.txt",
+        data_dir=f"{kokoro}/espeak-ng-data", dict_dir=f"{kokoro}/dict", lexicon=f"{kokoro}/lexicon-us-en.txt,{kokoro}/lexicon-gb-en.txt" + (f",{EXTRA}" if extra else ""), lang="en-us"),
+    num_threads=4))
+tts = sherpa_onnx.OfflineTts(cfg)
+durations = {}
+for key, (who, said) in prepared.items():
     # A touch slower for the narrator; Navi at its own default pace.
     speed = {"narrator": 0.95, "user": 1.0, "navi": 1.05}[who]
     audio = tts.generate(said, sid=voices[who], speed=speed)
     x = np.asarray(audio.samples, dtype=np.float32)
     sf.write(f"{out}/{key}.wav", x, audio.sample_rate)
     durations[key] = len(x) / audio.sample_rate
-if problems:
-    raise SystemExit("Words Kokoro doesn't know (add them to SAY):\n" + "\n".join(problems))
 json.dump(durations, open(f"{out}/durations{'' if mode == 'lines' else '-replies'}.json", "w"), indent=1)
 print(f"{len(durations)} clips, {sum(durations.values()):.1f} s of speech")

@@ -1,25 +1,25 @@
 # Demo video
 
-Makes a 2-minute demo of Navi: the real extension in Chromium on three demo pages (a video site, an encyclopedia article, a desk shop), with Navi's panel beside the page, a caption for each command, and three Kokoro voices: a narrator, the user saying each command, and Navi answering in its own default voice (af_heart).
+Makes a demo of Navi of under 2 minutes, recorded in a real Chromium window: tabs, address bar and Navi in Chrome's own side panel, dark mode, on real sites (Wikipedia, Hacker News). Three Kokoro voices: a narrator (`bm_george`), the user saying each command (`am_michael`), and Navi answering in its own default voice (`af_heart`). The narrator and the user are labelled on screen; Navi's words show in its panel and its caption on the page.
 
 What's real and what's stood in for:
 
-- **Real:** Navi as it ships. Its parser, flags, clicking, scrolling, page structure, reading, the panel and the page caption.
-- **Stood in for:** the microphone (each command goes in through Navi's voice path with the recognizer replaced, and the user's voice is added from Kokoro), and the AI's replies in the shop scene (scripted, since recording runs without an API key; Navi still does the clicking).
+- **Real:** Navi as it ships, in a real browser window on live sites: listening (the words show in Navi's live caption as they're said, and the phrase ends as with a mic), parsing, the router, flags, clicking, page structure, reading, the panel, and the AI (it runs through OpenAI for real, so its answers change from run to run).
+- **Stood in for:** the speech recognizer (each command goes in as words through Navi's on-device recognizer interface, and the user's voice is added from Kokoro), Navi's voice (the recording has no sound; its replies are said afterwards in Kokoro, at the moment each appeared, and cut when the next command starts, as talking over Navi does), and Wikipedia's fundraising banner (hidden).
 
 ## Making it
 
-Needs `ffmpeg`, Python with `sherpa-onnx soundfile numpy scipy`, and Kokoro v1.0 for sherpa-onnx (`kokoro-multi-lang-v1_0` from the sherpa-onnx `tts-models` release).
+Needs `ffmpeg`, `Xvfb` (`xvfb-run`), Python with `sherpa-onnx soundfile numpy`, Kokoro v1.0 for sherpa-onnx (`kokoro-multi-lang-v1_0` from the sherpa-onnx `tts-models` release), network access to the sites, and an OpenAI key (this sandbox's proxy adds it; elsewhere put a real key in `record.ts`'s settings).
 
 ```bash
 OUT=/path/to/out; KOKORO=/path/to/kokoro-multi-lang-v1_0
 npm run build
-# A stand-in for the video on the video page (any 60-second MP4 works)
-ffmpeg -f lavfi -i "gradients=s=1280x720:speed=0.004:d=60" -f lavfi -i "sine=frequency=220:duration=60" -c:v libx264 -c:a aac -t 60 $OUT/lofi.mp4
 python3 scripts/demo-video/narrate.py lines scripts/demo-video/script.json $KOKORO $OUT/speech
-DEMO_OUT=$OUT npx playwright test -c scripts/demo-video
+DEMO_OUT=$OUT xvfb-run -a -s "-screen 0 1920x1080x24" npx tsx scripts/demo-video/record.ts
 python3 scripts/demo-video/narrate.py replies scripts/demo-video/script.json $KOKORO $OUT/speech $OUT/events.json
 python3 scripts/demo-video/compose.py scripts/demo-video/script.json $OUT     # writes $OUT/navi-demo.mp4
 ```
 
-Change what's said and done in `script.json`. Timing follows the speech: the recording waits for each line to be said, and the voices are laid in at the moments the recording logged.
+Change what's said and done in `script.json`. Timing follows the speech: the recording waits for each line to be said and for Navi to answer, and the voices are laid in at the moments the recording logged.
+
+How the recording reaches Navi: Playwright doesn't attach to an extension's offscreen page or side panel in a visible browser, so `record.ts` opens the side panel with a real click (Chrome requires one), then talks to both pages over Chrome's debugging protocol: it installs the stand-in recognizer in the offscreen page and reloads it (Navi restarts listening in a reloaded one), and reads Navi's replies from the panel.
