@@ -1196,6 +1196,23 @@ test.describe("Parakeet recognizer", () => {
       expect(((await ears(panel, { action: "sounds" })) as string[]).filter((s) => s === "unknown")).toEqual([]);
     });
 
+    test("asleep, a faint phrase isn't shown as heard, but a faint “Navi, …” still wakes it and runs (model stubbed)", async ({ panel }) => {
+      await ears(panel, { action: "fakeParakeet", phrases: ["Okay.", "Hello there.", "Navi, scroll down.", ""], loudness: true });
+      await run(panel, "use parakeet");
+      // Every caption hint shown while it listens.
+      await panel.evaluate(() => {
+        const seen: string[] = [];
+        (window as unknown as { __hints: string[] }).__hints = seen;
+        const hint = document.getElementById("caption-hint")!;
+        new MutationObserver(() => seen.push(hint.textContent ?? "")).observe(hint, { childList: true, characterData: true, subtree: true });
+      });
+      await onAsleep(panel);
+      await expect(panel.locator("#log li.user .text").filter({ hasText: /scroll down/ })).toHaveCount(1, { timeout: 20_000 });
+      const hints = await panel.evaluate(() => (window as unknown as { __hints: string[] }).__hints);
+      expect(hints).toContain("Heard “Hello there.”. Say “wake up” first.");
+      expect(hints.filter((h) => h.includes("Okay"))).toEqual([]);
+    });
+
     test("a faint phrase that isn't a command (“Okay.” for a clatter) is left alone, and kept in the usage log as faint (model stubbed)", async ({ panel }) => {
       await start(panel, ["Okay.", "Scroll down.", "Yeah.", "Go to the top."]);
       const said = panel.locator("#log li.user .text").filter({ hasText: /Scroll|Go to the top|Okay|Yeah/ });

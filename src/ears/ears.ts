@@ -289,8 +289,9 @@ export class Ears {
       earcons.wake();
     }
     if (decision.command) this.sendCommand(decision.command, transcript, confidence, alternatives, timing);
-    // Asleep and not for Navi: show what was heard for a moment, so a missed "wake up" is visible.
-    this.heardAsleep = this.asleep && !decision.woke ? transcript : "";
+    // Asleep and not for Navi: show what was heard for a moment, so a missed "wake up" is visible. Not a
+    // faint phrase: that's most likely noise ("Okay." for a clatter).
+    this.heardAsleep = this.asleep && !decision.woke && !timing?.faint ? transcript : "";
     this.heardAt = Date.now();
     this.emit();
   }
