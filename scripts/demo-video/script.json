@@ -54,7 +54,8 @@
       "card": "Anything else goes to the AI"
     },
     {
-      "say": "how long do red pandas live?"
+      "say": "how long do red pandas live?",
+      "speed": 1.45
     },
     {
       "say": "open the giant panda article and tell me how much they weigh"

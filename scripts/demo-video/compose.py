@@ -42,12 +42,33 @@ end = next(e["t"] for e in events if e["kind"] == "end")
 # The AI's thinking time: from just after a command to just before its reply shows, when that's long.
 says = [e for e in events if e["kind"] == "say"]
 replies = [e for e in events if e["kind"] == "reply"]
-ai_waits = []
+# A line said faster than recorded ("speed" in script.json): it ends where it did, so what follows still
+# follows it, and it starts that much later.
+steps = script["steps"]
 for s in says:
+    speed = steps[int(s["key"][1:])].get("speed", 1.0)
+    if speed != 1.0:
+        before = s.get("duration", durations.get(s["key"], 1.5))
+        faster = f"{speech}/{s['key']}-x{speed}.wav"
+        run(["-i", f"{speech}/{s['key']}.wav", "-af", f"atempo={speed}", faster])
+        s["file"], s["duration"] = faster, before / speed
+        s["t"] += before - before / speed
+
+cards = [(e["t"], e["t"] + 3.2) for e in events if e["kind"] == "card"]
+ai_waits = []
+for i, s in enumerate(says):
     said_end = s["t"] + s.get("duration", durations.get(s["key"], 1.5))
-    nxt = next((r for r in replies if r["t"] > said_end), None)
+    # Its own reply, before anything else is said ("stop" has none: the next command's isn't its).
+    next_say = says[i + 1]["t"] if i + 1 < len(says) else end
+    nxt = next((r for r in replies if said_end < r["t"] < next_say), None)
     if nxt and nxt["t"] - said_end > 3.0:
-        ai_waits.append((said_end + 0.9, nxt["t"] - 0.6))
+        a, b = said_end + 0.9, nxt["t"] - 0.6
+        # Never over a card: it has to stay up long enough to read.
+        for ca, cb in cards:
+            if ca < b and cb > a:
+                a, b = (cb, b) if ca <= a else (a, ca)
+        if b - a > 1.0:
+            ai_waits.append((a, b))
 
 # Dead air: moments with nothing said, shown or happening (a page loading, a pause between commands) are
 # sped through, so the video never seems to wait.
@@ -196,7 +217,7 @@ navi_i = 0
 for i, ev in enumerate(timed):
     at = main_at + out_time(ev["t"])
     if ev["kind"] == "say":
-        clips.append((f"{speech}/{ev['key']}.wav", at, None, 1.0))
+        clips.append((ev.get("file", f"{speech}/{ev['key']}.wav"), at, None, 1.0))
     else:
         nxt = next((s["t"] for s in says if s["t"] > ev["t"] + 0.05), None)
         limit = min(6.0, (out_time(nxt) - out_time(ev["t"]) - 0.1) if nxt else 8.0)
