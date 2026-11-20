@@ -11,3 +11,6 @@ scripts/speech-lab/models/
 scripts/speech-lab/noise/
 scripts/speech-lab/out/
 scripts/speech-lab/__pycache__/
+# Website: the download is built by scripts/site-zip.sh; Vercel link settings
+site/navi.zip
+site/.vercel/

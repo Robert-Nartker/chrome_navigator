@@ -2,6 +2,10 @@
 
 What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md); when a roadmap item ships, it moves here.
 
+## 2026-11-20
+
+- **Navi has a website: [chrome-navigator.vercel.app](https://chrome-navigator.vercel.app).** What Navi is, the demo video, what you can say, the accessibility features, how it works, a step-by-step install guide, Free and Pro, privacy, and an FAQ, with a download of the stable version (`main`). The source is in [site/](site); `scripts/site-zip.sh` builds the download and `scripts/site-deploy.sh` publishes it.
+
 ## 2026-11-16
 
 From the owner's first real session with the new build (usage log and notes):

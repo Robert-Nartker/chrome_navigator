@@ -6,6 +6,8 @@ Built for two groups:
 - **Accessibility:** people with motor impairments who can't use a mouse and keyboard, and blind or low-vision users, via spoken feedback and "read this page" / "where am I".
 - **Speed:** developers and power users who want to browse hands-free.
 
+Website: **[chrome-navigator.vercel.app](https://chrome-navigator.vercel.app)** (demo video, install guide, FAQ).
+
 BDAA AI Fundamentals track project, Autumn 2026. **Status:** early and in active development; not on the Chrome Web Store yet, so you load it yourself (below).
 
 <p>
