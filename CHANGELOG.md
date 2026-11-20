@@ -4,6 +4,7 @@ What changed in Navi, newest first. Planned work is in [ROADMAP.md](ROADMAP.md);
 
 ## 2026-11-20
 
+- **A new look for the side panel and a new logo.** The voice card is a dark "console" in both themes, with a glowing orb for the power button (soft rings spread from it while you talk or Navi works; nothing moves while it just listens); each command is a card with "You" and "Navi" labels; the composer's send and stop buttons use Navi's gradient. The logo is an "N" spelled with a voice waveform, in the same gradient, on the extension, the site and its tab.
 - **Navi has a website: [chrome-navigator.vercel.app](https://chrome-navigator.vercel.app).** What Navi is, the demo video, what you can say, the accessibility features, how it works, a step-by-step install guide, Free and Pro, privacy, and an FAQ, with a download of the stable version (`main`). The source is in [site/](site); `scripts/site-zip.sh` builds the download and `scripts/site-deploy.sh` publishes it.
 
 ## 2026-11-16

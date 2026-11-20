@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="0.55" stop-color="#7c3aed"/><stop offset="1" stop-color="#a21caf"/></linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ddd6fe"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="shine" cx="30%" cy="0%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="34" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="34" fill="url(#shine)"/>
+  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="33.25" fill="none" stroke="url(#rim)" stroke-width="1.5"/>
+  <g fill="url(#bar)">
+    <rect x="24" y="28" width="15" height="72" rx="7.5"/>
+    <rect x="42.5" y="29" width="13" height="36" rx="6.5"/>
+    <rect x="57.5" y="46" width="13" height="36" rx="6.5"/>
+    <rect x="72.5" y="63" width="13" height="36" rx="6.5"/>
+    <rect x="89" y="28" width="15" height="72" rx="7.5"/>
+  </g>
+</svg>

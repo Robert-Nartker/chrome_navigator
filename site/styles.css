@@ -597,3 +597,34 @@ details pre code { background: none; padding: 0; }
   .final { margin-top: 110px; padding: 80px 0 90px; }
   details { padding: 0 18px; }
 }
+
+/* ---------- Hero, centered: a big headline over Navi's console ---------- */
+.hero { padding: 160px 0 100px; }
+.hero-grid { grid-template-columns: 1fr; gap: 64px; justify-items: center; text-align: center; }
+.hero-copy { display: flex; flex-direction: column; align-items: center; max-width: 1000px; }
+.hero h1 { font-size: clamp(60px, 10.5vw, 156px); line-height: 0.93; letter-spacing: -0.04em; }
+.hero .lede { max-width: 640px; margin-top: 30px; font-size: clamp(17px, 1.6vw, 21px); }
+.hero .cta-row { justify-content: center; }
+.hero .facts { justify-content: center; }
+.console {
+  width: 100%; max-width: 900px; text-align: left;
+  display: grid; grid-template-columns: 250px 1fr; grid-template-areas: "top top" "orb cap" "orb meta";
+  column-gap: 26px; align-items: center; padding: 22px 26px 26px;
+}
+.console-top { grid-area: top; margin-bottom: 4px; }
+.console .orb-wrap { grid-area: orb; max-width: 250px; margin: 0; }
+.console .cap { grid-area: cap; align-self: end; min-height: 150px; padding: 20px 22px; }
+.console .cap p { font-size: 21px; }
+.console .cap .did { font-size: 18px; }
+.console .cap-meta { grid-area: meta; align-self: start; }
+@media (max-width: 760px) {
+  .console { grid-template-columns: 1fr; grid-template-areas: "top" "orb" "cap" "meta"; padding: 16px; }
+  .console .orb-wrap { max-width: 220px; margin: 4px auto 6px; }
+  .console .cap { min-height: 128px; padding: 16px 18px; }
+  .console .cap p { font-size: 17px; }
+  .console .cap .did { font-size: 16px; }
+}
+@media (max-width: 600px) {
+  .hero { padding: 108px 0 70px; }
+  .hero-grid { gap: 44px; }
+}

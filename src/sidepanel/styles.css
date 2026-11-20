@@ -1347,3 +1347,431 @@ body {
   outline-offset: -2px;
   border-radius: 6px;
 }
+
+/* ---------- Look: Navi's brand (the website's design language) ----------
+   The voice card is a dark "console" in both themes, with a glowing orb for the power button.
+   The conversation reads like the console's captions: "You" and "Navi", each turn a card.
+   Still nothing moves while Navi just listens; only talking and working animate. */
+
+:root {
+  --brand: linear-gradient(135deg, #5b5bf0 0%, #7c3aed 60%, #9333ea 100%);
+  --canvas: #f5f5f9;
+  --elevated: #ffffff;
+  --border: #e6e5ee;
+  --shadow: 0 1px 2px rgb(20 10 60 / 0.04), 0 6px 18px -10px rgb(30 20 90 / 0.18);
+  --you: #92400e;
+  --navi-label: #5b3fd6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0b0b12;
+    --elevated: #14141d;
+    --surface: #1c1c28;
+    --raised: #262634;
+    --border: #252533;
+    --border-strong: #34344a;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.7);
+    --you: #fcd77a;
+    --navi-label: #b9b0ff;
+  }
+}
+
+body {
+  background:
+    radial-gradient(120% 50% at 50% 0%, color-mix(in srgb, #7c6cff 9%, transparent), transparent 60%),
+    var(--canvas);
+}
+
+.top {
+  height: 46px;
+  border-bottom: 0;
+  padding: 0 10px 0 16px;
+}
+
+.status {
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  background: var(--elevated);
+  box-shadow: 0 0 0 1px var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.status .dot {
+  width: 7px;
+  height: 7px;
+}
+
+.status[data-state="awake"] .dot { box-shadow: 0 0 8px var(--good); }
+
+.plan {
+  height: 26px;
+  padding: 0 10px;
+  background: var(--elevated);
+}
+
+.plan[data-plan="pro"] {
+  border: 1px solid transparent;
+  background: linear-gradient(var(--elevated), var(--elevated)) padding-box, var(--brand) border-box;
+}
+
+.plan[data-plan="pro"] .plan-dot {
+  background: var(--brand);
+}
+
+.icon-button {
+  border-radius: 8px;
+}
+
+.banner {
+  border-radius: 12px;
+}
+
+/* The console. Its own colors, the same in light and dark, so the controls inside use them too. */
+.voice {
+  --text: #ffffff;
+  --muted: rgb(255 255 255 / 0.68);
+  --faint: rgb(255 255 255 / 0.52);
+  --border: rgb(255 255 255 / 0.1);
+  --border-strong: rgb(255 255 255 / 0.2);
+  --surface: rgb(255 255 255 / 0.07);
+  --raised: rgb(255 255 255 / 0.16);
+  --elevated: transparent;
+  --accent: #a99fff;
+  --accent-text: #ffffff;
+  --shadow: none;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  margin: 2px 12px 0;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 20px;
+  background:
+    radial-gradient(90% 120% at 0% 0%, rgb(91 76 240 / 0.55), transparent 60%),
+    radial-gradient(80% 120% at 100% 100%, rgb(162 28 175 / 0.35), transparent 60%),
+    linear-gradient(160deg, #15123a, #0a0a16);
+  box-shadow: 0 18px 40px -22px rgb(60 40 200 / 0.75), inset 0 1px 0 rgb(255 255 255 / 0.1);
+  color: var(--text);
+}
+
+.voice-main {
+  gap: 14px;
+  min-height: 78px;
+  padding: 14px 14px 12px;
+}
+
+/* The orb: off it's a dark glass button; on, it glows in the brand's colors. */
+.mic,
+.mic:hover {
+  width: 50px;
+  height: 50px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.mic:hover {
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+
+.mic svg {
+  width: 19px;
+  height: 19px;
+}
+
+.mic-halo {
+  inset: -5px;
+  border-radius: 50%;
+}
+
+.voice:not([data-state="off"]) .mic.power[aria-checked="true"],
+.voice:is([data-state="sleeping"], [data-state="starting"]) .mic {
+  border-color: rgb(169 159 255 / 0.55);
+  background: radial-gradient(circle at 35% 30%, rgb(165 161 255 / 0.35), rgb(91 76 240 / 0.25) 60%, rgb(46 16 101 / 0.3));
+  color: #fff;
+}
+
+.voice:is([data-state="awake"], [data-state="working"]) .mic.power[aria-checked="true"],
+.voice:is([data-state="awake"], [data-state="working"]) .mic {
+  border-color: rgb(255 255 255 / 0.35);
+  background: radial-gradient(circle at 35% 28%, #b3afff 0%, #6550f2 48%, #3a138c 100%);
+  color: #fff;
+  box-shadow: 0 0 26px rgb(124 108 255 / 0.75), inset 0 2px 8px rgb(255 255 255 / 0.35);
+}
+
+.voice:is([data-state="awake"], [data-state="working"]) .mic-halo {
+  box-shadow: 0 0 0 1.5px rgb(169 159 255 / 0.5);
+}
+
+/* Talking: two soft rings spread from the orb (opacity and scale only). */
+.mic-halo::before,
+.mic-halo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgb(190 182 255 / 0.7);
+  opacity: 0;
+}
+
+.voice:has(.interim:not(:empty)) .mic-halo::before,
+.voice:has(.interim:not(:empty)) .mic-halo::after,
+.voice[data-state="working"] .mic-halo::before {
+  animation: spread 1.6s ease-out infinite;
+}
+
+.voice:has(.interim:not(:empty)) .mic-halo::after {
+  animation-delay: 0.8s;
+}
+
+.voice[data-state="error"] .mic {
+  border-color: rgb(255 99 105 / 0.6);
+  background: rgb(255 99 105 / 0.14);
+  color: #ff8a8f;
+}
+
+.interim {
+  font-size: 19px;
+  font-weight: 550;
+  letter-spacing: -0.015em;
+}
+
+.interim::after {
+  background: #fff;
+}
+
+.caption-hint {
+  font-size: 13px;
+}
+
+.bars i {
+  width: 2.5px;
+  background: linear-gradient(#c4b5fd, #8b5cf6);
+}
+
+.session-bar div {
+  background: var(--brand);
+}
+
+.mode-row {
+  border-top-color: rgb(255 255 255 / 0.08);
+  padding: 9px 14px 10px;
+}
+
+.voice .chip,
+.voice .yolo {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.05);
+}
+
+.voice .chip[aria-pressed="true"] {
+  border-color: rgb(169 159 255 / 0.7);
+  background: rgb(124 108 255 / 0.3);
+}
+
+.voice .yolo[aria-pressed="true"] {
+  border-color: rgb(251 191 36 / 0.7);
+  background: rgb(251 191 36 / 0.2);
+  color: #fde68a;
+}
+
+.thinking {
+  padding: 0 14px 10px;
+}
+
+.voice .segmented {
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.28);
+}
+
+.voice .segmented label {
+  padding: 3px 11px;
+  border-radius: 999px;
+}
+
+.voice .segmented label:has(input:checked) {
+  background: rgb(255 255 255 / 0.16);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+.engine {
+  padding: 0 14px 11px;
+}
+
+/* Threads and helpers sit on the canvas, a little softer. */
+.thread-current {
+  border-radius: 8px;
+}
+
+.helpers,
+.tutorial {
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+/* The conversation: each turn a card; "You" and "Navi" labelled like the console's captions. */
+.feed {
+  gap: 10px;
+  padding: 14px 12px 12px;
+}
+
+.turn:not([data-kind="quiet"]) {
+  padding: 10px 12px 11px;
+  border-radius: 16px;
+  background: var(--elevated);
+  box-shadow: var(--shadow), 0 0 0 1px var(--border);
+}
+
+.turn[data-state="working"]:not([data-kind="quiet"]) {
+  box-shadow: var(--shadow), 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.turn-items {
+  gap: 4px;
+}
+
+.turn-items > li:not(.user, .trace, .error) {
+  padding: 0 0 0 44px;
+}
+
+.turn:not([data-kind="quiet"]) .user {
+  position: relative;
+  padding: 0 0 0 44px;
+  background: none;
+  font-size: 14px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+}
+
+.turn[data-state="working"] .user {
+  box-shadow: none;
+}
+
+.turn:not([data-kind="quiet"]) .user::before,
+.feed .navi::before {
+  position: absolute;
+  left: 0;
+  top: 0.32em;
+  font: 600 9.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+}
+
+.turn:not([data-kind="quiet"]) .user::before {
+  content: "YOU" / "";
+  color: var(--you);
+}
+
+.feed .navi {
+  position: relative;
+  font-size: 13.5px;
+}
+
+.feed .navi::before {
+  content: "NAVI" / "";
+  color: var(--navi-label);
+}
+
+.feed > .solo.navi {
+  padding-left: 56px;
+}
+
+.feed > .solo.navi::before {
+  left: 12px;
+}
+
+.trace summary {
+  margin-left: 34px;
+  padding: 2px 10px;
+  border-radius: 8px;
+}
+
+.feed .meta {
+  margin-top: 3px;
+}
+
+.feed .error {
+  border-radius: 12px;
+}
+
+.turn[data-kind="quiet"] {
+  padding: 0 4px;
+}
+
+.turn[data-kind="quiet"] .user {
+  border-radius: 999px;
+}
+
+/* The composer: a soft glass box; send lights up in the brand's gradient once something's typed. */
+.composer {
+  border-radius: 18px;
+  box-shadow: var(--shadow), 0 0 0 1px var(--border);
+  border-color: transparent;
+}
+
+.composer:focus-within {
+  border-color: transparent;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.composer input {
+  padding: 12px 14px 6px;
+  font-size: 13.5px;
+}
+
+.composer-bar {
+  padding: 4px 8px 8px 10px;
+}
+
+.composer .chip {
+  height: 26px;
+  border-radius: 999px;
+}
+
+.send,
+.dictate {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.send,
+.send:hover,
+.composer .send[data-mode="stop"] {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 4px 12px -4px rgb(109 40 217 / 0.7);
+}
+
+.composer:has(input:placeholder-shown) .send:not([data-mode="stop"]) {
+  background: var(--surface);
+  color: var(--faint);
+  box-shadow: none;
+}
+
+.dictate[aria-pressed="true"] {
+  background: var(--brand);
+}
+
+@keyframes spread {
+  from { opacity: 0.8; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.55); }
+}
+
+.voice .ptt-hint {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Navi is working and nothing is typed: Stop, in the brand's colors. */
+.composer:has(input:placeholder-shown) .send[data-mode="stop"] {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 4px 12px -4px rgb(109 40 217 / 0.7);
+}
