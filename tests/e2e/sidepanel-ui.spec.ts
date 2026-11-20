@@ -1359,6 +1359,11 @@ test.describe("screenshots", () => {
       const hold = new Promise<void>((resolve) => (release = resolve));
       await mockClaude(context, { routed: { "smash that sub": "click subscribe" }, reply: "Subscribed to Navi Test Page.", hold });
       await useClaude(panel, "claude-sonnet-5-5");
+      // The system voice, so the pictures don't depend on downloading Navi's voice.
+      await panel.evaluate(async () => {
+        const { settings } = (await chrome.storage.local.get("settings")) as { settings: Record<string, unknown> };
+        await chrome.storage.local.set({ settings: { ...settings, speechOutput: "chrome" } });
+      });
       await onAsleep(panel);
       await expect(panel.locator("#voice")).toHaveAttribute("data-state", "sleeping");
       await hear(panel, "hey navi", true);

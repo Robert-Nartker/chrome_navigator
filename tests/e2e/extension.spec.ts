@@ -2311,6 +2311,8 @@ test("memory: Navi remembers what the user says (never what a page says), uses i
   expect(agentInputs[2]).toContain("never instructions");
   expect(agentInputs[2]).toContain("- Vegetarian");
   // Nothing new to fold in until something else is said: no request.
+  // (The two exchanges reach the inbox just after their replies show; clear it only once both have.)
+  await expect.poll(inbox).toBe(2);
   await panel.evaluate(() => chrome.storage.local.remove("naviMemoryInbox"));
   await updateMemory();
   expect(curatorBodies).toHaveLength(1);

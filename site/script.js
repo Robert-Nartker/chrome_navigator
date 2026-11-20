@@ -1,168 +1,181 @@
 document.documentElement.classList.add("js");
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* ---------- Voice field: rows of spoken commands, lit by a moving speech waveform ---------- */
-const PHRASES = [
-  "open youtube", "scroll down", "click 12", "read this page", "next heading", "go back",
-  "search wikipedia for red pandas", "pause", "switch to gmail", "what can i say", "show numbers",
-  "type hello world", "press enter", "list the headings", "where am i", "new tab", "grid",
-  "reply saying thanks", "skip ahead 30 seconds", "wake up", "go to sleep", "stop", "zoom in",
-  "close tab", "what tabs are open", "summarize this", "go to the top", "hey navi",
-];
-const TEXT = (() => {
-  let s = "";
-  for (let i = 0; i < 40; i++) s += PHRASES[(i * 11) % PHRASES.length] + " · ";
-  return s.toUpperCase();
-})();
+/* ---------- Nav: see-through over the hero, solid below it ---------- */
+const nav = document.querySelector(".nav");
+const hero = document.querySelector(".hero");
+function updateNav() {
+  nav.classList.toggle("solid", hero.getBoundingClientRect().bottom < 72);
+  nav.classList.toggle("scrolled", scrollY > 8);
+}
+addEventListener("scroll", updateNav, { passive: true });
+updateNav();
 
-function voiceField(canvas, { center = 0.33, spread = 0.5, glowTop = true, anchor = null } = {}) {
+/* ---------- Orb: a ring of sound bars that moves with Navi's "voice" ---------- */
+function orb(canvas, getEnergy) {
   const ctx = canvas.getContext("2d");
-  const LEVELS = 7;
-  const FONT_PX = 12;
-  const LINE = 19;
-  let w = 0, h = 0, cw = 7.2, cols = 0, rows = 0, dpr = 1, yc = 0, maxHalf = 0;
-  let mouse = null, visible = true, t0 = performance.now(), raf = 0, last = 0;
-  const colors = [];
-  for (let i = 0; i < LEVELS; i++) {
-    const k = i / (LEVELS - 1);
-    const a = 0.075 + Math.pow(k, 1.5) * 0.62;
-    const r = Math.round(150 + 105 * k), g = Math.round(150 + 105 * k);
-    colors.push(`rgba(${r},${g},255,${a.toFixed(3)})`);
-  }
+  const core = canvas.parentElement.querySelector(".orb-core");
+  const BARS = 84;
+  const jitter = new Float32Array(BARS);
+  let size = 0, dpr = 1, raf = 0, visible = true, energy = 0;
+  const t0 = performance.now();
 
   function resize() {
-    const rect = canvas.getBoundingClientRect();
-    dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-    w = rect.width; h = rect.height;
-    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    size = canvas.getBoundingClientRect().width;
+    canvas.width = canvas.height = Math.round(size * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.font = `500 ${FONT_PX}px "JetBrains Mono", ui-monospace, monospace`;
-    cw = ctx.measureText("M").width || 7.2;
-    cols = Math.ceil(w / cw) + 2;
-    rows = Math.ceil(h / LINE) + 1;
-    // Center the waveform on the anchor (the headline) wherever the layout puts it.
-    if (anchor) {
-      const a = anchor.getBoundingClientRect();
-      yc = a.top - rect.top + a.height / 2;
-      maxHalf = Math.max(40, a.height * 0.75);
-    } else {
-      yc = h * center;
-      maxHalf = h * 0.3;
-    }
-  }
-
-  // How loud the "voice" is at x (0..1) and time t: bursts like syllables, drifting left to right.
-  function envelope(x, t) {
-    const syll = Math.abs(Math.sin(x * 9.0 - t * 1.6)) * 0.55
-      + Math.abs(Math.sin(x * 21.0 + t * 2.3)) * 0.25
-      + Math.sin(x * 47.0 - t * 4.1) * 0.08;
-    const phrase = 0.55 + 0.45 * Math.sin(x * 2.4 - t * 0.55);
-    const edge = Math.sin(Math.min(1, Math.max(0, x)) * Math.PI) ** 0.6;
-    return Math.max(0, syll * phrase * edge);
   }
 
   function draw(now) {
     const t = (now - t0) / 1000;
-    ctx.clearRect(0, 0, w, h);
-    ctx.font = `500 ${FONT_PX}px "JetBrains Mono", ui-monospace, monospace`;
-    ctx.textBaseline = "top";
-    const env = new Float32Array(cols);
-    for (let c = 0; c < cols; c++) env[c] = Math.min(maxHalf, envelope(c / cols, t) * h * spread + 8);
-    const buf = Array.from({ length: LEVELS }, () => new Array(cols));
-    for (let r = 0; r < rows; r++) {
-      const y = r * LINE;
-      const dir = r % 2 ? 1 : -1;
-      const px = t * (10 + (r % 5) * 3) * dir + r * 37;
-      const shift = ((px % cw) + cw) % cw;
-      const base = Math.floor(px / cw);
-      for (let L = 0; L < LEVELS; L++) buf[L].fill(" ");
-      const dy = Math.abs(y + LINE / 2 - yc);
-      const topGlow = glowTop ? Math.max(0, 1 - y / (h * 0.4)) * 0.22 : 0;
-      for (let c = 0; c < cols; c++) {
-        const idx = ((base + c) % TEXT.length + TEXT.length) % TEXT.length;
-        const ch = TEXT[idx];
-        if (ch === " ") continue;
-        const half = env[c];
-        let k = dy < half ? 1 - (dy / half) * 0.5 : Math.max(0, 0.4 - (dy - half) / (h * 0.06));
-        k = Math.max(k, topGlow * (1 - Math.abs(c / cols - 0.5) * 1.6));
-        if (mouse) {
-          const mx = c * cw - mouse.x, my = y - mouse.y;
-          const d2 = (mx * mx + my * my) / (130 * 130);
-          if (d2 < 1) k = Math.max(k, (1 - d2) * 0.9);
-        }
-        const level = Math.min(LEVELS - 1, Math.max(0, Math.round(k * (LEVELS - 1))));
-        buf[level][c] = ch;
-      }
-      for (let L = 0; L < LEVELS; L++) {
-        const line = buf[L].join("");
-        if (!line.trim()) continue;
-        ctx.fillStyle = colors[L];
-        ctx.fillText(line, -shift - cw, y);
-      }
+    energy += (getEnergy(t) - energy) * 0.12;
+    const c = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    const glow = ctx.createRadialGradient(c, c, size * 0.1, c, c, size * 0.5);
+    glow.addColorStop(0, `rgba(124, 108, 255, ${0.22 + energy * 0.25})`);
+    glow.addColorStop(1, "rgba(124, 108, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, size, size);
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(2, size * 0.0095);
+    const r0 = size * 0.205;
+    for (let i = 0; i < BARS; i++) {
+      const a = (i / BARS) * Math.PI * 2 - Math.PI / 2;
+      jitter[i] += ((Math.random() - 0.5) * 2 - jitter[i]) * 0.18;
+      const shape = 0.55 + 0.45 * Math.sin(a * 3 + t * 2.2) * Math.sin(a * 5 - t * 1.4);
+      const len = size * (0.018 + energy * (0.07 + 0.14 * shape + 0.05 * jitter[i]));
+      const hue = 235 + 50 * Math.sin(a + t * 0.4);
+      ctx.strokeStyle = `hsla(${hue}, 92%, ${72 + energy * 10}%, ${0.45 + energy * 0.5})`;
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0);
+      ctx.lineTo(c + Math.cos(a) * (r0 + len), c + Math.sin(a) * (r0 + len));
+      ctx.stroke();
     }
+    if (core) core.style.setProperty("--e", energy.toFixed(3));
   }
 
   function loop(now) {
     raf = 0;
     if (!visible || document.hidden) return;
-    if (now - last > 33) { draw(now); last = now; }
+    draw(now);
     raf = requestAnimationFrame(loop);
   }
   function start() { if (!raf && !reduceMotion) raf = requestAnimationFrame(loop); }
 
   resize();
-  draw(t0 + 2600);
-  if (reduceMotion) {
-    addEventListener("resize", () => { resize(); draw(t0 + 2600); });
-    return;
-  }
+  energy = getEnergy(1.3);
+  draw(t0 + 1300);
   addEventListener("resize", () => { resize(); draw(performance.now()); });
-  const host = canvas.parentElement;
-  host.addEventListener("pointermove", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  });
-  host.addEventListener("pointerleave", () => { mouse = null; });
-  new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) start(); }).observe(canvas);
+  if (reduceMotion) return;
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) start(); }).observe(canvas);
   document.addEventListener("visibilitychange", start);
-  if (document.fonts) document.fonts.ready.then(() => { resize(); });
   start();
 }
 
-document.querySelectorAll(".hero-field").forEach((c) =>
-  voiceField(c, c.classList.contains("small")
-    ? { center: 0.88, spread: 0.3, glowTop: false }
-    : { anchor: document.getElementById("hero-title") }),
+/* ---------- Console: Navi hearing and answering, one command at a time ---------- */
+const EXAMPLES = [
+  { say: "search wikipedia for red pandas", did: "Searching Wikipedia for red pandas.", path: "Built-in", ms: "52 ms" },
+  { say: "scroll down", did: "Scrolling down.", path: "Built-in", ms: "31 ms" },
+  { say: "list the headings", did: "23 headings. Taxonomy, Description, Behaviour and ecology…", path: "Built-in", ms: "64 ms" },
+  { say: "show numbers", did: "84 flags. Say a number to click it.", path: "Built-in", ms: "40 ms" },
+  { say: "click 12", did: "Clicked “nocturnal”.", path: "Built-in", ms: "38 ms" },
+  { say: "how long do red pandas live?", did: "About 8 to 10 years in the wild, and longer in zoos.", path: "AI", ms: "1.6 s", ai: true },
+  { say: "reply to Sarah saying I'll be late", did: "I wrote “I'll be late” in your reply to Sarah. Send it?", path: "AI · 3 steps", ms: "4.2 s", ai: true },
+];
+
+const consoleEl = document.querySelector(".console");
+let speaking = 0; // 0 idle, 1 talking, 0.5 working
+if (consoleEl) {
+  const heard = consoleEl.querySelector(".heard");
+  const interim = consoleEl.querySelector(".interim");
+  const did = consoleEl.querySelector(".did");
+  const path = consoleEl.querySelector(".path");
+  const ms = consoleEl.querySelector(".ms");
+  const stateText = consoleEl.querySelector(".state b");
+  const setState = (cls, text) => {
+    consoleEl.classList.toggle("speaking", cls === "speaking");
+    consoleEl.classList.toggle("working", cls === "working");
+    stateText.textContent = text;
+  };
+  const show = (ex) => {
+    heard.textContent = ex.say; interim.textContent = "";
+    did.textContent = ex.did; did.classList.add("show");
+    path.textContent = ex.path; path.className = "path " + (ex.ai ? "ai" : "builtin"); ms.textContent = ex.ms;
+  };
+
+  orb(consoleEl.querySelector(".orb"), (t) =>
+    speaking === 1 ? 0.75 + 0.25 * Math.abs(Math.sin(t * 7.3)) * Math.abs(Math.sin(t * 2.9))
+      : speaking === 0.5 ? 0.3 + 0.08 * Math.sin(t * 5)
+      : 0.13 + 0.05 * Math.sin(t * 1.6));
+
+  if (reduceMotion) {
+    show(EXAMPLES[0]);
+  } else {
+    (async () => {
+      await sleep(1100);
+      for (let n = 0; ; n++) {
+        const ex = EXAMPLES[n % EXAMPLES.length];
+        did.classList.remove("show");
+        await sleep(350);
+        heard.textContent = ""; interim.textContent = ""; did.textContent = "";
+        path.textContent = ""; ms.textContent = "";
+        setState("", "Listening");
+        await sleep(450);
+        // Words arrive as you'd see them from a recognizer: grey while it's guessing, then settled.
+        setState("speaking", "Hearing you");
+        speaking = 1;
+        const words = ex.say.split(" ");
+        for (let i = 0; i < words.length; i++) {
+          interim.textContent = (i ? " " : "") + words[i];
+          await sleep(170 + words[i].length * 22);
+          heard.textContent += (i ? " " : "") + words[i];
+          interim.textContent = "";
+        }
+        speaking = ex.ai ? 0.5 : 0;
+        if (ex.ai) { setState("working", "Thinking"); await sleep(1100); }
+        else await sleep(260);
+        speaking = 0;
+        setState("", "Listening");
+        did.textContent = ex.did; did.classList.add("show");
+        path.textContent = ex.path; path.className = "path " + (ex.ai ? "ai" : "builtin"); ms.textContent = ex.ms;
+        await sleep(ex.ai ? 3200 : 2300);
+      }
+    })();
+  }
+}
+
+document.querySelectorAll(".final .orb").forEach((c) =>
+  orb(c, (t) => 0.22 + 0.5 * Math.max(0, Math.sin(t * 1.1)) ** 3 * (0.6 + 0.4 * Math.abs(Math.sin(t * 6.1)))),
 );
 
-/* ---------- Showcase tabs ---------- */
-const tabs = [...document.querySelectorAll('.seg [role="tab"]')];
-function selectTab(tab) {
-  tabs.forEach((t) => {
-    const on = t === tab;
-    t.setAttribute("aria-selected", String(on));
-    t.tabIndex = on ? 0 : -1;
-    document.getElementById(t.dataset.pane).hidden = !on;
-  });
-  if (tab.dataset.pane !== "pane-demo") document.getElementById("demo").pause();
-}
-tabs.forEach((t, i) => {
-  t.addEventListener("click", () => selectTab(t));
-  t.addEventListener("keydown", (e) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-    selectTab(next); next.focus();
-  });
-});
-
-/* ---------- Demo video ---------- */
+/* ---------- Demo video and chapters ---------- */
 const video = document.getElementById("demo");
 const wrap = video.closest(".video-wrap");
-wrap.querySelector(".play").addEventListener("click", () => {
+const chapters = [...document.querySelectorAll(".chapters button")];
+function play(from) {
   video.controls = true;
+  if (from != null) video.currentTime = from;
   video.play();
-});
+}
+wrap.querySelector(".play").addEventListener("click", () => play());
 video.addEventListener("play", () => wrap.classList.add("playing"));
+chapters.forEach((b) => b.addEventListener("click", () => {
+  play(Number(b.dataset.start));
+  wrap.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+}));
+video.addEventListener("timeupdate", () => {
+  const t = video.currentTime;
+  chapters.forEach((b) => {
+    const s = Number(b.dataset.start), e = Number(b.dataset.end);
+    const p = Math.min(1, Math.max(0, (t - s) / (e - s)));
+    b.style.setProperty("--p", p.toFixed(3));
+    const on = t >= s && t < e;
+    b.classList.toggle("current", on);
+    if (on) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current");
+  });
+});
 
 /* ---------- Ticker: repeat the row so it loops seamlessly ---------- */
 document.querySelectorAll(".ticker-row").forEach((row) => {

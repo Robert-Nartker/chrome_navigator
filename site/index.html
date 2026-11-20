@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Navi: browse Chrome with your voice</title>
   <meta name="description" content="Navi is a Chrome extension you control with your voice. Open sites, scroll, click, hear pages read aloud, or hand it a whole task. Speech recognition runs on your computer.">
-  <meta name="theme-color" content="#0a0a24">
+  <meta name="theme-color" content="#07070f">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Navi: say it, Navi does it">
   <meta property="og:description" content="Browse Chrome with your voice. Built for people who can't use a mouse or see the screen, and for anyone who'd rather just talk.">
@@ -16,101 +16,112 @@
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="nav" id="top">
-  <a class="brand" href="#top" aria-label="Navi, back to top">
-    <img src="/media/navi-128.png" alt="" width="30" height="30">
-    <span>Navi</span>
-  </a>
-  <nav class="nav-links" aria-label="Sections">
-    <a href="#features">Features</a>
-    <a href="#how">How it works</a>
-    <a href="#install">Install</a>
-    <a href="#privacy">Privacy</a>
-    <a href="#faq">FAQ</a>
-  </nav>
-  <div class="nav-right">
-    <a class="icon-link" href="https://github.com/Robert-Nartker/chrome_navigator" aria-label="Navi on GitHub">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="Navi, back to top">
+      <img src="/media/navi-128.png" alt="" width="30" height="30">
+      <span>Navi</span>
     </a>
-    <span class="made-by">Made by <a href="https://github.com/Robert-Nartker">Robert Nartker</a></span>
-    <a class="btn btn-dark btn-sm" href="#install">Download</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#demo-sec">Demo</a>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-right">
+      <a class="gh" href="https://github.com/Robert-Nartker/chrome_navigator">
+        <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a class="btn btn-primary btn-sm" href="#install">Get Navi</a>
+    </div>
   </div>
 </header>
 
 <main id="main">
 
 <section class="hero" aria-labelledby="hero-title">
-  <div class="hero-card">
-    <canvas class="hero-field" aria-hidden="true"></canvas>
-    <div class="hero-inner">
-      <p class="badge"><span class="dot"></span> NAVI · VOICE CONTROL FOR CHROME</p>
-      <h1 id="hero-title">Say it.<br>Navi does it.</h1>
-      <p class="lede">Navi is a Chrome extension you run with your voice. Open sites, scroll, click, fill in forms, hear any page read aloud, or hand it a whole task. It hears you on your own computer.</p>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="hero-grid wrap">
+    <div class="hero-copy">
+      <p class="kicker light">A Chrome extension you talk to</p>
+      <h1 id="hero-title">
+        <span class="w" style="--i:0">Say</span> <span class="w" style="--i:1">it.</span><br>
+        <span class="w grad" style="--i:2">Navi</span> <span class="w grad" style="--i:3">does</span> <span class="w grad" style="--i:4">it.</span>
+      </h1>
+      <p class="lede">Open sites, scroll, click, fill in forms, hear any page read aloud, or hand Navi a whole task, all by voice. It hears you on your own computer.</p>
       <div class="cta-row">
-        <a class="btn btn-light btn-lg" href="/navi.zip" download="navi-0.1.0.zip" data-download>
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 8h9M8.5 14 4 6.2M15.5 14 11 21.8" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        <a class="btn btn-primary btn-lg" href="/navi.zip" download="navi-0.1.0.zip" data-download>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Download for Chrome
-          <span class="btn-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </a>
-        <a class="btn btn-ghost btn-lg" href="#install">
-          How to install
-          <span class="btn-badge ghost" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 12h13m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        </a>
+        <a class="link-arrow light" href="#install">How to install <span aria-hidden="true">→</span></a>
       </div>
-      <p class="meta">Chrome 139+ · Windows, macOS, Linux · v0.1.0 · <a href="https://github.com/Robert-Nartker/chrome_navigator">Open source (MIT)</a></p>
+      <ul class="facts" aria-label="At a glance">
+        <li>Free</li><li>Open source</li><li>Speech stays on your computer</li><li>Chrome 139+</li>
+      </ul>
+    </div>
+
+    <div class="console" aria-hidden="true">
+      <div class="console-top">
+        <span class="state"><i></i><b>Listening</b></span>
+        <span class="engine">Parakeet · on this computer</span>
+      </div>
+      <div class="orb-wrap">
+        <canvas class="orb" data-live></canvas>
+        <div class="orb-core"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+      </div>
+      <div class="cap">
+        <div class="cap-row you"><span class="who">You</span><p><span class="heard"></span><span class="interim"></span><span class="cursor"></span></p></div>
+        <div class="cap-row navi"><span class="who">Navi</span><p class="did"></p></div>
+      </div>
+      <div class="cap-meta"><span class="path"></span><span class="ms"></span></div>
     </div>
   </div>
+</section>
 
-  <figure class="showcase reveal">
-    <div class="showcase-head">
-      <div class="showcase-title"><strong>navi</strong> <span>Real browser. Real sites. Real speech.</span></div>
-      <div class="seg" role="tablist" aria-label="What to show">
-        <button role="tab" aria-selected="true" aria-controls="pane-demo" id="tab-demo" data-pane="pane-demo"><span>01</span> Demo</button>
-        <button role="tab" aria-selected="false" aria-controls="pane-panel" id="tab-panel" data-pane="pane-panel" tabindex="-1"><span>02</span> Side panel</button>
+<section class="demo-sec" id="demo-sec" aria-labelledby="demo-title">
+  <div class="wrap">
+    <header class="sec-head center">
+      <p class="kicker">See it work</p>
+      <h2 id="demo-title" class="reveal">One take. <span class="grad">Real sites.</span></h2>
+      <p class="reveal">Navi in a real Chrome window on live Wikipedia, with its side panel open. Only the AI's thinking time is sped up.</p>
+    </header>
+    <div class="player reveal">
+      <div class="video-wrap">
+        <video id="demo" preload="metadata" playsinline poster="/media/demo-poster.jpg"
+               aria-label="80 second demo: Navi searches Wikipedia for red pandas, scrolls, lists and reads headings, clicks a numbered link, and answers questions with the AI, all by voice.">
+          <source src="/media/navi-demo.mp4" type="video/mp4">
+        </video>
+        <button class="play" type="button" aria-label="Play the demo with sound">
+          <span class="play-ico"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span>
+          <span>Watch the demo <small>1:19 · sound on</small></span>
+        </button>
       </div>
+      <ol class="chapters" aria-label="Chapters">
+        <li><button type="button" data-start="3" data-end="12"><span class="ct">0:03</span><b>Just talk</b><small>Search and scroll</small><i class="fill"></i></button></li>
+        <li><button type="button" data-start="12" data-end="37"><span class="ct">0:12</span><b>No screen needed</b><small>Headings, reading aloud</small><i class="fill"></i></button></li>
+        <li><button type="button" data-start="37" data-end="46"><span class="ct">0:37</span><b>Click by number</b><small>Flags on every link</small><i class="fill"></i></button></li>
+        <li><button type="button" data-start="46" data-end="75"><span class="ct">0:46</span><b>Ask the AI</b><small>Questions and tasks</small><i class="fill"></i></button></li>
+      </ol>
     </div>
-    <div class="showcase-body">
-      <div class="pane" id="pane-demo" role="tabpanel" aria-labelledby="tab-demo">
-        <div class="video-wrap">
-          <video id="demo" preload="metadata" playsinline poster="/media/demo-poster.jpg"
-                 aria-label="80 second demo: Navi searches Wikipedia for red pandas, scrolls, lists and reads headings, clicks a numbered link, and answers questions with the AI, all by voice.">
-            <source src="/media/navi-demo.mp4" type="video/mp4">
-          </video>
-          <button class="play" type="button" aria-label="Play the demo with sound">
-            <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
-            <span>Watch the demo <small>1:19 · sound on</small></span>
-          </button>
-        </div>
-      </div>
-      <div class="pane panel-pane" id="pane-panel" role="tabpanel" aria-labelledby="tab-panel" hidden>
-        <div class="panel-shots">
-          <img src="/media/panel-working-dark.png" alt="Navi's side panel in dark mode while the AI works on a task, listing each step" loading="lazy" width="360" height="720">
-          <img src="/media/panel-done-light.png" alt="Navi's side panel in light mode after a few commands: what was said, how it was heard, and the AI's steps" loading="lazy" width="360" height="720">
-          <div class="panel-notes">
-            <h3>Everything Navi heard and did, in one place.</h3>
-            <p>The side panel shows each command as it was heard, what Navi did about it, and every step the AI takes, with the cost of the day so far.</p>
-            <p>It's optional. Close it and Navi keeps listening, with a small caption on the page and spoken replies.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-    <figcaption>Real Chrome window · live Wikipedia · the AI's thinking time is sped up 6×</figcaption>
-  </figure>
+  </div>
 </section>
 
 <section class="says" aria-labelledby="says-title">
   <div class="wrap">
-    <p class="eyebrow">WHAT YOU CAN SAY</p>
-    <div class="split-head">
-      <h2 id="says-title" class="reveal">Talk to it<br>like a person.</h2>
+    <header class="sec-head">
+      <p class="kicker">What you can say</p>
+      <h2 id="says-title" class="reveal">Talk to it <span class="grad">like a person.</span></h2>
       <p class="reveal">Common commands run the instant you finish speaking, with no AI and no network. Say it a different way, or ask for something new, and Navi's AI works out what you meant.</p>
-    </div>
+    </header>
   </div>
   <div class="ticker" aria-hidden="true">
     <div class="ticker-row">
@@ -137,62 +148,64 @@
 
 <section class="features" id="features" aria-labelledby="features-title">
   <div class="wrap">
-    <p class="eyebrow">BUILT FOR EVERYONE</p>
-    <div class="split-head">
-      <h2 id="features-title" class="reveal">No mouse.<br>No screen needed.</h2>
+    <header class="sec-head">
+      <p class="kicker">Built for everyone</p>
+      <h2 id="features-title" class="reveal">No mouse. <span class="grad">No screen needed.</span></h2>
       <p class="reveal">Navi is made first for people who can't use a mouse and keyboard, or can't see the screen. Every feature works by voice, and everything Navi shows, it can also say.</p>
-    </div>
+    </header>
 
     <div class="bento">
-      <article class="card wide reveal">
-        <div class="mock mock-flags" aria-hidden="true">
+      <article class="card wide tint-violet reveal">
+        <div class="card-text">
+          <h3>Everything you can click gets a number</h3>
+          <p>Say “show numbers” and every link, button and field gets a numbered flag. Say the number and Navi clicks it.</p>
+        </div>
+        <div class="stage" aria-hidden="true">
           <div class="mwin">
             <div class="mbar"><i></i><i></i><i></i><span>en.wikipedia.org/wiki/Red_panda</span></div>
             <div class="mpage">
               <div class="mh">Behaviour and ecology</div>
               <p>The red panda is difficult to observe in the wild. It is mainly <a>nocturnal<b>12</b></a> and spends most of its time in <a>trees<b>13</b></a>, coming down to feed on <a>bamboo<b>14</b></a>.</p>
-              <p>It is solitary outside the <a>mating season<b>15</b></a>. Its <a>territory<b>16</b></a> is marked with scent from glands.</p>
               <div class="mbtns"><span>Edit<b>17</b></span><span>Talk<b>18</b></span><span>History<b>19</b></span></div>
             </div>
           </div>
           <div class="said"><span>YOU</span>“click 12”</div>
         </div>
-        <div class="card-text">
-          <h3>Everything you can click gets a number</h3>
-          <p>Say “show numbers” and every link, button and field gets a numbered flag. Say the number and Navi clicks it. For anything else, there's a mouse grid you zoom with numbers.</p>
-        </div>
       </article>
 
-      <article class="card reveal">
-        <div class="mock mock-read" aria-hidden="true">
+      <article class="card tint-sky reveal">
+        <div class="card-text">
+          <h3>Hear how a page is laid out</h3>
+          <p>“List the headings”, “next link”, “go to the email field”. Navi says where you land, the way a screen reader would.</p>
+        </div>
+        <div class="stage col" aria-hidden="true">
           <div class="speak"><span class="wave"><i></i><i></i><i></i><i></i><i></i></span>Navi</div>
-          <ol>
-            <li>Taxonomy, heading level 2, <em>1 of 8</em></li>
+          <ol class="hlist">
             <li>Description, heading level 2, <em>2 of 8</em></li>
             <li class="on">Behaviour and ecology, heading level 2, <em>3 of 8</em></li>
             <li>Conservation, heading level 2, <em>4 of 8</em></li>
           </ol>
         </div>
-        <div class="card-text">
-          <h3>Hear how a page is laid out</h3>
-          <p>“List the headings”, “next link”, “go to the email field”. Navi says where you land, the way a screen reader would, then reads it.</p>
-        </div>
       </article>
 
-      <article class="card reveal">
-        <div class="mock mock-fast" aria-hidden="true">
-          <div class="said dark"><span>YOU</span>“scroll down”</div>
-          <div class="fastline"><b>Built-in command</b><span>48 ms</span></div>
-          <div class="chips"><span>no AI</span><span>no network</span><span>on your computer</span></div>
-        </div>
+      <article class="card tint-mint reveal">
         <div class="card-text">
           <h3>Simple commands are instant</h3>
           <p>Scrolling, tabs, clicking and reading run the moment you stop talking. The AI only steps in when it's needed.</p>
         </div>
+        <div class="stage col" aria-hidden="true">
+          <div class="said static"><span>YOU</span>“scroll down”</div>
+          <div class="fastline"><b>Built-in command</b><span>48 ms</span></div>
+          <div class="chips"><span>no AI</span><span>no network</span></div>
+        </div>
       </article>
 
-      <article class="card wide reveal">
-        <div class="mock mock-ai" aria-hidden="true">
+      <article class="card wide tint-indigo reveal">
+        <div class="card-text">
+          <h3>Anything else goes to the AI</h3>
+          <p>Ask about the page, or hand Navi a task: “reply to this email saying thanks”, “add this to my cart”. It works step by step in your own browser, asks before sending, buying or deleting, and stops when you say “stop”.</p>
+        </div>
+        <div class="stage" aria-hidden="true">
           <div class="mpanel">
             <div class="bubble">open the giant panda article and tell me how much they weigh</div>
             <ul class="steps">
@@ -201,17 +214,16 @@
               <li><i class="ok"></i>Read the Description section</li>
             </ul>
             <div class="reply"><span class="wave"><i></i><i></i><i></i><i></i><i></i></span>Adult giant pandas weigh about 70 to 125 kilograms; males are a little heavier.</div>
-            <div class="pchips"><span>Thinking · Low</span><span>4 steps · 9 s</span><span>$0.01</span></div>
           </div>
-        </div>
-        <div class="card-text">
-          <h3>Anything else goes to the AI</h3>
-          <p>Ask a question about the page, or hand Navi a task: “reply to this email saying thanks”, “add this to my cart”. It works in your own browser, step by step, asks before sending, buying or deleting, and stops when you say “stop”.</p>
         </div>
       </article>
 
-      <article class="card reveal">
-        <div class="mock mock-pill" aria-hidden="true">
+      <article class="card tint-amber reveal">
+        <div class="card-text">
+          <h3>The panel is optional</h3>
+          <p>With the side panel closed, a caption on the page shows what Navi heard and did, and answers are spoken.</p>
+        </div>
+        <div class="stage" aria-hidden="true">
           <div class="mwin small">
             <div class="mbar"><i></i><i></i><i></i><span>youtube.com</span><em class="badge-on">ON</em></div>
             <div class="mpage blank"><div class="ytbox"></div>
@@ -219,31 +231,37 @@
             </div>
           </div>
         </div>
-        <div class="card-text">
-          <h3>The panel is optional</h3>
-          <p>With the side panel closed, a small caption on the page shows what Navi heard and did, the toolbar badge shows its state, and answers are spoken.</p>
-        </div>
       </article>
 
-      <article class="card reveal">
-        <div class="mock mock-custom" aria-hidden="true">
-          <div class="said dark"><span>YOU</span>“study mode”</div>
-          <div class="chain"><span>Open Canvas</span><em>→</em><span>Play lofi on YouTube</span></div>
-          <p class="note">Made by saying “make study mode open Canvas and play lofi on YouTube”</p>
-        </div>
+      <article class="card tint-rose reveal">
         <div class="card-text">
           <h3>Make your own commands</h3>
-          <p>Teach Navi shortcuts by asking for them. They run instantly and follow you to every computer you use Chrome on.</p>
+          <p>Ask for a shortcut and Navi makes it. It runs instantly and follows you to every computer you use Chrome on.</p>
+        </div>
+        <div class="stage col" aria-hidden="true">
+          <div class="said static"><span>YOU</span>“study mode”</div>
+          <div class="chain"><span>Open Canvas</span><em>→</em><span>Play lofi on YouTube</span></div>
         </div>
       </article>
 
-      <article class="card reveal">
-        <div class="mock mock-grid" aria-hidden="true">
-          <div class="g9"><span>1</span><span>2</span><span>3</span><span>4</span><span class="hit">5</span><span>6</span><span>7</span><span>8</span><span>9</span></div>
-        </div>
+      <article class="card tint-violet reveal">
         <div class="card-text">
           <h3>Reach anything on screen</h3>
-          <p>“Grid”, then a number to zoom in, then “click”. Icons, maps and canvas apps with no real buttons, all by voice.</p>
+          <p>“Grid”, a number to zoom in, then “click”. Icons, maps and canvas apps with no real buttons, all by voice.</p>
+        </div>
+        <div class="stage" aria-hidden="true">
+          <div class="g9"><span>1</span><span>2</span><span>3</span><span>4</span><span class="hit">5</span><span>6</span><span>7</span><span>8</span><span>9</span></div>
+        </div>
+      </article>
+
+      <article class="card full tint-sky reveal">
+        <div class="card-text">
+          <h3>Everything Navi heard and did, in one place</h3>
+          <p>The side panel shows each command as it was heard, what Navi did about it, and every step the AI takes, with what the day has cost so far. Light or dark, it follows Chrome.</p>
+        </div>
+        <div class="stage shots">
+          <img src="/media/panel-working-dark.png" alt="Navi's side panel in dark mode while the AI works on a task, listing each step" loading="lazy" width="360" height="720">
+          <img src="/media/panel-done-light.png" alt="Navi's side panel in light mode after a few commands: what was said, how it was heard, and the AI's steps" loading="lazy" width="360" height="720">
         </div>
       </article>
     </div>
@@ -252,11 +270,11 @@
 
 <section class="how" id="how" aria-labelledby="how-title">
   <div class="wrap">
-    <p class="eyebrow">HOW IT WORKS</p>
-    <div class="split-head">
-      <h2 id="how-title" class="reveal">Instant first.<br>Smart when needed.</h2>
+    <header class="sec-head">
+      <p class="kicker">How it works</p>
+      <h2 id="how-title" class="reveal">Instant first. <span class="grad">Smart when needed.</span></h2>
       <p class="reveal">Your voice is turned into words on your own computer. Navi runs the commands it knows straight away, and only sends the rest to an AI.</p>
-    </div>
+    </header>
     <ol class="pipeline">
       <li class="reveal">
         <span class="num">01</span>
@@ -284,11 +302,11 @@
 
 <section class="install" id="install" aria-labelledby="install-title">
   <div class="wrap">
-    <p class="eyebrow">INSTALL</p>
-    <div class="split-head">
-      <h2 id="install-title" class="reveal">Set up in<br>two minutes.</h2>
+    <header class="sec-head">
+      <p class="kicker">Install</p>
+      <h2 id="install-title" class="reveal">Set up in <span class="grad">two minutes.</span></h2>
       <p class="reveal">Navi isn't on the Chrome Web Store yet, so you add it to Chrome yourself. It's a few clicks, once. After setup, nothing needs a click again.</p>
-    </div>
+    </header>
 
     <ol class="steps-list">
       <li class="step reveal">
@@ -296,7 +314,7 @@
           <span class="num">1</span>
           <h3>Download Navi and unzip it</h3>
           <p>On Windows, right-click the file and choose <strong>Extract All</strong>. On a Mac, double-click it. You'll get a folder called <code>navi</code>. Keep it somewhere it won't be deleted, like your Documents folder.</p>
-          <a class="btn btn-dark" href="/navi.zip" download="navi-0.1.0.zip" data-download>
+          <a class="btn btn-primary" href="/navi.zip" download="navi-0.1.0.zip" data-download>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Download navi.zip <small>24 MB</small>
           </a>
@@ -377,7 +395,7 @@
         </div>
         <div class="step-mock" aria-hidden="true">
           <div class="keys"><kbd>Alt</kbd><em>+</em><kbd>Shift</kbd><em>+</em><kbd>N</kbd></div>
-          <div class="said dark"><span>YOU</span>“what can I say?”</div>
+          <div class="said static"><span>YOU</span>“what can I say?”</div>
         </div>
       </li>
     </ol>
@@ -402,11 +420,11 @@ npm run build      # the extension is in dist/</code></pre>
 
 <section class="plans-sec" aria-labelledby="plans-title">
   <div class="wrap">
-    <p class="eyebrow">FREE AND PRO</p>
-    <div class="split-head">
-      <h2 id="plans-title" class="reveal">Free for good.<br>Pro when you need hands.</h2>
+    <header class="sec-head">
+      <p class="kicker">Free and Pro</p>
+      <h2 id="plans-title" class="reveal">Free for good. <span class="grad">Pro when you need hands.</span></h2>
       <p class="reveal">There's no account and no subscription. Pro uses your own AI key, so you pay the AI company directly, usually a few cents an hour.</p>
-    </div>
+    </header>
     <div class="plan-cards">
       <article class="plan-card reveal">
         <header><h3>Navi Free</h3><p class="price">$0</p><p class="sub">The AI runs on your computer</p></header>
@@ -436,11 +454,11 @@ npm run build      # the extension is in dist/</code></pre>
 
 <section class="privacy" id="privacy" aria-labelledby="privacy-title">
   <div class="wrap">
-    <p class="eyebrow">PRIVACY</p>
-    <div class="split-head">
-      <h2 id="privacy-title" class="reveal">Your voice stays<br>on your computer.</h2>
+    <header class="sec-head">
+      <p class="kicker">Privacy</p>
+      <h2 id="privacy-title" class="reveal">Your voice stays <span class="grad">on your computer.</span></h2>
       <p class="reveal">A microphone that's always listening has to earn your trust. Here's exactly what Navi does with what it hears and sees.</p>
-    </div>
+    </header>
     <ul class="priv-grid">
       <li class="reveal"><span class="pico">🎙</span><h3>Speech is recognized locally</h3><p>Parakeet or Chrome's on-device recognizer. Navi never uses Chrome's cloud speech service. Navi's voice runs on your computer too.</p></li>
       <li class="reveal"><span class="pico">⏻</span><h3>Off means off</h3><p>Navi starts off each time Chrome opens: no mic, nothing loaded. Asleep, nothing you say is acted on, kept or sent anywhere until “wake up”.</p></li>
@@ -454,8 +472,10 @@ npm run build      # the extension is in dist/</code></pre>
 
 <section class="faq" id="faq" aria-labelledby="faq-title">
   <div class="wrap narrow">
-    <p class="eyebrow">FAQ</p>
-    <h2 id="faq-title" class="reveal">Questions</h2>
+    <header class="sec-head center">
+      <p class="kicker">FAQ</p>
+      <h2 id="faq-title" class="reveal">Questions, <span class="grad">answered.</span></h2>
+    </header>
     <div class="faq-list">
       <details><summary>Does Navi cost anything?</summary><p>No. Navi Free is free, with no account. Navi Pro uses your own OpenAI or Anthropic key, so the AI company bills you for what you use, usually a few cents an hour of active use. The panel shows today's cost.</p></details>
       <details><summary>Which browsers does it work in?</summary><p>Google Chrome 139 or newer, on Windows, macOS and Linux. On-device speech recognition needs Chrome 139+. Other Chromium browsers may work but aren't tested.</p></details>
@@ -471,15 +491,17 @@ npm run build      # the extension is in dist/</code></pre>
 </section>
 
 <section class="final" aria-labelledby="final-title">
-  <div class="final-card">
-    <canvas class="hero-field small" aria-hidden="true"></canvas>
-    <div class="final-inner">
-      <h2 id="final-title">Put the mouse down.</h2>
-      <p>Download Navi, load it into Chrome, and say “what can I say?”</p>
-      <div class="cta-row">
-        <a class="btn btn-light btn-lg" href="/navi.zip" download="navi-0.1.0.zip" data-download>Download for Chrome</a>
-        <a class="btn btn-ghost btn-lg" href="https://github.com/Robert-Nartker/chrome_navigator">View on GitHub</a>
-      </div>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="final-inner wrap">
+    <div class="orb-wrap small" aria-hidden="true">
+      <canvas class="orb"></canvas>
+      <div class="orb-core"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+    </div>
+    <h2 id="final-title">Put the mouse <span class="grad">down.</span></h2>
+    <p>Download Navi, load it into Chrome, and say “what can I say?”</p>
+    <div class="cta-row center">
+      <a class="btn btn-primary btn-lg" href="/navi.zip" download="navi-0.1.0.zip" data-download>Download for Chrome</a>
+      <a class="link-arrow light" href="https://github.com/Robert-Nartker/chrome_navigator">View the code on GitHub <span aria-hidden="true">→</span></a>
     </div>
   </div>
 </section>
@@ -489,7 +511,7 @@ npm run build      # the extension is in dist/</code></pre>
 <footer class="footer">
   <div class="wrap foot">
     <div class="brand"><img src="/media/navi-128.png" alt="" width="24" height="24"><span>Navi</span></div>
-    <p>A BDAA AI Fundamentals project, Autumn 2026. Open source under the MIT license.</p>
+    <p>Made by <a href="https://github.com/Robert-Nartker">Robert Nartker</a> for BDAA AI Fundamentals, Autumn 2026. Open source under the MIT license.</p>
     <nav aria-label="Footer">
       <a href="https://github.com/Robert-Nartker/chrome_navigator">GitHub</a>
       <a href="https://github.com/Robert-Nartker/chrome_navigator/blob/main/CHANGELOG.md">Changelog</a>
